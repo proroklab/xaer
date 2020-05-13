@@ -451,7 +451,7 @@ class AC_Algorithm(object):
 	def predict_reward(self, reward_dict):
 		assert flags.intrinsic_reward, "Cannot get intrinsic reward if the RND layer is not built"
 		# State
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=reward_dict['states'])
+		feed_dict = self._get_multihead_feed(target=self.state_batch, source=reward_dict['new_states'])
 		feed_dict.update( self._get_multihead_feed(target=self.state_mean_batch, source=[reward_dict['state_mean']]) )
 		feed_dict.update( self._get_multihead_feed(target=self.state_std_batch, source=[reward_dict['state_std']]) )
 		# Return intrinsic_reward
