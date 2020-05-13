@@ -22,7 +22,7 @@ def build():
 	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO"
 	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO"
 # State Predictor
-	options["with_state_predictor"] = True # This add an extra heads to the default set of heads: actor, critic
+	options["with_state_predictor"] = True # Setting this option to True, you add an extra head to the default set of heads: actor, critic. This new head will be trained to predict the embedding of s_(t+1) given the embedding of s_t and a_t. The distance between the predicted s_(t+1) and the real s_(t+1) is going to be used for prioritizing the replay buffer, if it is a prioritized replay buffer.
 # Loss clip range
 	options["clip"] = 0.1 # "PPO/PVO initial clip range" # default is 0.2, for openAI is 0.1
 	options["clip_decay"] = False # "Whether to decay the clip range"
@@ -36,7 +36,7 @@ def build():
 	options["alpha_decay_steps"] = 10**8 # "decay alpha every x steps" # default is 10**6
 	options["alpha_decay_rate"] = 0.96 # "decay rate" # default is 0.25
 # Intrinsic Rewards: Burda = Yuri = et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
-	options["intrinsic_reward"] = True # "An intrinisc reward is given for exploring new states."
+	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states."
 	options["use_training_state"] = False # "Use intrinsic reward weights (the training state) as network input. Requires intrinsic_reward == True."
 	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards."
 	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
@@ -50,7 +50,7 @@ def build():
 # Experience Replay
 	# Replay mean > 0 increases off-policyness
 	options["replay_mean"] = 2 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0 = then experience replay is not active." # for A3C is 0 = for ACER default is 4
-	options["replay_step"] = 2**20 # "Start replaying experience when global step is greater than replay_step."
+	options["replay_step"] = 2**19 # "Start replaying experience when global step is greater than replay_step."
 	options["replay_buffer_size"] = 2**7 # "Maximum number of batches stored in the experience buffer."
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
 	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to an extrinsic reward (the best ones)."
