@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="iso-8859-1" standalone="no"?>
+<AADC-Maneuver-List description="Teststrecke">
+	<AADC-Sector id="0">
+		<AADC-Maneuver id="0" action="left" extra="-1" />
+		<AADC-Maneuver id="1" action="right" extra="-1" />
+		<AADC-Maneuver id="1" action="left" extra="-1" />
+		<AADC-Maneuver id="1" action="park" extra="1" />
+	</AADC-Sector>
+</AADC-Maneuver-List>

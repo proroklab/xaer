@@ -1,0 +1,14 @@
+cython
+psutil
+numba
+tensorflow==1.15.2
+tensorflow_probability==0.8.0
+scipy
+sklearn
+matplotlib
+seaborn
+imageio
+Pillow
+sortedcontainers
+opencv-python
+gym[atari]
