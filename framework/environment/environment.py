@@ -53,6 +53,7 @@ class Environment(object):
 		self.id = id
 		self.__config_dict = config_dict
 		self.__game_wrapper = game_wrapper
+		self.__game_thread = None
 
 		# Statistics
 		self.__episode_statistics = Statistics(flags.episode_count_for_evaluation)
