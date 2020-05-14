@@ -298,7 +298,7 @@ class NetworkManager(object):
 				with self.experience_buffer_lock:
 					old_batch = self.experience_buffer.sample()
 			# Replay value, without keeping experience_buffer_lock the buffer update might be not consistent anymore
-			self._play_critic(batch=old_batch, with_value=flags.recompute_value_when_replaying, with_bootstrap=False, with_intrinsic_reward=flags.intrinsic_reward)
+			self._play_critic(batch=old_batch, with_value=flags.runtime_advantage, with_bootstrap=False, with_intrinsic_reward=flags.intrinsic_reward)
 			# Train
 			self._train(replay=True, batch=old_batch)
 		# Update buffer
@@ -322,7 +322,7 @@ class NetworkManager(object):
 			is_best = extrinsic_reward > 0 # Best batches = batches that lead to positive extrinsic reward
 			#===================================================================
 			# # Build the best known cumulative return
-			# if is_best and not flags.recompute_value_when_replaying:
+			# if is_best and not flags.runtime_advantage:
 			# 	if composite_batch.size() > 1: # No need to recompute the cumulative return if composite batch has only 1 batch
 			# 		self._compute_discounted_cumulative_reward(composite_batch)
 			#===================================================================

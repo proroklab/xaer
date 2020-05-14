@@ -139,7 +139,8 @@ def plot(logs, figure_file):
 				ax.legend()
 				# display grid
 				ax.grid(True)
-	figure.savefig(figure_file,bbox_inches='tight')
+	# figure.savefig(figure_file,bbox_inches='tight')
+	figure.savefig(figure_file)
 	print("Plot figure saved in ", figure_file)
 	figure = None
 

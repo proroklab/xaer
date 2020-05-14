@@ -1,55 +1,123 @@
 # -*- coding: utf-8 -*-
+from multiprocessing import Process, Queue
+# from multiprocessing import Queue
+# from threading import Thread as Process
 import numpy as np
 import random
+from utils.statistics import Statistics
+
 import options
 flags = options.get()
 
 class Environment(object):
 	state_scaler = 1
-	
+
 	@staticmethod
 	def create_environment(env_type, env_id=0, training=True, group_id=0):
-		if env_type == 'rogue':
-			from . import rogue_environment
-			return rogue_environment.RogueEnvironment(env_id)
-		elif env_type == 'MultipleProteinAlignment':
-			from . import multiple_protein_alignment_environment
-			return multiple_protein_alignment_environment.MSAEnvironment(env_id, training)
-		elif env_type == 'car_controller':
-			from . import car_controller_environment
-			return car_controller_environment.CarControllerEnvironment(env_id)
-		elif env_type == 'sentipolc':
-			from . import sentipolc_environment
-			return sentipolc_environment.SentiPolcEnvironment(env_id, training)
-		elif env_type == 'TextGenerator':
-			from . import text_generator
-			return text_generator.TextGenerator(env_id, training, group_id)
-		elif env_type == 'BusyBarracks':
-			from . import bb_environment
-			return bb_environment.BBEnvironment(env_id)
+		if env_type == 'CarController':
+			from environment.car_controller.car_controller_wrapper import CarControllerGameWrapper
+			return Environment(env_id, CarControllerGameWrapper)
 		else:
-			from . import gym_environment
-			return gym_environment.GymEnvironment(env_id, env_type)
-		
-	def get_concatenation_size(self):
-		return sum(map(lambda x: x[0], self.get_action_shape()))+1
-		
-	# Last Action-Reward: Jaderberg, Max, et al. "Reinforcement learning with unsupervised auxiliary tasks." arXiv preprint arXiv:1611.05397 (2016).
-	def get_concatenation(self):
-		if self.last_action is None:
-			return np.zeros(self.get_concatenation_size())
-		flatten_action = np.concatenate([np.reshape(a,-1) for a in self.last_action], -1)
-		return np.concatenate((flatten_action,[self.last_reward]), -1)
+			from environment.openai_gym.openai_gym_wrapper import GymGameWrapper
+			Environment.state_scaler = GymGameWrapper.state_scaler
+			return Environment(env_id, GymGameWrapper, {'game': env_type})
 
-	def process(self, action):
-		pass
+	@staticmethod
+	def __game_worker(input_queue, output_queue, game_wrapper, config_dict):
+		def get_observation_dict(game):
+			observation_dict = {
+				'state': game.last_state,
+				'reward': game.last_reward,
+				'step': game.step,
+				'is_over': game.is_over,
+				'statistics': game.get_statistics(),
+			}
+			if config_dict.get('get_screen',False):
+				observation_dict['screen'] = game.get_screen()
+				observation_dict['info'] = game.get_info()
+			return observation_dict
+		game = game_wrapper(config_dict)
+		game.reset()
+		observation_dict = get_observation_dict(game)
+		output_queue.put(observation_dict) # step = 0
+		while not game.is_over:
+			action = input_queue.get()
+			# print(action)
+			if action is None:   # If you send `None`, the thread will exit.
+				return
+			game.process(action)
+			observation_dict = get_observation_dict(game)
+			output_queue.put(observation_dict) # step > 0
 
-	def reset(self, data_id=None):
-		pass
+	def __init__(self, id, game_wrapper, config_dict={}):
+		self.id = id
+		self.__config_dict = config_dict
+		self.__game_wrapper = game_wrapper
+		
+		self.__game_thread = None
+		self.__input_queue = Queue()
+		self.__output_queue = Queue()
+
+		# Statistics
+		self.__episode_statistics = Statistics(flags.episode_count_for_evaluation)
+		
+		tmp_game = game_wrapper(config_dict)
+		self.__state_shape = tmp_game.get_state_shape()
+		self.__action_shape = tmp_game.get_action_shape()
+		self.__has_masked_actions = tmp_game.has_masked_actions()
+
+	def get_state_shape(self):
+		return self.__state_shape
+
+	def get_action_shape(self):
+		return self.__action_shape
 
 	def stop(self):
-		pass
-	
+		if self.__game_thread is not None:
+			# print('Closing..')
+			self.__input_queue.put(None)
+			self.__game_thread.join()
+			self.__game_thread.terminate()
+			self.__game_thread = None
+			self.__input_queue = Queue()
+			self.__output_queue = Queue()
+			# print('Closed')
+
+	def reset(self, data_id=None, get_screen=False):
+		self.stop()
+		self.__config_dict['get_screen'] = get_screen
+		# print('Starting..')
+		self.__game_thread = Process(
+			target=self.__game_worker, 
+			args=(self.__input_queue, self.__output_queue, self.__game_wrapper, self.__config_dict)
+		)
+		self.__game_thread.daemon = True
+		self.__game_thread.start()
+		#time.sleep(0.1)
+		self.last_observation = self.__output_queue.get()
+		self.last_state = self.last_observation['state']
+		self.last_reward = 0
+		self.last_action = None
+		self.step = 0
+		#print(self.id, self.step)
+		return self.last_state
+
+	def process(self, action_vector):
+		self.__input_queue.put(action_vector)
+		if self.__game_thread.is_alive():
+			self.last_observation = self.__output_queue.get()
+			is_terminal = self.last_observation['is_over']
+			self.last_state = self.last_observation['state']
+			self.last_reward = self.last_observation['reward'] if not is_terminal else 1
+			self.last_action = action_vector
+			if is_terminal:
+				self.__episode_statistics.add(self.last_observation['statistics'])
+		else:
+			is_terminal = True
+		# complete step
+		self.step += 1
+		return self.last_state, self.last_reward, is_terminal, None
+		
 	def sample_random_action(self):
 		result = []
 		for action_shape in self.get_action_shape():
@@ -65,30 +133,27 @@ class Environment(object):
 				result.append([2*random.random()-1 for _ in range(count)])
 		return result
 		
-	def get_state_shape(self):
-		pass
-	
 	def get_test_result(self):
 		return None
 		
 	def get_dataset_size(self):
 		return flags.episode_count_for_evaluation
 		
-	def evaluate_test_results(self, test_result_file):
-		pass
-		
 	def get_screen_shape(self):
 		return self.get_state_shape()
 	
 	def get_info(self):
-		return None
+		return self.last_observation.get('info',{})
 	
 	def get_screen(self):
-		return None
+		return self.last_observation.get('screen',{})
 	
 	def get_statistics(self):
-		return {}
+		return self.__episode_statistics.get()
 	
 	def has_masked_actions(self):
-		return False
+		return self.__has_masked_actions
+
+	def evaluate_test_results(self, test_result_file):
+		pass
 

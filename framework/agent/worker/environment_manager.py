@@ -58,8 +58,6 @@ class EnvironmentManager(object):
 
 	def prepare_episode(self, data_id=None): # initialize a new episode
 		self.terminal = False
-		# Reset environment
-		self.environment.reset(data_id)
 		# Internal state
 		self._last_internal_state = None
 		self._batch = None
@@ -78,6 +76,8 @@ class EnvironmentManager(object):
 			self.save_frame_info = False
 		else:
 			self.save_frame_info = flags.show_episodes != 'random' or np.random.random() <= flags.show_episode_probability
+		# Reset environment
+		self.environment.reset(data_id, self.save_frame_info)
 
 	def stop(self): # stop current episode
 		self.environment.stop()

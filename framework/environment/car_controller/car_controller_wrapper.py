@@ -9,14 +9,10 @@ from matplotlib.lines import Line2D
 
 import numpy as np
 from scipy import optimize
-from environment.environment import Environment
-from environment.car_stuff.utils import *
-from utils.statistics import Statistics
+from environment.game_wrapper import GameWrapper
+from environment.car_controller.car_stuff.utils import *
 
-import options
-flags = options.get() # get command line args
-	
-class CarControllerEnvironment(Environment):
+class CarControllerGameWrapper(GameWrapper):
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
 	horizon_distance = 1 # meters
 	track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
@@ -53,23 +49,19 @@ class CarControllerEnvironment(Environment):
 	def get_action_shape(self):
 		return [(2,)] # steering angle, continuous control without softmax
 	
-	def __init__(self, thread_index):
-		Environment.__init__(self)
-		self.thread_index = thread_index
+	def __init__(self, config_dict):
 		self.max_step = self.max_step_per_spline*self.spline_number
 		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)
 		self.control_points_per_step = max(self.min_control_points_per_step,self.max_obstacle_count)
 		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
-		# Statistics
-		self.__episode_statistics = Statistics(flags.episode_count_for_evaluation)
 		# Shapes
 		self.state_shape = self.get_state_shape()[0]
 		self.action_shape = self.get_action_shape()
 	
-	def reset(self, data_id=None):
-		self.step = 0
+	def reset(self):
+		super().reset()
 		self.seconds_per_step = self.get_step_seconds()
 		self.path = self.build_random_path()
 		# car position
@@ -249,13 +241,14 @@ class CarControllerEnvironment(Environment):
 		self.step += 1
 		terminal = dead or self.is_terminal_position(car_position) or self.step >= self.max_step
 		if terminal: # populate statistics
+			self.is_over = True
 			stats = {
 				"avg_speed": self.avg_speed_per_steps/self.step,
 				"completed": 1 if self.is_terminal_position(car_position) else 0
 			}
 			if self.max_obstacle_count > 0:
 				stats["hit"] = 1 if dead else 0
-			self.__episode_statistics.add(stats)
+			self.episode_statistics = stats
 		return state, reward, terminal, None
 	
 	def get_concatenation_size(self):
@@ -285,7 +278,7 @@ class CarControllerEnvironment(Environment):
 			malus = self.speed_upper_limit*max(0,car_speed/self.speed_upper_limit-1)*self.seconds_per_step
 			# smaller distances to path give higher rewards
 			bonus = min(car_speed,self.speed_upper_limit)*self.seconds_per_step*inverse_distance_ratio
-			return (bonus-malus, False) # do not terminate episode
+			return (max(0,bonus-malus), False) # do not terminate episode
 		# else is NOT moving toward next position
 		return (-0.1, False) # do not terminate episode
 		
@@ -374,4 +367,4 @@ class CarControllerEnvironment(Environment):
 		return {'RGB': data} # RGB array
 				
 	def get_statistics(self):
-		return self.__episode_statistics.get()
+		return self.episode_statistics

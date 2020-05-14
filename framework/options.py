@@ -8,17 +8,17 @@ def build():
 	options["max_timestep"] = 2**30 # "Max training time steps."
 	options["timesteps_before_starting_training"] = 2**10 # "Number of initialization steps."
 # Environment
-	options["env_type"] = "car_controller" # "environment types: BusyBarracks, rogue, car_controller, sentipolc, or environments from https://gym.openai.com/envs"
+	options["env_type"] = "CarController" # "environment types: CarController or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16 = float32 = float64"
 	options["algorithm"] = "AC" # "algorithms: AC = ACER"
-	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala"
+	options["network_configuration"] = "OpenAILarge" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = "Adam" # "gradient optimizer: PowerSign, AddSign, ElasticAverage, LazyAdam, Nadam, Adadelta, AdagradDA, Adagrad, Adam, Ftrl, GradientDescent, Momentum, ProximalAdagrad, ProximalGradientDescent, RMSProp" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.
 	options["only_non_negative_entropy"] = True # "Cross-entropy and entropy are used for policy loss and if this flag is true, then entropy=max(0,entropy). If cross-entropy measures the average number of bits needed to identify an event, then it cannot be negative."
 	# Use mean losses if max_batch_size is too big = in order to avoid NaN
-	options["loss_type"] = "mean" # "type of loss reduction: sum, mean"
+	options["loss_type"] = "sum" # "type of loss reduction: sum, mean"
 	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO"
 	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO"
 # State Predictor
@@ -38,7 +38,7 @@ def build():
 # Intrinsic Rewards: Burda = Yuri = et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
 	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states."
 	options["use_training_state"] = False # "Use intrinsic reward weights (the training state) as network input. Requires intrinsic_reward == True."
-	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards."
+	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
 	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
 	options["scale_intrinsic_reward"] = False # "Whether to scale the intrinsic reward with its standard deviation."
 	options["intrinsic_rewards_mini_batch_fraction"] = 0 # "Keep only the best intrinsic reward in a mini-batch of size 'batch_size*fraction', and set other intrinsic rewards to 0."
@@ -49,16 +49,15 @@ def build():
 	options["episodic_intrinsic_reward"] = False # "Bootstrap 0 for intrinsic value if state is terminal."
 # Experience Replay
 	# Replay mean > 0 increases off-policyness
-	options["replay_mean"] = 2 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0 = then experience replay is not active." # for A3C is 0 = for ACER default is 4
-	options["replay_step"] = 2**19 # "Start replaying experience when global step is greater than replay_step."
-	options["replay_buffer_size"] = 2**7 # "Maximum number of batches stored in the experience buffer."
+	options["replay_mean"] = 0.5 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for A3C is 0, for ACER default is 4
+	options["replay_step"] = 2**18 # "Start replaying experience when global step is greater than replay_step."
+	options["replay_buffer_size"] = 2**10 # "Maximum number of batches stored in the experience buffer."
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
-	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to an extrinsic reward (the best ones)."
-	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output). "
-	options["recompute_value_when_replaying"] = False # "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model."
+	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
+	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output)." -> might be useful only if combined with replay_only_best_batches=True
 	options["train_critic_when_replaying"] = False # "Whether to train also the critic when replaying. Works only when separate_actor_from_critic=True."
-	options["runtime_advantage"] = True # "Whether to compute advantage at runtime, using always up to date state values instead of old ones." # default True
-	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range = then no replay is performed."
+	options["runtime_advantage"] = True # "Whether to compute advantage at runtime, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
+	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritized_replay"] = True # "Whether to use prioritized sampling (if replay_mean > 0)" # default is True
 	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization = 1 - full prioritization)."
@@ -77,7 +76,7 @@ def build():
 	# Taking gamma < 1 introduces bias into the policy gradient estimate = regardless of the value function accuracy.
 	options["gamma"] = 0.999 # "Discount factor for extrinsic rewards" # default is 0.95 = for openAI is 0.99
 # Entropy regularization
-	options["entropy_regularization"] = False # "Whether to add entropy regularization to policy loss." # default True
+	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss." # default True
 	options["beta"] = 1e-3 # "entropy regularization constant" # default is 0.001, for openAI is 0.01
 # Generalized Advantage Estimation: Schulman = John = et al. "High-dimensional continuous control using generalized advantage estimation." arXiv preprint arXiv:1506.02438 (2015).
 	options["use_GAE"] = True # "Whether to use Generalized Advantage Estimation." # default in openAI's PPO implementation
@@ -95,9 +94,9 @@ def build():
 	options["checkpoint_dir"] = "./checkpoint" # "checkpoint directory"
 	options["event_dir"] = "./events" # "events directory"
 	options["log_directory"] = "./log" # "events directory"
-	options["print_loss"] = False # "Whether to print losses inside statistics" # print_loss = True might slow down the algorithm
-	options["print_policy_info"] = False # "Whether to print debug information about the actor inside statistics" # print_policy_info = True might slow down the algorithm
-	options["show_episodes"] = 'random' # "What type of episodes to save: random = best = all = none"
+	options["print_loss"] = True # "Whether to print losses inside statistics" # print_loss = True might slow down the algorithm
+	options["print_policy_info"] = True # "Whether to print debug information about the actor inside statistics" # print_policy_info = True might slow down the algorithm
+	options["show_episodes"] = 'random' # "What type of episodes to save: random, best, all, none"
 	options["show_episode_probability"] = 1e-3 # "Probability of showing an episode when show_episodes == random"
 	# save_episode_screen = True might slow down the algorithm -> use in combination with show_episodes = 'random' for best perfomance
 	options["save_episode_screen"] = True # "Whether to save episode screens"
