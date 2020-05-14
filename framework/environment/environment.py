@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from multiprocessing import Process, Queue
+import time
+from multiprocessing import Process, SimpleQueue as Queue
 # from multiprocessing import Queue
 # from threading import Thread as Process
 import numpy as np
@@ -75,22 +76,22 @@ class Environment(object):
 			self.__input_queue.put(None)
 			self.__game_thread.join()
 			self.__game_thread.terminate()
-		self.__game_thread = None
-		self.__input_queue = Queue()
-		self.__output_queue = Queue()
-		# print('Closed')
+			self.__game_thread = None
+			# print('Closed')
 
 	def reset(self, data_id=None, get_screen=False):
 		self.stop()
 		self.__config_dict['get_screen'] = get_screen
 		# print('Starting..')
+		self.__input_queue = Queue()
+		self.__output_queue = Queue()
 		self.__game_thread = Process(
 			target=self.__game_worker, 
 			args=(self.__input_queue, self.__output_queue, self.__game_wrapper, self.__config_dict)
 		)
 		# self.__game_thread.daemon = True
 		self.__game_thread.start()
-		#time.sleep(0.1)
+		time.sleep(0.1)
 		self.last_observation = self.__output_queue.get()
 		self.last_state = self.last_observation['state']
 		self.last_reward = 0

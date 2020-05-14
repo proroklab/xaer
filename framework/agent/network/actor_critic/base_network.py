@@ -73,6 +73,7 @@ class Base_Network(Network):
 				ord='euclidean',
 				axis=-1
 			)
+			print( "	[{}]Relevance shape: {}".format(self.id, self.relevance_batch.get_shape()) )
 		
 		# return self.policy_batch, self.value_batch, self.relevance_batch
 
@@ -103,9 +104,8 @@ class Base_Network(Network):
 		layer_type = 'CNN'
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.layers.conv2d(name='CNN_Conv1', inputs=input, filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
-			input = tf.layers.conv2d(name='CNN_Conv2', inputs=input, filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
-			input = tf.layers.conv2d(name='CNN_Conv3', inputs=input, filters=64, kernel_size=4, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
+			input = tf.layers.conv2d(name='CNN_Conv1', inputs=input, filters=16, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
+			input = tf.layers.conv2d(name='CNN_Conv2', inputs=input, filters=32, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
 			# update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# return result
