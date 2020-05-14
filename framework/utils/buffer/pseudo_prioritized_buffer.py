@@ -45,40 +45,40 @@ class PseudoPrioritizedBuffer(Buffer):
 		
 	def put(self, batch, priority, type_id=0): # O(log)
 		self._add_type_if_not_exist(type_id)
-		type = self.get_type(type_id)
+		type_ = self.get_type(type_id)
 		removing_worst_batch = False
-		if self.is_full(type):
-			if random() < self._prioritized_drop_probability: # Remove the batch with lowest priority
-				_,idx = self._it_min[type].min() # O(1)
+		if self.is_full(type_):
+			if random() <= self._prioritized_drop_probability: # Remove the batch with lowest priority
+				_,idx = self._it_min[type_].min() # O(1)
 				removing_worst_batch = True
 			else: # Remove oldest batch
-				idx = self._batches_next_idx[type]
-			self.batches[type][idx] = batch
+				idx = self._batches_next_idx[type_]
+			self.batches[type_][idx] = batch
 		else:
-			idx = self._batches_next_idx[type]
-			self.batches[type].append(batch)
+			idx = self._batches_next_idx[type_]
+			self.batches[type_].append(batch)
 		# Update next id
 		if not removing_worst_batch:
-			self._batches_next_idx[type] = (self._batches_next_idx[type] + 1) % self.size
+			self._batches_next_idx[type_] = (self._batches_next_idx[type_] + 1) % self.size
 		# Update priority
 		self.update_priority(idx, priority, type_id)
 		
 	def keyed_sample(self): # O(log)
 		type_id = choice(self.type_keys)
-		type = self.get_type(type_id)
-		mass = random() * self._it_sum[type].sum() # O(1)
-		idx = self._it_sum[type].find_prefixsum_idx(mass) # O(log)
+		type_ = self.get_type(type_id)
+		mass = random() * self._it_sum[type_].sum() # O(1)
+		idx = self._it_sum[type_].find_prefixsum_idx(mass) # O(log)
 		# weight = (self._it_sum[idx]/self._it_min.min()) ** (-beta) # importance weight
 		# return self.batches[0][idx], idx, weight # multiply weight for advantage
-		return self.batches[type][idx], idx, type_id
+		return self.batches[type_][idx], idx, type_id
 	
 	def sample(self): # O(log)
 		return self.keyed_sample()[0]
 	
 	def update_priority(self, idx, priority, type_id=0): # O(log)
-		type = self.get_type(type_id)
+		type_ = self.get_type(type_id)
 		normalized_priority = self.normalize_priority(priority)
 		# Update min
-		self._it_min[type][idx] = (normalized_priority, idx) # O(log)
+		self._it_min[type_][idx] = (normalized_priority, idx) # O(log)
 		# Update priority
-		self._it_sum[type][idx] = normalized_priority # O(log)
+		self._it_sum[type_][idx] = normalized_priority # O(log)

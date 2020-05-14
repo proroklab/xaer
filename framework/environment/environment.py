@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import time
-from multiprocessing import Process, SimpleQueue as Queue
+from multiprocessing import Process, Queue
 # from multiprocessing import Queue
 # from threading import Thread as Process
 import numpy as np
@@ -10,6 +10,26 @@ from utils.statistics import Statistics
 import options
 flags = options.get()
 
+DEBUG = False
+
+def get_timed_queue(q, timeout=None, qid=None):
+	try:
+		return q.get(timeout=timeout)
+	except:
+		if DEBUG:
+			print("restarting", qid)
+		time.sleep(0.1)
+		return get_timed_queue(q,timeout,qid)
+
+def put_timed_queue(q, v, timeout=None, qid=None):
+	try:
+		q.put(v, timeout=timeout)
+	except:
+		if DEBUG:
+			print("restarting", qid)
+		time.sleep(0.1)
+		put_timed_queue(q,v,timeout,qid)
+
 class Environment(object):
 	state_scaler = 1
 
@@ -17,11 +37,11 @@ class Environment(object):
 	def create_environment(env_type, env_id=0, training=True, group_id=0):
 		if env_type == 'CarController':
 			from environment.car_controller.car_controller_wrapper import CarControllerGameWrapper
-			return Environment(env_id, CarControllerGameWrapper)
+			return Environment(f'{group_id}.{env_id}', CarControllerGameWrapper)
 		else:
 			from environment.openai_gym.openai_gym_wrapper import GymGameWrapper
 			Environment.state_scaler = GymGameWrapper.state_scaler
-			return Environment(env_id, GymGameWrapper, {'game': env_type})
+			return Environment(f'{group_id}.{env_id}', GymGameWrapper, {'game': env_type})
 
 	@staticmethod
 	def __game_worker(input_queue, output_queue, game_wrapper, config_dict):
@@ -40,19 +60,19 @@ class Environment(object):
 		game = game_wrapper(config_dict)
 		game.reset()
 		observation_dict = get_observation_dict(game)
-		output_queue.put(observation_dict) # step = 0
+		put_timed_queue(output_queue, observation_dict, qid=config_dict['id']) # step = 0
 		while not game.is_over:
-			action = input_queue.get()
-			# print(action)
+			action = get_timed_queue(input_queue, qid=config_dict['id'])
 			if action is None:   # If you send `None`, the thread will exit.
 				return
 			game.process(action)
 			observation_dict = get_observation_dict(game)
-			output_queue.put(observation_dict) # step > 0
+			put_timed_queue(output_queue, observation_dict, qid=config_dict['id']) # step > 0
 
 	def __init__(self, id, game_wrapper, config_dict={}):
 		self.id = id
 		self.__config_dict = config_dict
+		self.__config_dict['id'] = self.id
 		self.__game_wrapper = game_wrapper
 		self.__game_thread = None
 
@@ -72,17 +92,23 @@ class Environment(object):
 
 	def stop(self):
 		if self.__game_thread is not None:
-			# print('Closing..')
+			if DEBUG:
+				print('Closing', self.id)
 			self.__input_queue.put(None)
-			self.__game_thread.join()
-			self.__game_thread.terminate()
+			time.sleep(0.1)
+			self.__input_queue.close()
+			self.__output_queue.close()
+
+			self.__game_thread.kill()
 			self.__game_thread = None
-			# print('Closed')
+			if DEBUG:
+				print(self.id, 'closed')
 
 	def reset(self, data_id=None, get_screen=False):
 		self.stop()
 		self.__config_dict['get_screen'] = get_screen
-		# print('Starting..')
+		if DEBUG:
+			print('Starting', self.id)
 		self.__input_queue = Queue()
 		self.__output_queue = Queue()
 		self.__game_thread = Process(
@@ -91,19 +117,17 @@ class Environment(object):
 		)
 		# self.__game_thread.daemon = True
 		self.__game_thread.start()
-		time.sleep(0.1)
-		self.last_observation = self.__output_queue.get()
+		self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)
 		self.last_state = self.last_observation['state']
 		self.last_reward = 0
 		self.last_action = None
 		self.step = 0
-		#print(self.id, self.step)
 		return self.last_state
 
 	def process(self, action_vector):
-		self.__input_queue.put(action_vector)
+		put_timed_queue(self.__input_queue, action_vector, qid=self.id)
 		if self.__game_thread.is_alive():
-			self.last_observation = self.__output_queue.get()
+			self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)
 			is_terminal = self.last_observation['is_over']
 			self.last_state = self.last_observation['state']
 			self.last_reward = self.last_observation['reward'] if not is_terminal else 1

@@ -48,12 +48,13 @@ class EnvironmentManager(object):
 	def run_random_steps(self, step_count=0):
 		state_batch = []
 		self.environment.reset()
+		print("Environment {}.{} Initialization: Start".format(self.group_id, self.environment_id))
 		for _ in range(step_count):
 			new_state, _, terminal, _ = self.environment.process(self.environment.sample_random_action())
 			state_batch.append(new_state)
 			if terminal:
 				self.environment.reset()
-		print("Environment {}.{} initialized".format(self.group_id, self.environment_id))
+		print("Environment {}.{} Initialization: End".format(self.group_id, self.environment_id))
 		return state_batch
 
 	def prepare_episode(self, data_id=None): # initialize a new episode

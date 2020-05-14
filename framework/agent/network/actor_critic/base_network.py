@@ -36,6 +36,7 @@ class Base_Network(Network):
 		self.state_scaler = state_scaler
 		
 	def build(self, has_actor=True, has_critic=True, has_state_predictor=True, use_internal_state=True, name='default'):
+		self.use_internal_state = use_internal_state
 		print( "	[{}]Building partition {} with has_actor={}, has_critic={}, has_state_predictor={}, use_internal_state={}".format(self.id, name, has_actor, has_critic, has_state_predictor, use_internal_state) )
 		print( "	[{}]Parameters type: {}".format(self.id, flags.parameters_type) )
 		print( "	[{}]Algorithm: {}".format(self.id, flags.algorithm) )

@@ -47,13 +47,13 @@ class NetworkManager(object):
 		if not self.is_global_network():
 			self.bind_to_global(self.global_network)
 		# Intrinsic reward
-		if flags.intrinsic_reward and flags.scale_intrinsic_reward:
-			self.intrinsic_reward_scaler = [RunningMeanStd() for _ in range(self.model_size)]
-			ImportantInformation(self.intrinsic_reward_scaler, 'intrinsic_reward_scaler{}'.format(self.group_id))
-		# Reward manipulators
-		self.intrinsic_reward_manipulator = eval(flags.intrinsic_reward_manipulator)
-		self.intrinsic_reward_mini_batch_size = int(flags.batch_size*flags.intrinsic_rewards_mini_batch_fraction)
 		if flags.intrinsic_reward:
+			if flags.scale_intrinsic_reward:
+				self.intrinsic_reward_scaler = [RunningMeanStd() for _ in range(self.model_size)]
+				ImportantInformation(self.intrinsic_reward_scaler, 'intrinsic_reward_scaler{}'.format(self.group_id))
+			# Reward manipulators
+			self.intrinsic_reward_manipulator = eval(flags.intrinsic_reward_manipulator)
+			self.intrinsic_reward_mini_batch_size = int(flags.batch_size*flags.intrinsic_rewards_mini_batch_fraction)
 			print('[Group{}] Intrinsic rewards mini-batch size: {}'.format(self.group_id, self.intrinsic_reward_mini_batch_size))
 
 	def get_statistics(self):
@@ -207,7 +207,7 @@ class NetworkManager(object):
 				manipulated_intrinsic_rewards = self.intrinsic_reward_manipulator(intrinsic_rewards)
 				for i in range(len(intrinsic_rewards)):
 					rewards[i][1] = intrinsic_rewards[i]
-					manipulated_rewards[i][1] = manipulated_intrinsic_rewards[i]				
+					manipulated_rewards[i][1] = manipulated_intrinsic_rewards[i]
 					
 	def _compute_discounted_cumulative_reward(self, batch):
 		batch.compute_discounted_cumulative_reward(
