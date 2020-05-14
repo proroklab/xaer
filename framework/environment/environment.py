@@ -53,10 +53,6 @@ class Environment(object):
 		self.id = id
 		self.__config_dict = config_dict
 		self.__game_wrapper = game_wrapper
-		
-		self.__game_thread = None
-		self.__input_queue = Queue()
-		self.__output_queue = Queue()
 
 		# Statistics
 		self.__episode_statistics = Statistics(flags.episode_count_for_evaluation)
@@ -78,10 +74,10 @@ class Environment(object):
 			self.__input_queue.put(None)
 			self.__game_thread.join()
 			self.__game_thread.terminate()
-			self.__game_thread = None
-			self.__input_queue = Queue()
-			self.__output_queue = Queue()
-			# print('Closed')
+		self.__game_thread = None
+		self.__input_queue = Queue()
+		self.__output_queue = Queue()
+		# print('Closed')
 
 	def reset(self, data_id=None, get_screen=False):
 		self.stop()
@@ -91,7 +87,7 @@ class Environment(object):
 			target=self.__game_worker, 
 			args=(self.__input_queue, self.__output_queue, self.__game_wrapper, self.__config_dict)
 		)
-		self.__game_thread.daemon = True
+		# self.__game_thread.daemon = True
 		self.__game_thread.start()
 		#time.sleep(0.1)
 		self.last_observation = self.__output_queue.get()

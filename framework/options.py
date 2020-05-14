@@ -68,7 +68,7 @@ def build():
 # Actor-Critic parameters
 	options["separate_actor_from_critic"] = False # "Set to True if you want actor and critic not sharing any part of their computational graphs." # default False
 	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
-	options["environment_count"] = 128 # "Number of different parallel environments, used for training."
+	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 4 # "Number n of groups, the environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training."
 	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
@@ -103,8 +103,8 @@ def build():
 	# save_episode_gif = True slows down the algorithm, requires save_episode_screen, True to work
 	options["save_episode_gif"] = True # "Whether to save episode GIF, requires save_episode_screen == True."
 	options["gif_speed"] = 0.1 # "GIF frame speed in seconds."
-	options["compress_gif"] = True # "Whether to zip the episode GIF."
-	options["delete_screens_after_making_gif"] = True # "Whether to delete the screens after the GIF has been made."
+	options["compress_gif"] = False # "Whether to zip the episode GIF."
+	options["delete_screens_after_making_gif"] = False # "Whether to delete the screens after the GIF has been made."
 	options["monitor_memory_usage"] = False # "Whether to monitor memory usage"
 # Plot
 	options["compute_plot_when_saving"] = True # "Whether to compute the plot when saving checkpoints"
