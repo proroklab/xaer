@@ -12,8 +12,8 @@ def build():
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16 = float32 = float64"
 	options["algorithm"] = "AC" # "algorithms: AC = ACER"
-	options["network_configuration"] = "Base" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala"
-	options["network_has_internal_state"] = True # "Whether the network has an internal state to keep updated (eg. RNNs state)."
+	options["network_configuration"] = "OpenAILarge" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala"
+	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = "Adam" # "gradient optimizer: PowerSign, AddSign, ElasticAverage, LazyAdam, Nadam, Adadelta, AdagradDA, Adagrad, Adam, Ftrl, GradientDescent, Momentum, ProximalAdagrad, ProximalGradientDescent, RMSProp" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.
 	options["only_non_negative_entropy"] = True # "Cross-entropy and entropy are used for policy loss and if this flag is true, then entropy=max(0,entropy). If cross-entropy measures the average number of bits needed to identify an event, then it cannot be negative."
@@ -36,10 +36,10 @@ def build():
 	options["alpha_decay_steps"] = 10**8 # "decay alpha every x steps" # default is 10**6
 	options["alpha_decay_rate"] = 0.96 # "decay rate" # default is 0.25
 # Intrinsic Rewards: Burda = Yuri = et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
-	options["intrinsic_reward"] = True # "An intrinisc reward is given for exploring new states."
+	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states."
 	options["use_training_state"] = False # "Use intrinsic reward weights (the training state) as network input. Requires intrinsic_reward == True."
 	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
-	options["intrinsic_reward_step"] = 2**18 # "Start using the intrinsic reward only when global step is greater than n."
+	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
 	options["scale_intrinsic_reward"] = False # "Whether to scale the intrinsic reward with its standard deviation."
 	options["intrinsic_rewards_mini_batch_fraction"] = 0 # "Keep only the best intrinsic reward in a mini-batch of size 'batch_size*fraction', and set other intrinsic rewards to 0."
 	options["intrinsic_reward_gamma"] = 0.99 # "Discount factor for intrinsic rewards" # default is 0.95, for openAI is 0.99
@@ -60,7 +60,7 @@ def build():
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritized_replay"] = True # "Whether to use prioritized sampling (if replay_mean > 0)" # default is True
-	options["prioritized_replay_alpha"] = 1 # "How much prioritization is used (0 - no prioritization = 1 - full prioritization)."
+	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization = 1 - full prioritization)."
 	options["prioritized_drop_probability"] = 1 # "Probability of removing the batch with the lowest priority instead of the oldest batch."
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
@@ -70,13 +70,13 @@ def build():
 	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 4 # "Number n of groups, the environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training."
-	options["batch_size"] = 2**4 # "Maximum batch size." # default is 8
+	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
 	# Taking gamma < 1 introduces bias into the policy gradient estimate = regardless of the value function accuracy.
-	options["gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95 = for openAI is 0.99
+	options["gamma"] = 0.999 # "Discount factor for extrinsic rewards" # default is 0.95 = for openAI is 0.99
 # Entropy regularization
-	options["entropy_regularization"] = False # "Whether to add entropy regularization to policy loss." # default True
+	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss." # default True
 	options["beta"] = 1e-3 # "entropy regularization constant" # default is 0.001, for openAI is 0.01
 # Generalized Advantage Estimation: Schulman = John = et al. "High-dimensional continuous control using generalized advantage estimation." arXiv preprint arXiv:1506.02438 (2015).
 	options["use_GAE"] = True # "Whether to use Generalized Advantage Estimation." # default in openAI's PPO implementation

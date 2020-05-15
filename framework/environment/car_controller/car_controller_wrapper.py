@@ -278,7 +278,7 @@ class CarControllerGameWrapper(GameWrapper):
 			malus = self.speed_upper_limit*max(0,car_speed/self.speed_upper_limit-1)*self.seconds_per_step
 			# smaller distances to path give higher rewards
 			bonus = min(car_speed,self.speed_upper_limit)*self.seconds_per_step*inverse_distance_ratio
-			return (max(0,bonus-malus), False) # do not terminate episode
+			return (bonus-malus, False) # do not terminate episode
 		# else is NOT moving toward next position
 		return (-0.1, False) # do not terminate episode
 		
