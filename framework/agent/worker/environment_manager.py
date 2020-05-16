@@ -144,7 +144,7 @@ class EnvironmentManager(object):
 				plt.make_gif(file_list=screen_filenames, gif_path=gif_filename)
 				# Delete screens, to save memory
 				if flags.delete_screens_after_making_gif:
-					shutil.rmtree(screens_directory)
+					shutil.rmtree(screens_directory, ignore_errors=True)
 				# Zip GIF, to save memory
 				if flags.compress_gif:
 					with zipfile.ZipFile(gif_filename+'.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as zip:

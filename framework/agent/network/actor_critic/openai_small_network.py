@@ -104,12 +104,12 @@ class OpenAISmall_Network(Base_Network):
 					# build standard deviation
 					sigma = tf.layers.dense(name='Policy_Sigma_Dense{}'.format(h), inputs=input, units=policy_size, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(0.01)) # in (-inf,inf)
 					# clip mu and sigma to avoid numerical instabilities
-					clipped_mu = tf.clip_by_value(mu, -1,1) # in [-1,1]
-					clipped_sigma = tf.clip_by_value(tf.abs(sigma), 1e-4,1) # in [1e-4,1] # sigma must be greater than 0
+					clipped_mu = tf.clip_by_value(mu, -1,1, name='mu_clipper') # in [-1,1]
+					clipped_sigma = tf.clip_by_value(tf.abs(sigma), 1e-4,1, name='sigma_clipper') # in [1e-4,1] # sigma must be greater than 0
 					# build policy batch
 					policy_batch = tf.stack([clipped_mu, clipped_sigma])
-					policy_batch = tf.reshape(policy_batch, [-1, 2, policy_size])
-					# policy_batch = tf.transpose(policy_batch, [1, 0, 2])
+					# policy_batch = tf.reshape(policy_batch, [-1, 2, policy_size])
+					policy_batch = tf.transpose(policy_batch, [1, 0, 2])
 				else: # discrete control
 					policy_batch = tf.layers.dense(name='Policy_Logits_Dense{}'.format(h), inputs=input, units=policy_size*policy_depth, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(0.01))
 					if policy_size > 1:

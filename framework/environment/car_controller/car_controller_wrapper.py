@@ -14,19 +14,22 @@ from environment.car_controller.car_stuff.utils import *
 
 class CarControllerGameWrapper(GameWrapper):
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
-	horizon_distance = 1 # meters
+	horizon_distance = 3 # meters
 	track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
 	wheelbase = 0.9 # meters # https://en.wikipedia.org/wiki/Wheelbase
 	# information about speed parameters: http://www.ijtte.com/uploads/2012-10-01/5ebd8343-9b9c-b1d4IJTTE%20vol2%20no3%20%287%29.pdf
-	min_speed = 0.8 # m/s
+	min_speed = 0.4 # m/s
 	max_speed = 1.6 # m/s
-	# the fastest car has max_acceleration 9.25 m/s (https://en.wikipedia.org/wiki/List_of_fastest_production_cars_by_acceleration)
-	# the slowest car has max_acceleration 0.7 m/s (http://automdb.com/max_acceleration)
-	max_acceleration = 0.7 # m/s
+	# the fastest car has max_acceleration 9.25 m/s^2 (https://en.wikipedia.org/wiki/List_of_fastest_production_cars_by_acceleration)
+	# the slowest car has max_acceleration 0.7 m/s^2 (http://automdb.com/max_acceleration)
+	max_acceleration = 0.7 # m/s^2
+	# the best car has max_deceleration 29.43 m/s^2 (https://www.quora.com/What-can-be-the-maximum-deceleration-during-braking-a-car?share=1)
+	# a normal car has max_deceleration 7.1 m/s^2 (http://www.batesville.k12.in.us/Physics/PhyNet/Mechanics/Kinematics/BrakingDistData.html)
+	max_deceleration = 7.1 # m/s^2
 	max_steering_degree = 30
 	max_step_per_spline = 75
-	min_control_points_per_step = 5
-	max_distance_to_path = 0.1 # meters
+	min_control_points_per_step = 10
+	max_distance_to_path = 0.3 # meters
 	# obstacles related stuff
 	max_obstacle_count = 6
 	min_obstacle_radius = 0.1 # meters
@@ -201,7 +204,7 @@ class CarControllerGameWrapper(GameWrapper):
 		return action*self.max_steering_angle # in [-max_steering_angle, max_steering_angle]
 		
 	def get_acceleration_from_action(self, action): # action is in [-1,1]
-		return action*self.max_acceleration # in [-max_acceleration, max_acceleration]
+		return action*(self.max_acceleration if action >= 0 else self.max_deceleration) # in [-max_deceleration, max_acceleration]
 		
 	def accelerate(self, speed, acceleration):
 		# use seconds_per_step instead of mean_seconds_per_step, because this way the algorithm is able to explore more states and train better
@@ -255,7 +258,7 @@ class CarControllerGameWrapper(GameWrapper):
 		return 3
 		
 	def get_concatenation(self):
-		return [self.steering_angle, self.speed, self.speed_upper_limit]
+		return [self.steering_angle/self.max_steering_angle, self.speed/self.max_speed, self.speed/self.speed_upper_limit]
 		
 	def has_collided_obstacle(self, old_car_point, car_point, obstacle):
 		return segment_collide_circle(circle=obstacle, segment=(old_car_point, car_point))
@@ -279,7 +282,7 @@ class CarControllerGameWrapper(GameWrapper):
 			# smaller distances to path give higher rewards
 			bonus = min(car_speed,self.speed_upper_limit)*self.seconds_per_step*inverse_distance_ratio
 			return (bonus-malus, False) # do not terminate episode
-		# else is NOT moving toward next position
+		#else is NOT moving toward next position
 		return (-0.1, False) # do not terminate episode
 		
 	def get_control_points(self, source_point, source_orientation, source_position): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines

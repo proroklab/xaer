@@ -265,7 +265,7 @@ class AC_Algorithm(object):
 			if is_continuous_control(self.policy_heads[h]['depth']):
 				new_policy_batch = tf.transpose(actor_head, [1, 0, 2])
 				sample_batch = Normal(new_policy_batch[0], new_policy_batch[1]).sample()
-				action = tf.clip_by_value(sample_batch, -1,1)
+				action = tf.clip_by_value(sample_batch, -1,1, name='action_clipper')
 				action_batch.append(action) # Sample action batch in forward direction, use old action in backward direction
 				hot_action_batch.append(action)
 			else: # discrete control

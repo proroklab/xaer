@@ -2,7 +2,6 @@
 import tensorflow.compat.v1 as tf
 import numpy as np
 from agent.network.network import Network
-from utils.distributions import Categorical, Normal
 from utils.rnn import RNN
 import options
 flags = options.get()
@@ -74,7 +73,7 @@ class Base_Network(Network):
 				ord='euclidean',
 				axis=-1
 			)
-			print( "	[{}]Relevance shape: {}".format(self.id, self.relevance_batch.get_shape()) )
+			# print( "	[{}]Relevance shape: {}".format(self.id, self.relevance_batch.get_shape()) )
 		
 		# return self.policy_batch, self.value_batch, self.relevance_batch
 
@@ -105,8 +104,8 @@ class Base_Network(Network):
 		layer_type = 'CNN'
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.layers.conv2d(name='CNN_Conv1', inputs=input, filters=16, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
-			input = tf.layers.conv2d(name='CNN_Conv2', inputs=input, filters=32, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
+			input = tf.layers.conv2d(name='CNN_Conv1', inputs=input, filters=16, kernel_size=(3,3), strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
+			input = tf.layers.conv2d(name='CNN_Conv2', inputs=input, filters=8, kernel_size=(3,3), strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
 			# update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# return result
@@ -187,12 +186,12 @@ class Base_Network(Network):
 					# build standard deviation
 					sigma = tf.layers.dense(name='{}_Sigma_Dense{}'.format(layer_type,h), inputs=input, units=policy_size, activation=None, kernel_initializer=tf.initializers.variance_scaling) # in (-inf,inf)
 					# clip mu and sigma to avoid numerical instabilities
-					clipped_mu = tf.clip_by_value(mu, -1,1) # in [-1,1]
-					clipped_sigma = tf.clip_by_value(tf.abs(sigma), 1e-4,1) # in [1e-4,1] # sigma must be greater than 0
+					clipped_mu = tf.clip_by_value(mu, -1,1, name='mu_clipper') # in [-1,1]
+					clipped_sigma = tf.clip_by_value(tf.abs(sigma), 1e-4,1, name='sigma_clipper') # in [1e-4,1] # sigma must be greater than 0
 					# build policy batch
 					policy_batch = tf.stack([clipped_mu, clipped_sigma])
-					policy_batch = tf.reshape(policy_batch, [-1, 2, policy_size])
-					# policy_batch = tf.transpose(policy_batch, [1, 0, 2])
+					# policy_batch = tf.reshape(policy_batch, [-1, 2, policy_size])
+					policy_batch = tf.transpose(policy_batch, [1, 0, 2])
 				else: # discrete control
 					policy_batch = tf.layers.dense(name='{}_Logits_Dense{}'.format(layer_type,h), inputs=input, units=policy_size*policy_depth, activation=None, kernel_initializer=tf.initializers.variance_scaling)
 					if policy_size > 1:

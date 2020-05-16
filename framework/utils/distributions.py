@@ -59,7 +59,7 @@ class Normal(object):
 	def __init__(self, mean, std):
 		self.mu = mean
 		self.std = std
-		self.distribution = tfp.distributions.Normal(mean, std, validate_args=False) # validate_args is computationally more expensive
+		self.distribution = tfp.distributions.Normal(self.mu, self.std, validate_args=True) # validate_args is computationally more expensive
 	
 	def mean(self):
 		return self.mu
