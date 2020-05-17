@@ -354,7 +354,7 @@ class AC_Algorithm(object):
 		value_loss_builder = self._get_value_loss_builder()
 		self.value_loss = self._get_value_loss(value_loss_builder)
 		# [Entropy regularization]
-		if flags.entropy_regularization:
+		if not flags.intrinsic_reward and flags.entropy_regularization:
 			self.policy_loss += -self.policy_entropy_regularization
 		# [Constraining Replay]
 		if self.constrain_replay:

@@ -43,19 +43,17 @@ class IntrinsicReward_Network(Network):
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
 			# Here we use leaky_relu instead of relu as activation function
 			# Target network
-			target = ktf.Conv2D(name='RND_Target_Conv1', filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=input)
-			target = ktf.Conv2D(name='RND_Target_Conv2', filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=target)
-			target = ktf.Conv2D(name='RND_Target_Conv3', filters=64, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=target)
+			target = ktf.Conv2D(name='RND_Target_Conv1', filters=16, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=input)
+			target = ktf.Conv2D(name='RND_Target_Conv2', filters=32, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=target)
 			target = ktf.Flatten().apply(inputs=target)
-			target = ktf.Dense(name='RND_Target_Dense1', units=512, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=target)
+			target = ktf.Dense(name='RND_Target_Dense1', units=64, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=target)
 			# Predictor network
-			prediction = ktf.Conv2D(name='RND_Prediction_Conv1', filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=input)
-			prediction = ktf.Conv2D(name='RND_Prediction_Conv2', filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
-			prediction = ktf.Conv2D(name='RND_Prediction_Conv3', filters=64, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
+			prediction = ktf.Conv2D(name='RND_Prediction_Conv1', filters=16, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=input)
+			prediction = ktf.Conv2D(name='RND_Prediction_Conv2', filters=32, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
 			prediction = ktf.Flatten().apply(inputs=prediction)
-			prediction = ktf.Dense(name='RND_Prediction_Dense1', units=512, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
-			prediction = ktf.Dense(name='RND_Prediction_Dense2', units=512, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
-			last_prediction_layer = ktf.Dense(name='RND_Prediction_Dense3', units=512, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
+			prediction = ktf.Dense(name='RND_Prediction_Dense1', units=64, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
+			prediction = ktf.Dense(name='RND_Prediction_Dense2', units=64, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
+			last_prediction_layer = ktf.Dense(name='RND_Prediction_Dense3', units=64, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
 			prediction = last_prediction_layer.apply(inputs=prediction)
 			prediction_weights = {
 				'kernel': last_prediction_layer.kernel, 

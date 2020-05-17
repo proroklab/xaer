@@ -12,13 +12,13 @@ def build():
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
 	options["algorithm"] = "AC" # "algorithms: AC, ACER"
-	options["network_configuration"] = "Base" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala"
+	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = "Adam" # "gradient optimizer: PowerSign, AddSign, ElasticAverage, LazyAdam, Nadam, Adadelta, AdagradDA, Adagrad, Adam, Ftrl, GradientDescent, Momentum, ProximalAdagrad, ProximalGradientDescent, RMSProp" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.
-	options["only_non_negative_entropy"] = True # "Cross-entropy and entropy are used for policy loss and if this flag is true, then entropy=max(0,entropy). If cross-entropy measures the average number of bits needed to identify an event, then it cannot be negative."
+	options["only_non_negative_entropy"] = True # "Cross-entropy and entropy are used for policy loss and if this flag is True, then entropy=max(0,entropy). If cross-entropy measures the average number of bits needed to identify an event, then it cannot be negative."
 	# Use mean losses if max_batch_size is too big = in order to avoid NaN
-	options["loss_type"] = "sum" # "type of loss reduction: sum, mean"
+	options["loss_type"] = "mean" # "type of loss reduction: sum, mean"
 	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO"
 	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO"
 # State Predictor
@@ -26,14 +26,14 @@ def build():
 # Loss clip range
 	options["clip"] = 0.2 # "PPO/PVO initial clip range" # default is 0.2, for openAI is 0.1
 	options["clip_decay"] = True # "Whether to decay the clip range"
-	options["clip_annealing_function"] = "exponential_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
+	options["clip_annealing_function"] = "inverse_time_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
 	options["clip_decay_steps"] = 10**5 # "decay clip every x steps" # default is 10**6
 	options["clip_decay_rate"] = 0.96 # "decay rate" # default is 0.25
 # Learning rate
 	options["alpha"] = 3.5e-4 # "initial learning rate" # default is 7.0e-4, for openAI is 2.5e-4
-	options["alpha_decay"] = True # "whether to decay the learning rate"
+	options["alpha_decay"] = False # "whether to decay the learning rate"
 	options["alpha_annealing_function"] = "exponential_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
-	options["alpha_decay_steps"] = 10**5 # "decay alpha every x steps" # default is 10**6
+	options["alpha_decay_steps"] = 10**8 # "decay alpha every x steps" # default is 10**6
 	options["alpha_decay_rate"] = 0.96 # "decay rate" # default is 0.25
 # Intrinsic Rewards: Burda = Yuri = et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
 	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states."
@@ -49,14 +49,14 @@ def build():
 	options["episodic_intrinsic_reward"] = False # "Bootstrap 0 for intrinsic value if state is terminal."
 # Experience Replay
 	# Replay mean > 0 increases off-policyness
-	options["replay_mean"] = 1 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for A3C is 0, for ACER default is 4
+	options["replay_mean"] = 0.5 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for A3C is 0, for ACER default is 4
 	options["replay_step"] = 2**10 # "Start replaying experience when global step is greater than replay_step."
 	options["replay_buffer_size"] = 2**6 # "Maximum number of batches stored in the experience buffer."
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
-	options["replay_only_best_batches"] = True # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
+	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
 	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output)." -> might be useful only if combined with replay_only_best_batches=True
-	options["train_critic_when_replaying"] = True # "Whether to train also the critic when replaying. Works only when separate_actor_from_critic=True."
-	options["runtime_advantage"] = False # "Whether to compute advantage at runtime, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
+	options["train_critic_when_replaying"] = False # "Whether to train also the critic when replaying. Works only when separate_actor_from_critic=True."
+	options["runtime_advantage"] = True # "Whether to compute advantage at runtime, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritized_replay"] = True # "Whether to use prioritized sampling (if replay_mean > 0)" # default is True
@@ -70,18 +70,18 @@ def build():
 	options["value_coefficient"] = 0.5 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 4 # "Number n of groups, the environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training."
-	options["batch_size"] = 2**3 # "Maximum batch size." # default is 8
+	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
 	# Taking gamma < 1 introduces bias into the policy gradient estimate = regardless of the value function accuracy.
 	options["gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95 = for openAI is 0.99
 # Entropy regularization
-	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss." # default True
+	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss. Works only if intrinsic_reward == False" # default True
 	options["beta"] = 1e-3 # "entropy regularization constant" # default is 0.001, for openAI is 0.01
 # Generalized Advantage Estimation: Schulman = John = et al. "High-dimensional continuous control using generalized advantage estimation." arXiv preprint arXiv:1506.02438 (2015).
 	options["use_GAE"] = True # "Whether to use Generalized Advantage Estimation." # default in openAI's PPO implementation
 	# Taking lambda < 1 introduces bias only when the value function is inaccurate
-	options["lambd"] = 0.95 # "generalized advantage estimator decay parameter" # default is 0.95
+	options["lambd"] = 0.7 # "generalized advantage estimator decay parameter" # default is 0.95
 # Log
 	options["save_interval_step"] = 2**22 # "Save a checkpoint every n steps."
 	# rebuild_network_after_checkpoint_is_saved may help saving RAM, but may be slow proportionally to save_interval_step.
