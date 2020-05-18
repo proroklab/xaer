@@ -256,6 +256,8 @@ class AC_Algorithm(object):
 		if flags.with_state_predictor:
 			self.network['StatePredictor'].build(name='StatePredictor', has_actor=False, has_critic=False, has_state_predictor=True, use_internal_state=flags.network_has_internal_state)
 			self.relevance_batch = self.network['StatePredictor'].relevance_batch
+			self.new_state_prediction_batch = self.network['StatePredictor'].new_state_prediction_batch
+			self.new_state_embedding_batch = self.network['StatePredictor'].new_state_embedding_batch
 			print( "	[{}]Relevance shape: {}".format(self.id, self.relevance_batch.get_shape()) )
 			
 	def sample_actions(self):
@@ -311,17 +313,22 @@ class AC_Algorithm(object):
 	def _get_value_loss_builder(self):
 		return ValueLoss(
 			global_step=self.global_step,
-			type=flags.value_loss,
-			estimation=self.state_value_batch, 
-			old_estimation=self.old_state_value_batch, 
-			cumulative_reward=self.cumulative_return_batch
+			loss=flags.value_loss,
+			prediction=self.state_value_batch, 
+			old_prediction=self.old_state_value_batch, 
+			target=self.cumulative_return_batch
 		)
 		
 	def _get_value_loss(self, builder):
 		return flags.value_coefficient * builder.get() # usually critic has lower learning rate
 
 	def _get_state_predictor_loss(self, builder):
-		return builder.reduce_function(self.relevance_batch)
+		return ValueLoss(
+			global_step=self.global_step,
+			loss='Vanilla',
+			prediction=self.new_state_prediction_batch, 
+			target=self.new_state_embedding_batch
+		).get()
 		
 	def prepare_loss(self, global_step):
 		self.global_step = global_step

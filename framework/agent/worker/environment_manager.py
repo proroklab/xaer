@@ -70,8 +70,10 @@ class EnvironmentManager(object):
 			'tot_reward': 0,
 			'tot_manipulated_reward': 0,
 			'tot_value': 0,
-			'tot_step': 0
+			'tot_step': 0,
 		}
+		if flags.with_state_predictor:
+			self.__episode_info.update({'tot_relevance': 0})
 		# Frame info
 		if flags.show_episodes == 'none':
 			self.save_frame_info = False
@@ -165,12 +167,21 @@ class EnvironmentManager(object):
 		tot_extrinsic_reward, tot_intrinsic_reward = tot_reward
 		# Update statistics
 		episode_stats = {
-			'intrinsic_reward_per_step': tot_intrinsic_reward/tot_step,
-			'intrinsic_reward': tot_intrinsic_reward,
 			'extrinsic_reward_per_step': tot_extrinsic_reward/tot_step,
 			'extrinsic_reward': tot_extrinsic_reward,
 			'step': tot_step
 		}
+		if flags.intrinsic_reward:
+			episode_stats.update({
+				'intrinsic_reward_per_step': tot_intrinsic_reward/tot_step,
+				'intrinsic_reward': tot_intrinsic_reward,
+			})
+		if flags.with_state_predictor:
+			tot_relevance = self.__episode_info['tot_relevance']
+			episode_stats.update({
+				'transition_relevance_per_step': tot_relevance/tot_step,
+				'transition_relevance': tot_relevance,
+			})
 		tot_value = self.__episode_info['tot_value']
 		avg_value = tot_value/tot_step
 		if len(avg_value)>1:
@@ -247,11 +258,13 @@ class EnvironmentManager(object):
 	
 	def log_batch(self, global_step, agents):
 		# Save _batch info for building statistics
-		rewards, values, manipulated_rewards = self._batch.get_all_actions(actions=['rewards','values','manipulated_rewards'], agents=agents)
+		rewards, values, manipulated_rewards, relevances = self._batch.get_all_actions(actions=['rewards','values','manipulated_rewards','relevances'], agents=agents)
 		self.__episode_info['tot_reward'] += sum(rewards)
 		self.__episode_info['tot_manipulated_reward'] += sum(manipulated_rewards)
 		self.__episode_info['tot_value'] += sum(values)
 		self.__episode_info['tot_step'] += len(rewards)
+		if flags.with_state_predictor:
+			self.__episode_info['tot_relevance'] += sum(relevances)
 		# Terminate episode, if _batch is terminal
 		if self.terminal: # an episode has terminated
 			self.log_episode_statistics(global_step)

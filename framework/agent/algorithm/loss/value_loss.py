@@ -6,22 +6,23 @@ import options
 flags = options.get()
 
 class ValueLoss(object):
-	def __init__(self, global_step, type, estimation, old_estimation, cumulative_reward):
+	def __init__(self, global_step, loss, target, prediction, old_prediction=None):
 		self.global_step = global_step
-		self.type = type.lower()
-		self.estimation = estimation
+		self.loss = loss.lower()
+		self.prediction = prediction
 		# Stop gradients
-		self.old_estimation = tf.stop_gradient(old_estimation)
-		self.cumulative_return = tf.stop_gradient(cumulative_reward)
+		if old_prediction != None:
+			self.old_prediction = tf.stop_gradient(old_prediction)
+		self.target = tf.stop_gradient(target)
 		# Get reduce function
 		self.reduce_function = eval('tf.reduce_{}'.format(flags.loss_type))
 		
 	def get(self):
-		return eval('self.{}'.format(self.type))()
+		return eval('self.{}'.format(self.loss))()
 			
 	def vanilla(self):
 		# reduce over batches (1st ax)
-		losses = self.reduce_function(tf.squared_difference(self.cumulative_return, self.estimation), 0)
+		losses = self.reduce_function(tf.squared_difference(self.target, self.prediction), 0)
 		# sum values (last ax)
 		return 0.5*tf.reduce_sum(losses)
 				
@@ -35,11 +36,11 @@ class ValueLoss(object):
 			decay_steps=flags.clip_decay_steps, 
 			decay_rate=flags.clip_decay_rate
 		) if flags.clip_decay else flags.clip
-		clip_range = tf.cast(clip_range, self.estimation.dtype)
-		# clipped estimation
-		estimation_clipped = self.old_estimation + tf.clip_by_value(self.estimation-self.old_estimation, -clip_range, clip_range)
-		max = tf.maximum(tf.abs(self.cumulative_return-self.estimation),tf.abs(self.cumulative_return-estimation_clipped))
+		clip_range = tf.cast(clip_range, self.prediction.dtype)
+		# clipped prediction
+		prediction_clipped = self.old_prediction + tf.clip_by_value(self.prediction-self.old_prediction, -clip_range, clip_range)
+		max_delta = tf.maximum(tf.abs(self.target-self.prediction),tf.abs(self.target-prediction_clipped))
 		# reduce over batches (1st ax)
-		losses = self.reduce_function(tf.square(max), 0)
+		losses = self.reduce_function(tf.square(max_delta), 0)
 		# sum values (last ax)
 		return 0.5*tf.reduce_sum(losses)

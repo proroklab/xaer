@@ -203,6 +203,7 @@ class Base_Network(Network):
 			return output_list
 		
 	def _state_prediction_layer(self, state, action, scope, name="", share_trainables=True):
+		state = tf.stop_gradient(state)
 		layer_type = 'StatePredictor'
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )

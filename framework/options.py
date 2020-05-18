@@ -51,12 +51,12 @@ def build():
 	# Replay mean > 0 increases off-policyness
 	options["replay_mean"] = 0.5 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for A3C is 0, for ACER default is 4
 	options["replay_step"] = 2**10 # "Start replaying experience when global step is greater than replay_step."
-	options["replay_buffer_size"] = 2**6 # "Maximum number of batches stored in the experience buffer."
+	options["replay_buffer_size"] = 2**20 # "Maximum number of batches stored in the experience buffer."
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
 	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
 	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output)." -> might be useful only if combined with replay_only_best_batches=True
 	options["train_critic_when_replaying"] = False # "Whether to train also the critic when replaying. Works only when separate_actor_from_critic=True."
-	options["runtime_advantage"] = True # "Whether to compute advantage at runtime, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
+	options["runtime_advantage"] = False # "Whether to compute advantage at runtime, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritized_replay"] = True # "Whether to use prioritized sampling (if replay_mean > 0)" # default is True
@@ -81,7 +81,7 @@ def build():
 # Generalized Advantage Estimation: Schulman = John = et al. "High-dimensional continuous control using generalized advantage estimation." arXiv preprint arXiv:1506.02438 (2015).
 	options["use_GAE"] = True # "Whether to use Generalized Advantage Estimation." # default in openAI's PPO implementation
 	# Taking lambda < 1 introduces bias only when the value function is inaccurate
-	options["lambd"] = 0.7 # "generalized advantage estimator decay parameter" # default is 0.95
+	options["lambd"] = 0.8 # "generalized advantage estimator decay parameter" # default is 0.95
 # Log
 	options["save_interval_step"] = 2**22 # "Save a checkpoint every n steps."
 	# rebuild_network_after_checkpoint_is_saved may help saving RAM, but may be slow proportionally to save_interval_step.
