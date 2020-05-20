@@ -109,11 +109,12 @@ class NetworkManager(object):
 	def get_model(self, id=0):
 		return self.model_list[id]
 
-	def predict_transition_relevance(self, states, actions, new_states):
+	def predict_transition_relevance(self, states, actions, new_states, rewards):
 		state_dict = {
 			'states': states,
 			'actions': actions, 
 			'new_states': new_states,
+			'rewards': rewards,
 		}
 		return self.get_model().predict_transition_relevance(state_dict)
 		
@@ -156,7 +157,12 @@ class NetworkManager(object):
 
 	def _play_relevance_predictor(self, batch):
 		for agent_id in range(self.model_size):
-			relevance_batch = self.predict_transition_relevance(batch.states[agent_id], batch.actions[agent_id], batch.new_states[agent_id])
+			relevance_batch = self.predict_transition_relevance(
+				batch.states[agent_id], 
+				batch.actions[agent_id], 
+				batch.new_states[agent_id],
+				batch.rewards[agent_id],
+			)
 			batch.relevances[agent_id] = list(relevance_batch)
 			assert len(batch.states[agent_id]) == len(batch.relevances[agent_id]), "Number of relevances does not match the number of states"
 			
@@ -242,6 +248,7 @@ class NetworkManager(object):
 				'values':batch.values[i][start:end] if do_slice else batch.values[i],
 				'policies':batch.policies[i][start:end] if do_slice else batch.policies[i],
 				'cumulative_returns':batch.cumulative_returns[i][start:end] if do_slice else batch.cumulative_returns[i],
+				'rewards':batch.rewards[i][start:end] if do_slice else batch.rewards[i],
 				'internal_state':batch.internal_states[i][start] if is_valid_start else batch.internal_states[i][0],
 				'state_mean':self.state_mean,
 				'state_std':self.state_std,

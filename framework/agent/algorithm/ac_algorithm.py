@@ -200,6 +200,7 @@ class AC_Algorithm(object):
 			'new_state': self.new_state_batch, 
 			'size': self.size_batch,
 			'action': self.old_action_batch,
+			'reward': self.reward_batch,
 		}
 		# Build intrinsic reward network here because we need its internal state for building actor and critic
 		self.network['Reward'] = IntrinsicReward_Network(id=self.id, batch_dict=batch_dict, scope_dict={'self': "IRNet{0}".format(self.id)}, training=self.training)
@@ -258,6 +259,7 @@ class AC_Algorithm(object):
 			self.relevance_batch = self.network['StatePredictor'].relevance_batch
 			self.new_state_prediction_batch = self.network['StatePredictor'].new_state_prediction_batch
 			self.new_state_embedding_batch = self.network['StatePredictor'].new_state_embedding_batch
+			self.reward_prediction_batch = self.network['StatePredictor'].reward_prediction_batch
 			print( "	[{}]Relevance shape: {}".format(self.id, self.relevance_batch.get_shape()) )
 			
 	def sample_actions(self):
@@ -323,11 +325,16 @@ class AC_Algorithm(object):
 		return flags.value_coefficient * builder.get() # usually critic has lower learning rate
 
 	def _get_state_predictor_loss(self, builder):
-		return ValueLoss(
+		return flags.state_predictor_coefficient * ValueLoss(
 			global_step=self.global_step,
 			loss='Vanilla',
 			prediction=self.new_state_prediction_batch, 
 			target=self.new_state_embedding_batch
+		).get() + ValueLoss(
+			global_step=self.global_step,
+			loss='Vanilla',
+			prediction=self.reward_prediction_batch, 
+			target=self.reward_batch
 		).get()
 		
 	def prepare_loss(self, global_step):
@@ -470,6 +477,7 @@ class AC_Algorithm(object):
 		feed_dict = self._get_multihead_feed(target=self.state_batch, source=state_dict['states'])
 		feed_dict.update( self._get_multihead_feed(target=self.old_action_batch, source=state_dict['actions']) )
 		feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=state_dict['new_states']) )
+		feed_dict.update( {self.reward_batch: state_dict['rewards']} )
 		# Return relevance
 		return tf.get_default_session().run(fetches=self.relevance_batch, feed_dict=feed_dict)
 				
@@ -622,6 +630,8 @@ class AC_Algorithm(object):
 			self.cumulative_return_batch: train_dict['cumulative_returns'],
 			self.old_state_value_batch: train_dict['values'],
 		}
+		if flags.with_state_predictor:
+			feed_dict.update( {self.reward_batch: train_dict['rewards']} )
 		feed_dict.update( self._get_multihead_feed(target=self.state_batch, source=train_dict['states']) )
 		feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=train_dict['new_states']) )
 		# Advantage

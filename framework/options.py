@@ -22,7 +22,8 @@ def build():
 	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO"
 	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO"
 # State Predictor
-	options["with_state_predictor"] = False # Setting this option to True, you add an extra head to the default set of heads: actor, critic. This new head will be trained to predict the embedding of s_(t+1) given the embedding of s_t and a_t. The distance between the predicted s_(t+1) and the real s_(t+1) is going to be used for prioritizing the replay buffer, if it is a prioritized replay buffer.
+	options["with_state_predictor"] = True # Setting this option to True, you add an extra head to the default set of heads: actor, critic. This new head will be trained to predict the embedding of s_(t+1) given the embedding of s_t and a_t. The distance between the predicted s_(t+1) and the real s_(t+1) is going to be used for prioritizing the replay buffer, if it is a prioritized replay buffer.
+	options["state_predictor_coefficient"] = 1 # "Value coefficient for tuning State Predictor learning rate." # default is 0.5
 # Loss clip range
 	options["clip"] = 0.2 # "PPO/PVO initial clip range" # default is 0.2, for openAI is 0.1
 	options["clip_decay"] = True # "Whether to decay the clip range"
@@ -39,7 +40,7 @@ def build():
 	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states."
 	options["use_training_state"] = False # "Use intrinsic reward weights (the training state) as network input. Requires intrinsic_reward == True."
 	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
-	options["intrinsic_reward_step"] = 2**10 # "Start using the intrinsic reward only when global step is greater than n."
+	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
 	options["scale_intrinsic_reward"] = False # "Whether to scale the intrinsic reward with its standard deviation."
 	options["intrinsic_rewards_mini_batch_fraction"] = 0 # "Keep only the best intrinsic reward in a mini-batch of size 'batch_size*fraction', and set other intrinsic rewards to 0."
 	options["intrinsic_reward_gamma"] = 0.99 # "Discount factor for intrinsic rewards" # default is 0.95, for openAI is 0.99
@@ -49,9 +50,9 @@ def build():
 	options["episodic_intrinsic_reward"] = False # "Bootstrap 0 for intrinsic value if state is terminal."
 # Experience Replay
 	# Replay mean > 0 increases off-policyness
-	options["replay_mean"] = 0.5 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for A3C is 0, for ACER default is 4
+	options["replay_mean"] = 1 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for A3C is 0, for ACER default is 4
 	options["replay_step"] = 2**10 # "Start replaying experience when global step is greater than replay_step."
-	options["replay_buffer_size"] = 2**20 # "Maximum number of batches stored in the experience buffer."
+	options["replay_buffer_size"] = 2**9 # "Maximum number of batches stored in the experience buffer."
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
 	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
 	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output)." -> might be useful only if combined with replay_only_best_batches=True
@@ -60,14 +61,14 @@ def build():
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritized_replay"] = True # "Whether to use prioritized sampling (if replay_mean > 0)" # default is True
-	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization = 1 - full prioritization)."
+	options["prioritized_replay_alpha"] = 0.85 # "How much prioritization is used (0 - no prioritization = 1 - full prioritization)."
 	options["prioritized_drop_probability"] = 1 # "Probability of removing the batch with the lowest priority instead of the oldest batch."
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
 	options["intrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the intrinsic rewards."
 # Actor-Critic parameters
 	options["separate_actor_from_critic"] = False # "Set to True if you want actor and critic not sharing any part of their computational graphs." # default False
-	options["value_coefficient"] = 0.5 # "Value coefficient for tuning Critic learning rate." # default is 0.5
+	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 4 # "Number n of groups, the environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training."
 	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
