@@ -289,7 +289,7 @@ class NetworkManager(object):
 		# Check whether experience buffer has enough elements for replaying
 		if not self.experience_buffer.has_atleast(flags.replay_start):
 			return
-		prioritized_replay_with_update = flags.prioritized_replay and flags.intrinsic_reward
+		prioritized_replay_with_update = flags.prioritized_replay and (flags.intrinsic_reward or flags.with_state_predictor)
 		if prioritized_replay_with_update:
 			batch_to_update = []
 		# Sample n batches from experience buffer
@@ -310,10 +310,13 @@ class NetworkManager(object):
 			self._train(replay=True, batch=old_batch)
 		# Update buffer
 		if prioritized_replay_with_update:
-			for batch, id, type in batch_to_update:
-				_, batch_intrinsic_reward = batch.get_cumulative_reward(self.agents_set)
+			for batch, bid, btype in batch_to_update:
+				if flags.with_state_predictor:
+					new_priority = batch.get_cumulative_action('relevances', self.agents_set)
+				else:
+					_, new_priority = batch.get_cumulative_reward(self.agents_set)
 				with self.experience_buffer_lock:
-					self.experience_buffer.update_priority(id, batch_intrinsic_reward, type)
+					self.experience_buffer.update_priority(bid, new_priority, btype)
 		
 	def finalize_batch(self, composite_batch, global_step):	
 		batch = composite_batch.get()[-1]	
