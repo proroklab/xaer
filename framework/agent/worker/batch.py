@@ -14,7 +14,7 @@ class ExperienceBatch():
 		'states', 'new_states', 
 		'relevances', 
 		'internal_states', 'new_internal_states', 
-		'actions', 'action_masks', 'policies', 'values',
+		'actions', 'action_masks', 'policies', 'values', 'importance_weights',
 		'rewards', 'manipulated_rewards', 
 		'cumulative_returns', 'advantages', 'extras'
 	)
@@ -28,7 +28,7 @@ class ExperienceBatch():
 			'states','new_states',
 			'relevances',
 			'internal_states','new_internal_states',
-			'actions','action_masks','policies','values',
+			'actions','action_masks','policies','values','importance_weights',
 			'rewards','manipulated_rewards',
 			'cumulative_returns','advantages','extras'
 		])
@@ -148,7 +148,7 @@ class ExperienceBatch():
 		# assert last_agent in self.bootstrap, "Must bootstrap next value before computing the discounted cumulative reward"
 		last_value = 0 + self.bootstrap[last_agent] # copy by value, summing zero
 		# Get accumulation sequences and initial values
-		reversed_reward, reversed_value = self.get_all_actions(actions=['manipulated_rewards','values'], agents=agents, reverse=True)
+		reversed_reward, reversed_value, reversed_importance_weight = self.get_all_actions(actions=['manipulated_rewards','values','importance_weights'], agents=agents, reverse=True)
 		if flags.split_values: # There are 2 value heads: one for intrinsinc and one for extrinsic rewards
 			gamma = np.array([gamma, flags.intrinsic_reward_gamma])
 			if terminal: # episodic reward
@@ -162,30 +162,23 @@ class ExperienceBatch():
 			if terminal and flags.episodic_extrinsic_reward: # episodic reward
 				last_value = 0.
 		# Get reversed cumulative return
-		reversed_cumulative_return = cumulative_return_builder(
+		reversed_cumulative_return, reversed_advantage = cumulative_return_builder(
 			gamma=gamma, 
 			last_value=last_value, 
 			reversed_reward=reversed_reward, 
 			reversed_value=reversed_value, 
+			reversed_importance_weight=reversed_importance_weight,
 			reversed_extra=self.get_all_actions(actions=['extras'], agents=agents, reverse=True)[0] if self.has_actions(actions=['extras'], agents=agents) else None 
 		)
-		# Get advantage
-		if not flags.runtime_advantage:
-			# if flags.split_values: # merge intrisic and extrinsic rewards
-			# 	reversed_advantage = list(map(lambda ret, val: merge_splitted_advantages(ret-val), reversed_cumulative_return, reversed_value))
-			# else:
-			reversed_advantage = list(map(lambda ret, val: ret-val, reversed_cumulative_return, reversed_value))
 		# Add accumulations to batch
 		if len(agents) == 1: # Optimized code for single agent
 			agent_id = agents[0]
 			self.cumulative_returns[agent_id] = list(reversed(reversed_cumulative_return))
-			if not flags.runtime_advantage:
-				self.advantages[agent_id] = list(reversed(reversed_advantage))
+			self.advantages[agent_id] = list(reversed(reversed_advantage))
 		else: # Multi-agents code
 			for i,agent_pos in enumerate(self.step_generator(agents, reverse=True)):
 				feed_dict = {'cumulative_returns': reversed_cumulative_return[i]}
-				if not flags.runtime_advantage:
-					feed_dict['advantages'] = reversed_advantage[i] 
+				feed_dict['advantages'] = reversed_advantage[i] 
 				self.set_action(feed_dict, *agent_pos)
 			
 	def append(self, batch):

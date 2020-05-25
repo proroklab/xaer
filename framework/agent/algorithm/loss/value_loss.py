@@ -21,10 +21,7 @@ class ValueLoss(object):
 		return eval('self.{}'.format(self.loss))()
 			
 	def vanilla(self):
-		# reduce over batches (1st ax)
-		losses = self.reduce_function(tf.squared_difference(self.target, self.prediction), 0)
-		# sum values (last ax)
-		return 0.5*tf.reduce_sum(losses)
+		return self.reduce_function(tf.keras.losses.MSE(self.target, self.prediction))
 				
 	# Schulman, John, et al. "Proximal policy optimization algorithms." arXiv preprint arXiv:1707.06347 (2017).
 	def pvo(self):
@@ -40,7 +37,4 @@ class ValueLoss(object):
 		# clipped prediction
 		prediction_clipped = self.old_prediction + tf.clip_by_value(self.prediction-self.old_prediction, -clip_range, clip_range)
 		max_delta = tf.maximum(tf.abs(self.target-self.prediction),tf.abs(self.target-prediction_clipped))
-		# reduce over batches (1st ax)
-		losses = self.reduce_function(tf.square(max_delta), 0)
-		# sum values (last ax)
-		return 0.5*tf.reduce_sum(losses)
+		return self.reduce_function(tf.reduce_mean(tf.square(max_delta), -1))

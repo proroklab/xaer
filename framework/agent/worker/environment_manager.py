@@ -72,7 +72,7 @@ class EnvironmentManager(object):
 			'tot_value': 0,
 			'tot_step': 0,
 		}
-		if flags.with_state_predictor:
+		if flags.with_transition_predictor:
 			self.__episode_info.update({'tot_relevance': 0})
 		# Frame info
 		if flags.show_episodes == 'none':
@@ -176,7 +176,7 @@ class EnvironmentManager(object):
 				'intrinsic_reward_per_step': tot_intrinsic_reward/tot_step,
 				'intrinsic_reward': tot_intrinsic_reward,
 			})
-		if flags.with_state_predictor:
+		if flags.with_transition_predictor:
 			tot_relevance = self.__episode_info['tot_relevance']
 			episode_stats.update({
 				'transition_relevance_per_step': tot_relevance/tot_step,
@@ -263,7 +263,7 @@ class EnvironmentManager(object):
 		self.__episode_info['tot_manipulated_reward'] += sum(manipulated_rewards)
 		self.__episode_info['tot_value'] += sum(values)
 		self.__episode_info['tot_step'] += len(rewards)
-		if flags.with_state_predictor:
+		if flags.with_transition_predictor:
 			self.__episode_info['tot_relevance'] += sum(relevances)
 		# Terminate episode, if _batch is terminal
 		if self.terminal: # an episode has terminated

@@ -6,6 +6,7 @@ from agent.worker.batch import CompositeBatch
 from utils.buffer import Buffer, PseudoPrioritizedBuffer as PrioritizedBuffer
 from utils.running_std import RunningMeanStd
 from utils.important_information import ImportantInformation
+from agent.algorithm.ac_algorithm import merge_splitted_advantages
 from threading import Lock
 import options
 flags = options.get()
@@ -109,61 +110,64 @@ class NetworkManager(object):
 	def get_model(self, id=0):
 		return self.model_list[id]
 
-	def predict_transition_relevance(self, states, actions, new_states, rewards):
-		state_dict = {
-			'states': states,
-			'actions': actions, 
-			'new_states': new_states,
-			'rewards': rewards,
-		}
-		return self.get_model().predict_transition_relevance(state_dict)
-		
 	def predict_action(self, states, internal_states):
-		action_dict = {
+		info_dict = {
 			'states': states,
 			'internal_states': internal_states,
 			'sizes': [1 for _ in range(len(states))] # states are from different environments with different internal states
 		}
-		actions, hot_actions, policies, values, new_internal_states = self.get_model().predict_action(action_dict)
+		actions, hot_actions, policies, values, new_internal_states = self.get_model().predict_action(info_dict)
 		agents = [0]*len(actions)
 		return actions, hot_actions, policies, values, new_internal_states, agents
 	
 	def _play_critic(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True):
 		# Compute values and bootstrap
 		if with_value:
-			for agent_id in range(self.model_size):
-				value_dict = {
-					'states': batch.states[agent_id],
-					'actions': batch.actions[agent_id],
-					'policies': batch.policies[agent_id],
-					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
-					'bootstrap': [ {'state':batch.new_states[agent_id][-1]} ],
-					'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
-				}
-				value_batch, bootstrap_value, extra_batch = self.get_model(agent_id).predict_value(value_dict)
-				if extra_batch is not None:
-					batch.extras[agent_id] = list(extra_batch)
-				batch.values[agent_id] = list(value_batch)
-				batch.bootstrap[agent_id] = bootstrap_value
-				assert len(batch.states[agent_id]) == len(batch.values[agent_id]), "Number of values does not match the number of states"
+			self._get_value(batch)
 		elif with_bootstrap:
 			self._bootstrap(batch)
+		if self.algorithm.extract_importance_weight:
+			self._get_importance_weight(batch)
 		if with_intrinsic_reward:
 			self._compute_intrinsic_rewards(batch)
-		if with_value or with_intrinsic_reward or with_bootstrap:
+		if with_value or with_intrinsic_reward or with_bootstrap or self.algorithm.extract_importance_weight:
 			self._compute_discounted_cumulative_reward(batch)
-		if flags.with_state_predictor:
+		if flags.with_transition_predictor:
 			self._play_relevance_predictor(batch)
+
+	def _get_value(self, batch):
+		for agent_id in range(self.model_size):
+			value_batch, bootstrap_value, extra_batch = self.get_model(agent_id).predict_value({
+				'states': batch.states[agent_id],
+				'actions': batch.actions[agent_id],
+				'policies': batch.policies[agent_id],
+				'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
+				'bootstrap': [ {'state':batch.new_states[agent_id][-1]} ],
+				'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
+			})
+			if extra_batch is not None:
+				batch.extras[agent_id] = list(extra_batch)
+			batch.values[agent_id] = list(value_batch)
+			batch.bootstrap[agent_id] = bootstrap_value
+			assert len(batch.states[agent_id]) == len(batch.values[agent_id]), "Number of values does not match the number of states"
+
+	def _get_importance_weight(self, batch):
+		for agent_id in range(self.model_size):
+			batch.importance_weights[agent_id] = self.get_model(agent_id).get_importance_weight({
+				'actions': batch.actions[agent_id],
+				'action_masks': batch.action_masks[agent_id],
+				'policies': batch.policies[agent_id],
+			})
+			assert len(batch.states[agent_id]) == len(batch.importance_weights[agent_id]), "Number of importance_weight_batch does not match the number of states"
 
 	def _play_relevance_predictor(self, batch):
 		for agent_id in range(self.model_size):
-			relevance_batch = self.predict_transition_relevance(
-				batch.states[agent_id], 
-				batch.actions[agent_id], 
-				batch.new_states[agent_id],
-				batch.rewards[agent_id],
-			)
-			batch.relevances[agent_id] = list(relevance_batch)
+			batch.relevances[agent_id] = self.get_model(agent_id).predict_transition_relevance({
+				'states': batch.states[agent_id], 
+				'actions': batch.actions[agent_id], 
+				'new_states': batch.new_states[agent_id],
+				'rewards': batch.rewards[agent_id],
+			})
 			assert len(batch.states[agent_id]) == len(batch.relevances[agent_id]), "Number of relevances does not match the number of states"
 			
 	def _bootstrap(self, batch):
@@ -180,12 +184,12 @@ class NetworkManager(object):
 			rewards = batch.rewards[agent_id]
 			manipulated_rewards = batch.manipulated_rewards[agent_id]
 			# Predict intrinsic rewards
-			reward_dict = {
+			info_dict = {
 				'new_states': batch.new_states[agent_id],
 				'state_mean': self.state_mean,
 				'state_std':self.state_std
 			}
-			intrinsic_rewards = self.get_model(agent_id).predict_reward(reward_dict)
+			intrinsic_rewards = self.get_model(agent_id).predict_reward(info_dict)
 			# Scale intrinsic rewards
 			if flags.scale_intrinsic_reward:
 				scaler = self.intrinsic_reward_scaler[agent_id]
@@ -240,7 +244,7 @@ class NetworkManager(object):
 				if not is_valid_end:
 					end = None
 			# Build _train dictionary
-			train_dict = {
+			info_dict = {
 				'states':batch.states[i][start:end] if do_slice else batch.states[i],
 				'new_states':batch.new_states[i][start:end] if do_slice else batch.new_states[i],
 				'actions':batch.actions[i][start:end] if do_slice else batch.actions[i],
@@ -252,11 +256,10 @@ class NetworkManager(object):
 				'internal_state':batch.internal_states[i][start] if is_valid_start else batch.internal_states[i][0],
 				'state_mean':self.state_mean,
 				'state_std':self.state_std,
+				'advantages':batch.advantages[i][start:end] if do_slice else batch.advantages[i],
 			}
-			if not flags.runtime_advantage:
-				train_dict['advantages'] = batch.advantages[i][start:end] if do_slice else batch.advantages[i]
 			# Prepare _train
-			train_result = model.prepare_train(train_dict=train_dict, replay=replay)
+			train_result = model.prepare_train(info_dict=info_dict, replay=replay)
 		
 	def _add_to_replay_buffer(self, batch, is_best):
 		# Check whether batch is empty
@@ -272,10 +275,8 @@ class NetworkManager(object):
 		type_id += '1' if is_best else '0'
 		# Populate buffer
 		if flags.prioritized_replay:
-			if flags.with_state_predictor:
-				priority = batch.get_cumulative_action('relevances', self.agents_set)
-			else:
-				priority = batch_intrinsic_reward if flags.intrinsic_reward else batch_extrinsic_reward
+			advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=self.agents_set)
+			priority = np.sum(np.array(list(map(merge_splitted_advantages,advantages)))*np.array(importance_weights))
 			with self.experience_buffer_lock:
 				self.experience_buffer.put(batch=batch, priority=priority, type_id=type_id)
 		else:
@@ -289,7 +290,7 @@ class NetworkManager(object):
 		# Check whether experience buffer has enough elements for replaying
 		if not self.experience_buffer.has_atleast(flags.replay_start):
 			return
-		prioritized_replay_with_update = flags.prioritized_replay and (flags.intrinsic_reward or flags.with_state_predictor)
+		prioritized_replay_with_update = flags.prioritized_replay and (flags.intrinsic_reward or flags.with_transition_predictor)
 		if prioritized_replay_with_update:
 			batch_to_update = []
 		# Sample n batches from experience buffer
@@ -305,16 +306,14 @@ class NetworkManager(object):
 				with self.experience_buffer_lock:
 					old_batch = self.experience_buffer.sample()
 			# Replay value, without keeping experience_buffer_lock the buffer update might be not consistent anymore
-			self._play_critic(batch=old_batch, with_value=flags.runtime_advantage, with_bootstrap=False, with_intrinsic_reward=flags.intrinsic_reward)
+			self._play_critic(batch=old_batch, with_value=flags.recompute_value_when_replaying, with_bootstrap=False, with_intrinsic_reward=flags.intrinsic_reward)
 			# Train
 			self._train(replay=True, batch=old_batch)
 		# Update buffer
 		if prioritized_replay_with_update:
 			for batch, bid, btype in batch_to_update:
-				if flags.with_state_predictor:
-					new_priority = batch.get_cumulative_action('relevances', self.agents_set)
-				else:
-					_, new_priority = batch.get_cumulative_reward(self.agents_set)
+				advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=self.agents_set)
+				new_priority = np.sum(np.array(list(map(merge_splitted_advantages,advantages)))*np.array(importance_weights))
 				with self.experience_buffer_lock:
 					self.experience_buffer.update_priority(bid, new_priority, btype)
 		
@@ -332,7 +331,7 @@ class NetworkManager(object):
 			is_best = extrinsic_reward > 0 # Best batches = batches that lead to positive extrinsic reward
 			#===================================================================
 			# # Build the best known cumulative return
-			# if is_best and not flags.runtime_advantage:
+			# if is_best and flags.recompute_value_when_replaying:
 			# 	if composite_batch.size() > 1: # No need to recompute the cumulative return if composite batch has only 1 batch
 			# 		self._compute_discounted_cumulative_reward(composite_batch)
 			#===================================================================

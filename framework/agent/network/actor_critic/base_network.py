@@ -36,9 +36,9 @@ class Base_Network(Network):
 		self.qvalue_estimation = qvalue_estimation
 		self.state_scaler = state_scaler
 		
-	def build(self, has_actor=True, has_critic=True, has_state_predictor=True, use_internal_state=True, name='default'):
+	def build(self, has_actor=True, has_critic=True, has_transition_predictor=True, use_internal_state=True, name='default'):
 		self.use_internal_state = use_internal_state
-		print( "	[{}]Building partition {} with has_actor={}, has_critic={}, has_state_predictor={}, use_internal_state={}".format(self.id, name, has_actor, has_critic, has_state_predictor, use_internal_state) )
+		print( "	[{}]Building partition {} with has_actor={}, has_critic={}, has_transition_predictor={}, use_internal_state={}".format(self.id, name, has_actor, has_critic, has_transition_predictor, use_internal_state) )
 		print( "	[{}]Parameters type: {}".format(self.id, flags.parameters_type) )
 		print( "	[{}]Algorithm: {}".format(self.id, flags.algorithm) )
 		print( "	[{}]Network configuration: {}".format(self.id, flags.network_configuration) )
@@ -63,15 +63,15 @@ class Base_Network(Network):
 		self.value_batch = self._value_layer(input=embedded_input, scope=self.scope_name) if has_critic else None
 		
 		# [New State Prediction]
-		if has_state_predictor:
-			self.new_state_prediction_batch, self.reward_prediction_batch = self._state_prediction_layer(
+		if has_transition_predictor:
+			self.new_transition_prediction_batch, self.reward_prediction_batch = self._transition_prediction_layer(
 				state=self.state_embedding_batch, 
 				action=self.action_batch, 
 				scope=self.scope_name
 			)
 			self.new_state_embedding_batch = self._state_embedding_layer(self.new_state_batch, self.new_concat_batch)
 			self.relevance_batch = tf.norm(
-				self.new_state_embedding_batch-self.new_state_prediction_batch, 
+				self.new_state_embedding_batch-self.new_transition_prediction_batch, 
 				ord='euclidean',
 				axis=-1
 			) + tf.norm(
@@ -208,14 +208,14 @@ class Base_Network(Network):
 			# return result
 			return output_list
 		
-	def _state_prediction_layer(self, state, action, scope, name="", share_trainables=True):
-		layer_type = 'StatePredictor'
+	def _transition_prediction_layer(self, state, action, scope, name="", share_trainables=True):
+		layer_type = 'TransitionPredictor'
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
 			state = tf.stop_gradient(state)
 			action = tf.concat(action, -1)
 			state_action = tf.concat([action,state], -1)
-			new_state_prediction = tf.layers.dense(
+			new_transition_prediction = tf.layers.dense(
 				name='{}_Dense_State'.format(layer_type), 
 				inputs=state_action, 
 				units=state.get_shape().as_list()[-1], 
@@ -229,11 +229,11 @@ class Base_Network(Network):
 				activation=None, 
 				kernel_initializer=tf.initializers.variance_scaling
 			)
-			print( "	[{}]StatePredictor layer output shape: {}".format(self.id, new_state_prediction.get_shape()) )
+			print( "	[{}]TransitionPredictor layer output shape: {}".format(self.id, new_transition_prediction.get_shape()) )
 			# update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# return result
-			return new_state_prediction, reward_prediction
+			return new_transition_prediction, reward_prediction
 
 	def _rnn_layer(self, input, scope, name="", share_trainables=True):
 		rnn = RNN(type='LSTM', direction=1, units=64, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)

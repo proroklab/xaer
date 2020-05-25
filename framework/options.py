@@ -19,17 +19,19 @@ def build():
 	options["only_non_negative_entropy"] = True # "Cross-entropy and entropy are used for policy loss and if this flag is True, then entropy=max(0,entropy). If cross-entropy measures the average number of bits needed to identify an event, then it cannot be negative."
 	# Use mean losses if max_batch_size is too big = in order to avoid NaN
 	options["loss_type"] = "mean" # "type of loss reduction: sum, mean"
-	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO"
+	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO, DISC"
 	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO"
-# State Predictor
-	options["with_state_predictor"] = True # Setting this option to True, you add an extra head to the default set of heads: actor, critic. This new head will be trained to predict the embedding of s_(t+1) given the embedding of s_t and a_t. The distance between the predicted s_(t+1) and the real s_(t+1) is going to be used for prioritizing the replay buffer, if it is a prioritized replay buffer.
-	options["state_predictor_coefficient"] = 1 # "Value coefficient for tuning State Predictor learning rate." # default is 0.5
-# Loss clip range
+# Transition Prediction
+	options["with_transition_predictor"] = True # Setting this option to True, you add an extra head to the default set of heads: actor, critic. This new head will be trained to predict the embedding of s_(t+1) given the embedding of s_t and a_t. The distance between the predicted s_(t+1) and the real s_(t+1) is going to be used for prioritizing the replay buffer, if it is a prioritized replay buffer.
+	options["transition_predictor_coefficient"] = 1 # "Value coefficient for tuning State Predictor learning rate." # default is 0.5
+# PPO's Loss clip range
 	options["clip"] = 0.2 # "PPO/PVO initial clip range" # default is 0.2, for openAI is 0.1
 	options["clip_decay"] = True # "Whether to decay the clip range"
 	options["clip_annealing_function"] = "inverse_time_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
 	options["clip_decay_steps"] = 10**5 # "decay clip every x steps" # default is 10**6
 	options["clip_decay_rate"] = 0.96 # "decay rate" # default is 0.25
+# Importance Sampling Target
+	options["importance_sampling_policy_target"] = 0.001 # "Importance Sampling target constant" -> Works only when policy_loss == DISC
 # Learning rate
 	options["alpha"] = 3.5e-4 # "initial learning rate" # default is 7.0e-4, for openAI is 2.5e-4
 	options["alpha_decay"] = False # "whether to decay the learning rate"
@@ -57,7 +59,7 @@ def build():
 	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
 	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output)." -> might be useful only if combined with replay_only_best_batches=True
 	options["train_critic_when_replaying"] = False # "Whether to train also the critic when replaying. Works only when separate_actor_from_critic=True."
-	options["runtime_advantage"] = False # "Whether to compute advantage at runtime, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
+	options["recompute_value_when_replaying"] = False # "Whether to recompute value when replaying, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritized_replay"] = True # "Whether to use prioritized sampling (if replay_mean > 0)" # default is True
@@ -76,13 +78,13 @@ def build():
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
 	# Taking gamma < 1 introduces bias into the policy gradient estimate = regardless of the value function accuracy.
 	options["gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95 = for openAI is 0.99
+# Advantage Estimation
+	options["advantage_estimator"] = "GAE_V" # "Can be one of the following: GAE, GAE_V, VTrace, Vanilla." # GAE_V and VTrace reduce variance when replay_ratio > 0
+	# Taking lambda < 1 introduces bias only when the value function is inaccurate
+	options["lambd"] = 0.85 # "It is the advantage estimator decay parameter used by GAE and VTrace." # Default for GAE is 0.95, default for VTrace is 1
 # Entropy regularization
 	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss. Works only if intrinsic_reward == False" # default True
 	options["beta"] = 1e-3 # "entropy regularization constant" # default is 0.001, for openAI is 0.01
-# Generalized Advantage Estimation: Schulman = John = et al. "High-dimensional continuous control using generalized advantage estimation." arXiv preprint arXiv:1506.02438 (2015).
-	options["use_GAE"] = True # "Whether to use Generalized Advantage Estimation." # default in openAI's PPO implementation
-	# Taking lambda < 1 introduces bias only when the value function is inaccurate
-	options["lambd"] = 0.8 # "generalized advantage estimator decay parameter" # default is 0.95
 # Log
 	options["save_interval_step"] = 2**22 # "Save a checkpoint every n steps."
 	# rebuild_network_after_checkpoint_is_saved may help saving RAM, but may be slow proportionally to save_interval_step.
