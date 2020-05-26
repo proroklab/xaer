@@ -3,6 +3,7 @@ from collections import deque
 import numpy as np
 from agent.algorithm import *
 from agent.worker.batch import CompositeBatch
+from agent.worker.prioritization_scheme import *
 from utils.buffer import Buffer, PseudoPrioritizedBuffer as PrioritizedBuffer
 from utils.running_std import RunningMeanStd
 from utils.important_information import ImportantInformation
@@ -12,11 +13,29 @@ import options
 flags = options.get()
 
 class NetworkManager(object):
-	# Experience replay
-	if flags.replay_mean > 0:
-		# Use locking because buffers are shared among threads
-		experience_buffer_lock = Lock()
-		if flags.prioritized_replay:
+	algorithm = eval('{}_Algorithm'.format(flags.algorithm))
+	print('Algorithm:',flags.algorithm)
+	with_experience_replay = flags.replay_mean > 0
+	print('With Experience Replay:',with_experience_replay)
+	experience_prioritization_scheme = eval(flags.prioritization_scheme) if flags.prioritization_scheme and with_experience_replay else False
+	print('Experience Prioritization Scheme:',experience_prioritization_scheme)
+	prioritized_replay_with_update = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('priority_update_after_replay',False)
+	print('Prioritized Replay With Update:',prioritized_replay_with_update)
+	prioritized_with_intrinsic_reward = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('intrinsic_reward',False)
+	print('Prioritized With Intrinsic Reward:',prioritized_with_intrinsic_reward)
+	with_intrinsic_reward = flags.intrinsic_reward or flags.use_learnt_environment_model_as_observation or prioritized_with_intrinsic_reward
+	print('With Intrinsic Reward:', with_intrinsic_reward)
+	prioritized_with_transition_predictor = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('transition_prediction_error',False)
+	print('Prioritized With Transition Predictor:',prioritized_with_transition_predictor)
+	with_transition_predictor = flags.with_transition_predictor or prioritized_with_transition_predictor
+	print('With Transition Predictor:',with_transition_predictor)
+	prioritized_with_importance_weight_extraction = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('importance_weight',False)
+	print('Prioritized With Importance Weight Extraction:',prioritized_with_importance_weight_extraction)
+	with_importance_weight_extraction = algorithm.extract_importance_weight or prioritized_with_importance_weight_extraction
+	print('With Importance Weight Extraction:',with_importance_weight_extraction)
+	if with_experience_replay:
+		experience_buffer_lock = Lock() # Use a locking mechanism to access the buffer because buffers are shared among threads
+		if experience_prioritization_scheme:
 			experience_buffer = PrioritizedBuffer(
 				size=flags.replay_buffer_size, 
 				alpha=flags.prioritized_replay_alpha, 
@@ -32,7 +51,6 @@ class NetworkManager(object):
 		self.set_model_size()
 		self.global_network = global_network
 		# Build agents
-		self.algorithm = eval('{}_Algorithm'.format(flags.algorithm))
 		self.model_list = self.build_agents(algorithm=self.algorithm, environment_info=environment_info)
 		# Build global_step and gradient_optimizer
 		if self.is_global_network():
@@ -48,12 +66,13 @@ class NetworkManager(object):
 		if not self.is_global_network():
 			self.bind_to_global(self.global_network)
 		# Intrinsic reward
-		if flags.intrinsic_reward:
+		self.can_compute_intrinsic_reward = False
+		if self.with_intrinsic_reward:
 			if flags.scale_intrinsic_reward:
 				self.intrinsic_reward_scaler = [RunningMeanStd() for _ in range(self.model_size)]
 				ImportantInformation(self.intrinsic_reward_scaler, 'intrinsic_reward_scaler{}'.format(self.group_id))
 			# Reward manipulators
-			self.intrinsic_reward_manipulator = eval(flags.intrinsic_reward_manipulator)
+			self.intrinsic_reward_manipulator = eval(flags.intrinsic_reward_manipulator) if flags.intrinsic_reward else lambda x: [0]*len(x)
 			self.intrinsic_reward_mini_batch_size = int(flags.batch_size*flags.intrinsic_rewards_mini_batch_fraction)
 			print('[Group{}] Intrinsic rewards mini-batch size: {}'.format(self.group_id, self.intrinsic_reward_mini_batch_size))
 
@@ -76,7 +95,9 @@ class NetworkManager(object):
 			group_id=self.group_id,
 			model_id=0,
 			environment_info=environment_info, 
-			training=self.training
+			training=self.training,
+			with_intrinsic_reward=self.with_intrinsic_reward,
+			with_transition_predictor=self.with_transition_predictor,
 		)
 		model_list.append(agent)
 		return model_list
@@ -120,20 +141,23 @@ class NetworkManager(object):
 		agents = [0]*len(actions)
 		return actions, hot_actions, policies, values, new_internal_states, agents
 	
-	def _play_critic(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True):
+	def _update_batch(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True, with_importance_weight_extraction=True, with_transition_predictor=True):
+		if with_importance_weight_extraction:
+			self._get_importance_weight(batch)
+		if with_transition_predictor:
+			self._get_transition_prediction_error(batch)
+		# Intrinsic Rewards
+		with_intrinsic_reward = with_intrinsic_reward and self.can_compute_intrinsic_reward
+		if with_intrinsic_reward:
+			self._compute_intrinsic_rewards(batch)
 		# Compute values and bootstrap
 		if with_value:
 			self._get_value(batch)
 		elif with_bootstrap:
 			self._bootstrap(batch)
-		if self.algorithm.extract_importance_weight:
-			self._get_importance_weight(batch)
-		if with_intrinsic_reward:
-			self._compute_intrinsic_rewards(batch)
-		if with_value or with_intrinsic_reward or with_bootstrap or self.algorithm.extract_importance_weight:
+		# Recompute discounted cumulative reward and advantage
+		if with_value or with_bootstrap or with_intrinsic_reward or (with_importance_weight_extraction and self.algorithm.extract_importance_weight):
 			self._compute_discounted_cumulative_reward(batch)
-		if flags.with_transition_predictor:
-			self._play_relevance_predictor(batch)
 
 	def _get_value(self, batch):
 		for agent_id in range(self.model_size):
@@ -160,15 +184,15 @@ class NetworkManager(object):
 			})
 			assert len(batch.states[agent_id]) == len(batch.importance_weights[agent_id]), "Number of importance_weight_batch does not match the number of states"
 
-	def _play_relevance_predictor(self, batch):
+	def _get_transition_prediction_error(self, batch):
 		for agent_id in range(self.model_size):
-			batch.relevances[agent_id] = self.get_model(agent_id).predict_transition_relevance({
+			batch.transition_prediction_errors[agent_id] = self.get_model(agent_id).predict_transition_relevance({
 				'states': batch.states[agent_id], 
 				'actions': batch.actions[agent_id], 
 				'new_states': batch.new_states[agent_id],
 				'rewards': batch.rewards[agent_id],
 			})
-			assert len(batch.states[agent_id]) == len(batch.relevances[agent_id]), "Number of relevances does not match the number of states"
+			assert len(batch.states[agent_id]) == len(batch.transition_prediction_errors[agent_id]), "Number of transition_prediction_errors does not match the number of states"
 			
 	def _bootstrap(self, batch):
 		for agent_id in range(self.model_size):
@@ -274,30 +298,29 @@ class NetworkManager(object):
 		type_id = '1' if batch_extrinsic_reward > 0 else '0'
 		type_id += '1' if is_best else '0'
 		# Populate buffer
-		if flags.prioritized_replay:
-			advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=self.agents_set)
-			priority = np.sum(np.array(list(map(merge_splitted_advantages,advantages)))*np.array(importance_weights))
-			with self.experience_buffer_lock:
-				self.experience_buffer.put(batch=batch, priority=priority, type_id=type_id)
-		else:
-			with self.experience_buffer_lock:
-				self.experience_buffer.put(batch=batch, type_id=type_id)
+		params_dict = {
+			'batch': batch,
+			'type_id': type_id
+		}
+		if self.experience_prioritization_scheme:
+			params_dict['priority'] = self.experience_prioritization_scheme.get(batch, self.agents_set)
+		with self.experience_buffer_lock:
+			self.experience_buffer.put(**params_dict)
 		return True
 
 	def try_to_replay_experience(self):
-		if flags.replay_mean <= 0:
+		if not self.with_experience_replay:
 			return
 		# Check whether experience buffer has enough elements for replaying
 		if not self.experience_buffer.has_atleast(flags.replay_start):
 			return
-		prioritized_replay_with_update = flags.prioritized_replay and (flags.intrinsic_reward or flags.with_transition_predictor)
-		if prioritized_replay_with_update:
+		if self.prioritized_replay_with_update:
 			batch_to_update = []
 		# Sample n batches from experience buffer
 		n = np.random.poisson(flags.replay_mean)
 		for _ in range(n):
 			# Sample batch
-			if prioritized_replay_with_update:
+			if self.prioritized_replay_with_update:
 				with self.experience_buffer_lock:
 					keyed_sample = self.experience_buffer.keyed_sample()
 				batch_to_update.append(keyed_sample)
@@ -306,26 +329,39 @@ class NetworkManager(object):
 				with self.experience_buffer_lock:
 					old_batch = self.experience_buffer.sample()
 			# Replay value, without keeping experience_buffer_lock the buffer update might be not consistent anymore
-			self._play_critic(batch=old_batch, with_value=flags.recompute_value_when_replaying, with_bootstrap=False, with_intrinsic_reward=flags.intrinsic_reward)
+			self._update_batch(
+				batch= old_batch, 
+				with_value= flags.recompute_value_when_replaying, 
+				with_bootstrap= False, 
+				with_intrinsic_reward= self.with_intrinsic_reward, 
+				with_importance_weight_extraction= self.with_importance_weight_extraction, 
+				with_transition_predictor= self.prioritized_with_transition_predictor
+			)
 			# Train
 			self._train(replay=True, batch=old_batch)
 		# Update buffer
-		if prioritized_replay_with_update:
-			for batch, bid, btype in batch_to_update:
-				advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=self.agents_set)
-				new_priority = np.sum(np.array(list(map(merge_splitted_advantages,advantages)))*np.array(importance_weights))
+		if self.prioritized_replay_with_update:
+			for batch, bidx, btype in batch_to_update:
+				new_priority = self.experience_prioritization_scheme.get(batch, self.agents_set)
 				with self.experience_buffer_lock:
-					self.experience_buffer.update_priority(bid, new_priority, btype)
+					self.experience_buffer.update_priority(idx=bidx, priority=new_priority, type_id=btype)
 		
 	def finalize_batch(self, composite_batch, global_step):	
+		self.can_compute_intrinsic_reward = global_step > flags.intrinsic_reward_step
 		batch = composite_batch.get()[-1]	
 		# Decide whether to compute intrinsic reward
-		with_intrinsic_reward = flags.intrinsic_reward and global_step > flags.intrinsic_reward_step
-		self._play_critic(batch, with_value=False, with_bootstrap=True, with_intrinsic_reward=with_intrinsic_reward)
+		self._update_batch(
+			batch= batch, 
+			with_value= False, 
+			with_bootstrap= True, 
+			with_intrinsic_reward= self.with_intrinsic_reward, 
+			with_importance_weight_extraction= self.with_importance_weight_extraction, 
+			with_transition_predictor= self.with_transition_predictor
+		)
 		# Train
 		self._train(replay=False, batch=batch)
 		# Populate replay buffer
-		if flags.replay_mean > 0:
+		if self.with_experience_replay:
 			# Check whether to save the whole episode list into the replay buffer
 			extrinsic_reward, _ = batch.get_cumulative_reward(self.agents_set)
 			is_best = extrinsic_reward > 0 # Best batches = batches that lead to positive extrinsic reward

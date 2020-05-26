@@ -115,22 +115,23 @@ class PolicyLoss(object):
 	def disc(self):
 		gain = self.ppo()
 		# Compute IS loss function (Compute IS loss only for on-policy data) # In addition, in order to prevent the IS weight from being too far from 1, we include an additional loss for control
-		ISloss = tf.cond(
+		kl_divergence = tf.cond(
 			pred=self.is_replayed_batch[0], 
 			true_fn=lambda: 0.,
 			false_fn=lambda: self.approximate_kullback_leibler_divergence(),
 		)
-		# Update adaptive IS target constant
+		# kl_divergence = self.approximate_kullback_leibler_divergence()
+		# Update adaptive importance sampling target constant
 		self.adaptive_importance_sampling_alpha = self.one
 		self.adaptive_importance_sampling_alpha *= tf.cond(
-			pred=ISloss > flags.importance_sampling_policy_target * 1.5, 
+			pred=kl_divergence > flags.importance_sampling_policy_target * 1.5, 
 			true_fn=lambda: 2., # "Adaptive IS loss factor is increased"
 			false_fn=lambda: 1.
 		)
 		self.adaptive_importance_sampling_alpha *= tf.cond(
-			pred=ISloss < flags.importance_sampling_policy_target / 1.5, 
+			pred=kl_divergence < flags.importance_sampling_policy_target / 1.5, 
 			true_fn=lambda: 0.5, # "Adaptive IS loss factor is reduced"
 			false_fn=lambda: 1.
 		)
 		self.adaptive_importance_sampling_alpha = tf.clip_by_value(self.adaptive_importance_sampling_alpha, 2**(-10),64)
-		return gain + tf.stop_gradient(self.adaptive_importance_sampling_alpha) * ISloss
+		return gain + tf.stop_gradient(self.adaptive_importance_sampling_alpha) * kl_divergence

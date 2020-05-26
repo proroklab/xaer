@@ -7,6 +7,7 @@ def build():
 	options = {}
 	options["max_timestep"] = 2**30 # "Max training time steps."
 	options["timesteps_before_starting_training"] = 2**10 # "Number of initialization steps."
+	options["shuffle_sequences"] = True # Whether to shuffle sequences in the batch when training (recommended).
 # Environment
 	options["env_type"] = "CarController" # "environment types: CarController or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
@@ -22,9 +23,8 @@ def build():
 	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO, DISC"
 	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO"
 # Transition Prediction
-	options["with_transition_predictor"] = True # Setting this option to True, you add an extra head to the default set of heads: actor, critic. This new head will be trained to predict the embedding of s_(t+1) given the embedding of s_t and a_t. The distance between the predicted s_(t+1) and the real s_(t+1) is going to be used for prioritizing the replay buffer, if it is a prioritized replay buffer.
-	options["transition_predictor_coefficient"] = 1 # "Value coefficient for tuning State Predictor learning rate." # default is 0.5
-# PPO's Loss clip range
+	options["with_transition_predictor"] = False # Setting this option to True, you add an extra head to the default set of heads: actor, critic. This new head will be trained to predict r_t and the embedding of s_(t+1) given the embedding of s_t and a_t.
+# PPO's and PVO's Loss clip range
 	options["clip"] = 0.2 # "PPO/PVO initial clip range" # default is 0.2, for openAI is 0.1
 	options["clip_decay"] = True # "Whether to decay the clip range"
 	options["clip_annealing_function"] = "inverse_time_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
@@ -39,8 +39,8 @@ def build():
 	options["alpha_decay_steps"] = 10**8 # "decay alpha every x steps" # default is 10**6
 	options["alpha_decay_rate"] = 0.96 # "decay rate" # default is 0.25
 # Intrinsic Rewards: Burda = Yuri = et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
-	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states."
-	options["use_training_state"] = False # "Use intrinsic reward weights (the training state) as network input. Requires intrinsic_reward == True."
+	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states, and the agent is trained to maximize it."
+	options["use_learnt_environment_model_as_observation"] = False # "Use the intrinsic reward weights (the learnt model of the environment) as network input."
 	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
 	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
 	options["scale_intrinsic_reward"] = False # "Whether to scale the intrinsic reward with its standard deviation."
@@ -62,7 +62,7 @@ def build():
 	options["recompute_value_when_replaying"] = False # "Whether to recompute value when replaying, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
-	options["prioritized_replay"] = True # "Whether to use prioritized sampling (if replay_mean > 0)" # default is True
+	options["prioritization_scheme"] = "unclipped_mental_model_imprecision_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: 'unclipped_mental_model_imprecision_estimate', 'unclipped_gain_estimate', 'surprise', 'cumulative_extrinsic_return', 'transition_prediction_error'.
 	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization = 1 - full prioritization)."
 	options["prioritized_drop_probability"] = 1 # "Probability of removing the batch with the lowest priority instead of the oldest batch."
 # Reward manipulators
@@ -81,7 +81,7 @@ def build():
 # Advantage Estimation
 	options["advantage_estimator"] = "GAE_V" # "Can be one of the following: GAE, GAE_V, VTrace, Vanilla." # GAE_V and VTrace reduce variance when replay_ratio > 0
 	# Taking lambda < 1 introduces bias only when the value function is inaccurate
-	options["lambd"] = 0.85 # "It is the advantage estimator decay parameter used by GAE and VTrace." # Default for GAE is 0.95, default for VTrace is 1
+	options["lambd"] = 0.95 # "It is the advantage estimator decay parameter used by GAE and VTrace." # Default for GAE is 0.95, default for VTrace is 1
 # Entropy regularization
 	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss. Works only if intrinsic_reward == False" # default True
 	options["beta"] = 1e-3 # "entropy regularization constant" # default is 0.001, for openAI is 0.01

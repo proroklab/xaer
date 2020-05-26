@@ -29,7 +29,7 @@ class Base_Network(Network):
 		self.reward_batch = batch_dict['reward']
 		# size
 		self.size_batch = batch_dict['size']
-		if flags.intrinsic_reward:
+		if flags.use_learnt_environment_model_as_observation:
 			self.training_state = batch_dict['training_state']
 		self.parameters_type = eval('tf.{}'.format(flags.parameters_type))
 		self.policy_heads = policy_heads 
@@ -96,7 +96,7 @@ class Base_Network(Network):
 		embedded_input = tf.concat(embedded_input, -1)
 		print( "	[{}]CNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [Training state]
-		if flags.intrinsic_reward and flags.use_training_state:
+		if flags.use_learnt_environment_model_as_observation:
 			embedded_input = self._weights_layer(input=embedded_input, weights=self.training_state, scope=self.scope_name)
 			print( "	[{}]Weights layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [Concat]

@@ -33,7 +33,7 @@ class AC_Algorithm(object):
 			reversed_importance_weight=reversed_importance_weight,
 		)
 	
-	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None):
+	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True, with_transition_predictor=False):
 		self.parameters_type = eval('tf.{}'.format(flags.parameters_type))
 		self.beta = beta if beta is not None else flags.beta
 		self.value_count = 2 if flags.split_values else 1
@@ -62,7 +62,7 @@ class AC_Algorithm(object):
 		self.has_masked_actions = environment_info['has_masked_actions']
 		# Create the network
 		self.build_input_placeholders()
-		self.initialize_network()
+		self.initialize_network(with_intrinsic_reward=with_intrinsic_reward, with_transition_predictor=with_transition_predictor)
 		self.build_network()
 		# Stuff for building the big-batch and optimize training computations
 		self._big_batch_feed = [{},{}]
@@ -72,8 +72,8 @@ class AC_Algorithm(object):
 		self._train_statistics = Statistics(flags.episode_count_for_evaluation)
 		#=======================================================================
 		# self.loss_distribution_estimator = RunningMeanStd(batch_size=flags.batch_size)
+		# self.actor_loss_is_too_small = False
 		#=======================================================================
-		self.actor_loss_is_too_small = False
 		
 	def get_statistics(self):
 		return self._train_statistics.get()
@@ -155,7 +155,9 @@ class AC_Algorithm(object):
 	def get_network_partitions(self):
 		return ['Actor','Critic','Reward','TransitionPredictor']
 	
-	def initialize_network(self, qvalue_estimation=False):
+	def initialize_network(self, qvalue_estimation=False, with_intrinsic_reward=True, with_transition_predictor=False):
+		self.with_intrinsic_reward = with_intrinsic_reward
+		self.with_transition_predictor = with_transition_predictor
 		self.network = {}
 		batch_dict = {
 			'state': self.state_batch, 
@@ -168,7 +170,7 @@ class AC_Algorithm(object):
 		}
 		# Build intrinsic reward network here because we need its internal state for building actor and critic
 		self.network['Reward'] = IntrinsicReward_Network(id=self.id, batch_dict=batch_dict, scope_dict={'self': "IRNet{0}".format(self.id)}, training=self.training)
-		if flags.intrinsic_reward:
+		if self.with_intrinsic_reward:
 			reward_network_output = self.network['Reward'].build()
 			self.intrinsic_reward_batch = reward_network_output[0]
 			self.intrinsic_reward_loss = reward_network_output[1]
@@ -218,7 +220,7 @@ class AC_Algorithm(object):
 			print( "	[{}]Action{} output shape: {}".format(self.id, i, b.get_shape()) )
 		for i,b in enumerate(self.hot_action_batch): 
 			print( "	[{}]HotAction{} output shape: {}".format(self.id, i, b.get_shape()) )
-		if flags.with_transition_predictor:
+		if self.with_transition_predictor:
 			self.network['TransitionPredictor'].build(name='TransitionPredictor', has_actor=False, has_critic=False, has_transition_predictor=True, use_internal_state=flags.network_has_internal_state)
 			self.relevance_batch = self.network['TransitionPredictor'].relevance_batch
 			self.new_transition_prediction_batch = self.network['TransitionPredictor'].new_transition_prediction_batch
@@ -294,11 +296,11 @@ class AC_Algorithm(object):
 				false_fn=lambda: tf.constant(0., dtype=self.parameters_type)
 			)
 		# [RND loss]
-		if flags.intrinsic_reward:
+		if self.with_intrinsic_reward:
 			self.extra_loss += self.intrinsic_reward_loss
 		# [State Predictor loss]
-		if flags.with_transition_predictor:
-			self.transition_predictor_loss = flags.transition_predictor_coefficient * ValueLoss(
+		if self.with_transition_predictor:
+			self.transition_predictor_loss = ValueLoss(
 				global_step=self.global_step,
 				loss='vanilla',
 				prediction=self.new_transition_prediction_batch, 
@@ -353,7 +355,7 @@ class AC_Algorithm(object):
 			global_keys=global_agent.get_shared_keys(['Critic']),
 			update_keys=self.get_update_keys(['Critic'])
 		)
-		if flags.intrinsic_reward:
+		if self.with_intrinsic_reward:
 			self.reward_op = self._get_train_op(
 				global_step=global_step,
 				optimizer=reward_optimizer, 
@@ -362,7 +364,7 @@ class AC_Algorithm(object):
 				global_keys=global_agent.get_shared_keys(['Reward']),
 				update_keys=self.get_update_keys(['Reward'])
 			)
-		if flags.with_transition_predictor:
+		if self.with_transition_predictor:
 			self.transition_predictor_op = self._get_train_op(
 				global_step=global_step,
 				optimizer=transition_predictor_optimizer, 
@@ -386,7 +388,7 @@ class AC_Algorithm(object):
 		tf.get_default_session().run(fetches=self.sync_op)
 		
 	def predict_reward(self, info_dict):
-		assert flags.intrinsic_reward, "Cannot get intrinsic reward if the RND layer is not built"
+		assert self.with_intrinsic_reward, "Cannot get intrinsic reward if the RND layer is not built"
 		# State
 		feed_dict = self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states'])
 		feed_dict.update( self._get_multihead_feed(target=self.state_mean_batch, source=[info_dict['state_mean']]) )
@@ -395,7 +397,7 @@ class AC_Algorithm(object):
 		return tf.get_default_session().run(fetches=self.intrinsic_reward_batch, feed_dict=feed_dict)
 
 	def predict_transition_relevance(self, info_dict):
-		assert flags.with_transition_predictor, "Cannot get transition relevance if the state predictor layer is not built"
+		assert self.with_transition_predictor, "Cannot get transition relevance if the state predictor layer is not built"
 		# State
 		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
 		feed_dict.update( self._get_multihead_feed(target=self.old_action_batch, source=info_dict['actions']) )
@@ -522,19 +524,28 @@ class AC_Algorithm(object):
 		return None
 	
 	def _train(self, feed_dict, replay=False, state_mean_std=None):
+		# # Shuffle batch
+		# if flags.shuffle_sequences:
+		# 	seed = np.random.random()
+		# 	len_list = []
+		# 	for key,value in feed_dict.items():
+		# 		np.random.seed(seed)
+		# 		feed_dict[key] = np.random.permutation(value)
+		# 		len_list.append(len(value))
+		# 	assert max(len_list) == min(len_list), "Wrong batch shuffling"
 		# Add replay boolean to feed dictionary
 		feed_dict.update( {self.is_replayed_batch: [replay]} )
 		# Intrinsic Reward
-		if flags.intrinsic_reward:
+		if self.with_intrinsic_reward:
 			state_mean, state_std = state_mean_std
 			feed_dict.update( self._get_multihead_feed(target=self.state_mean_batch, source=[state_mean]) )
 			feed_dict.update( self._get_multihead_feed(target=self.state_std_batch, source=[state_std]) )
 		# Build _train fetches
 		train_tuple = (self.actor_op, self.critic_op) if not replay or flags.train_critic_when_replaying else (self.actor_op, )
 		# Do not replay intrinsic reward training otherwise it would start to reward higher the states distant from extrinsic rewards
-		if flags.intrinsic_reward and not replay:
+		if self.with_intrinsic_reward and not replay:
 			train_tuple += (self.reward_op,)
-		if flags.with_transition_predictor:
+		if self.with_transition_predictor:
 			train_tuple += (self.transition_predictor_op,)
 		# Build fetch
 		fetches = [train_tuple] # Minimize loss
@@ -543,9 +554,9 @@ class AC_Algorithm(object):
 		# Debug info
 		fetches += [(self.policy_kl_divergence, self.policy_clipping_frequency, self.policy_entropy_regularization)] if flags.print_policy_info else [()]
 		# Intrinsic reward
-		fetches += [(self.intrinsic_reward_loss, )] if flags.intrinsic_reward else [()]
+		fetches += [(self.intrinsic_reward_loss, )] if self.with_intrinsic_reward else [()]
 		# TransitionPredictor
-		fetches += [(self.transition_predictor_loss, )] if flags.with_transition_predictor else [()]
+		fetches += [(self.transition_predictor_loss, )] if self.with_transition_predictor else [()]
 		# Run
 		_, loss, policy_info, reward_info, transition_predictor_info = tf.get_default_session().run(fetches=fetches, feed_dict=feed_dict)
 		self.sync()
@@ -555,9 +566,9 @@ class AC_Algorithm(object):
 			train_info["loss_total"], train_info["loss_actor"], train_info["loss_critic"] = loss
 		if flags.print_policy_info:
 			train_info["actor_kl_divergence"], train_info["actor_clipping_frequency"], train_info["actor_entropy"] = policy_info
-		if flags.intrinsic_reward:
+		if self.with_intrinsic_reward:
 			train_info["intrinsic_reward_loss"] = reward_info
-		if flags.with_transition_predictor:
+		if self.with_transition_predictor:
 			train_info["transition_predictor_loss"] = transition_predictor_info
 		# Build loss statistics
 		if train_info:
@@ -574,7 +585,7 @@ class AC_Algorithm(object):
 			self.cumulative_return_batch: info_dict['cumulative_returns'],
 			self.old_state_value_batch: info_dict['values'],
 		}
-		if flags.with_transition_predictor:
+		if self.with_transition_predictor:
 			feed_dict.update( {self.reward_batch: info_dict['rewards']} )
 		feed_dict.update( self._get_multihead_feed(target=self.state_batch, source=info_dict['states']) )
 		feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states']) )

@@ -12,7 +12,7 @@ class ExperienceBatch():
 		'_model_size', '_batch_keys', '_agent_list', '_agent_position_list',
 		'bootstrap', 'terminal',
 		'states', 'new_states', 
-		'relevances', 
+		'transition_prediction_errors', 
 		'internal_states', 'new_internal_states', 
 		'actions', 'action_masks', 'policies', 'values', 'importance_weights',
 		'rewards', 'manipulated_rewards', 
@@ -26,7 +26,7 @@ class ExperienceBatch():
 		# Add batch keys, after setting model size
 		self._add_batch_key_if_not_exist([
 			'states','new_states',
-			'relevances',
+			'transition_prediction_errors',
 			'internal_states','new_internal_states',
 			'actions','action_masks','policies','values','importance_weights',
 			'rewards','manipulated_rewards',
