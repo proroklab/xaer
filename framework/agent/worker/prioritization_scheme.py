@@ -13,7 +13,7 @@ class pruned_gain_estimate():
 	def get(batch, agents):
 		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
 		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
-		gains = merged_advantages*np.where(a > 1, importance_weights, 0)
+		gains = merged_advantages*np.where(importance_weights > 1, importance_weights, 0)
 		return np.sum(gains)
 
 class clipped_gain_estimate():
