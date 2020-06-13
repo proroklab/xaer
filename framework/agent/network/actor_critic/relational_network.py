@@ -6,6 +6,8 @@ import utils.tensorflow_utils as tf_utils
 import options
 flags = options.get()
 
+HEADS = 2
+
 class Relational_Network(OpenAISmall_Network):
 
 	@staticmethod
@@ -24,7 +26,7 @@ class Relational_Network(OpenAISmall_Network):
 
 	@staticmethod
 	def predicate_invention_layer(entities):
-		query_key_value = Relational_Network.query_key_value_layer(entities)
+		query_key_value = Relational_Network.query_key_value_layer(entities, n_heads=HEADS)
 		query, key, value = map(tf.keras.layers.LayerNormalization(center=True, scale=True, trainable=False), query_key_value)
 		accumulated_interaction, attention_weight = Relational_Network.attention_layer(query, key, value)
 		# print( "	Accumulated interactions shape: {}".format(accumulated_interaction.get_shape()) )

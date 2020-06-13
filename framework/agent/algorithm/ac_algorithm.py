@@ -465,12 +465,18 @@ class AC_Algorithm(object):
 		return action_batch, hot_action_batch, policy_batch, value_batch, new_internal_states
 
 	def get_importance_weight(self, info_dict):
-		feed_dict = {}
+		# State
+		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
 		# Old Policy & Action
 		feed_dict.update( self._get_multihead_feed(target=self.old_policy_batch, source=info_dict['policies']) )
 		feed_dict.update( self._get_multihead_feed(target=self.old_action_batch, source=info_dict['actions']) )
 		if self.has_masked_actions:
 			feed_dict.update( self._get_multihead_feed(target=self.old_action_mask_batch, source=info_dict['action_masks']) )
+		# Internal State
+		if flags.network_has_internal_state:
+			feed_dict.update( self._get_internal_state_feed(info_dict['internal_states']) )
+			feed_dict.update( {self.size_batch: info_dict['sizes']} )
+		# Return value_batch
 		return tf.get_default_session().run(
 			fetches=self.importance_weight_batch, 
 			feed_dict=feed_dict

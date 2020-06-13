@@ -181,6 +181,9 @@ class NetworkManager(object):
 				'actions': batch.actions[agent_id],
 				'action_masks': batch.action_masks[agent_id],
 				'policies': batch.policies[agent_id],
+				'states': batch.states[agent_id],
+				'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
+				'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
 			})
 			assert len(batch.states[agent_id]) == len(batch.importance_weights[agent_id]), "Number of importance_weight_batch does not match the number of states"
 
