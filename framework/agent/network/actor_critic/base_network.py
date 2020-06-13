@@ -110,8 +110,8 @@ class Base_Network(Network):
 		layer_type = 'CNN'
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.layers.conv2d(name='CNN_Conv1', inputs=input, filters=16, kernel_size=(3,3), strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
-			input = tf.layers.conv2d(name='CNN_Conv2', inputs=input, filters=8, kernel_size=(3,3), strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
+			input = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=16, kernel_size=[3,3], strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(input)
+			input = tf.keras.layers.Conv2D(name='CNN_Conv2',  filters=8, kernel_size=[3,3], strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(input)
 			# update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# return result
@@ -123,7 +123,7 @@ class Base_Network(Network):
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
 			kernel = tf.stop_gradient(weights['kernel'])
 			# kernel = tf.transpose(kernel, [1, 0])
-			kernel = tf.layers.dense(name='Concat_Dense0', inputs=kernel, units=1, activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
+			kernel = tf.keras.layers.Dense(name='Concat_Dense0',  units=1, activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(kernel)
 			kernel = tf.reshape(kernel, [-1])
 			bias = tf.stop_gradient(weights['bias'])
 			bias = tf.reshape(bias, [-1])
@@ -140,7 +140,7 @@ class Base_Network(Network):
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
 			input = tf.layers.flatten(input)
-			input = tf.layers.dense(name='Concat_Dense1', inputs=input, units=64, activation=tf.nn.elu, kernel_initializer=tf.initializers.variance_scaling)
+			input = tf.keras.layers.Dense(name='Concat_Dense1',  units=64, activation=tf.nn.elu, kernel_initializer=tf.initializers.variance_scaling)(input)
 			if concat.get_shape()[-1] > 0:
 				concat = tf.layers.flatten(concat)
 				input = tf.concat([input, concat], -1) # shape: (batch, concat_size+units)
@@ -158,7 +158,7 @@ class Base_Network(Network):
 				policy_size = sum(h['size'] for h in self.policy_heads)
 				units = policy_size*max(1,policy_depth)
 				output = [
-					tf.layers.dense(name='{}_Q{}_Dense1'.format(layer_type,i), inputs=input, units=units, activation=None, kernel_initializer=tf.initializers.variance_scaling)
+					tf.keras.layers.Dense(name='{}_Q{}_Dense1'.format(layer_type,i),  units=units, activation=None, kernel_initializer=tf.initializers.variance_scaling)(input)
 					for i in range(self.value_count)
 				]
 				output = tf.stack(output)
@@ -167,7 +167,7 @@ class Base_Network(Network):
 					output = tf.reshape(output, [-1,self.value_count,policy_size,policy_depth])
 			else:
 				output = [ # Keep value heads separated
-					tf.layers.dense(name='{}_V{}_Dense1'.format(layer_type,i), inputs=input, units=1, activation=None, kernel_initializer=tf.initializers.variance_scaling)
+					tf.keras.layers.Dense(name='{}_V{}_Dense1'.format(layer_type,i),  units=1, activation=None, kernel_initializer=tf.initializers.variance_scaling)(input)
 					for i in range(self.value_count)
 				]
 				output = tf.stack(output)
@@ -188,9 +188,9 @@ class Base_Network(Network):
 				policy_size = policy_head['size']
 				if is_continuous_control(policy_depth):
 					# build mean
-					mu = tf.layers.dense(name='{}_Mu_Dense{}'.format(layer_type,h), inputs=input, units=policy_size, activation=None, kernel_initializer=tf.initializers.variance_scaling) # in (-inf,inf)
+					mu = tf.keras.layers.Dense(name='{}_Mu_Dense{}'.format(layer_type,h),  units=policy_size, activation=None, kernel_initializer=tf.initializers.variance_scaling)(input) # in (-inf,inf)
 					# build standard deviation
-					sigma = tf.layers.dense(name='{}_Sigma_Dense{}'.format(layer_type,h), inputs=input, units=policy_size, activation=None, kernel_initializer=tf.initializers.variance_scaling) # in (-inf,inf)
+					sigma = tf.keras.layers.Dense(name='{}_Sigma_Dense{}'.format(layer_type,h),  units=policy_size, activation=None, kernel_initializer=tf.initializers.variance_scaling)(input) # in (-inf,inf)
 					# clip mu and sigma to avoid numerical instabilities
 					clipped_mu = tf.clip_by_value(mu, -1,1, name='mu_clipper') # in [-1,1]
 					clipped_sigma = tf.clip_by_value(tf.abs(sigma), 1e-4,1, name='sigma_clipper') # in [1e-4,1] # sigma must be greater than 0
@@ -199,7 +199,7 @@ class Base_Network(Network):
 					# policy_batch = tf.reshape(policy_batch, [-1, 2, policy_size])
 					policy_batch = tf.transpose(policy_batch, [1, 0, 2])
 				else: # discrete control
-					policy_batch = tf.layers.dense(name='{}_Logits_Dense{}'.format(layer_type,h), inputs=input, units=policy_size*policy_depth, activation=None, kernel_initializer=tf.initializers.variance_scaling)
+					policy_batch = tf.keras.layers.Dense(name='{}_Logits_Dense{}'.format(layer_type,h),  units=policy_size*policy_depth, activation=None, kernel_initializer=tf.initializers.variance_scaling)(input)
 					if policy_size > 1:
 						policy_batch = tf.reshape(policy_batch, [-1,policy_size,policy_depth])
 				output_list.append(policy_batch)

@@ -13,7 +13,7 @@ def build():
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
 	options["algorithm"] = "AC" # "algorithms: AC, ACER"
-	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala"
+	options["network_configuration"] = "Relational" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = "Adam" # "gradient optimizer: PowerSign, AddSign, ElasticAverage, LazyAdam, Nadam, Adadelta, AdagradDA, Adagrad, Adam, Ftrl, GradientDescent, Momentum, ProximalAdagrad, ProximalGradientDescent, RMSProp" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.
@@ -62,7 +62,7 @@ def build():
 	options["recompute_value_when_replaying"] = False # "Whether to recompute value when replaying, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
-	options["prioritization_scheme"] = "unclipped_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: 'pruned_gain_estimate, clipped_gain_estimate, clipped_mean_gain_estimate, clipped_best_gain_estimate, unclipped_gain_estimate, unclipped_mean_gain_estimate, unclipped_best_gain_estimate, surprise, cumulative_extrinsic_return, transition_prediction_error'.
+	options["prioritization_scheme"] = "pruned_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: 'pruned_gain_estimate, clipped_gain_estimate, clipped_mean_gain_estimate, clipped_best_gain_estimate, unclipped_gain_estimate, unclipped_mean_gain_estimate, unclipped_best_gain_estimate, surprise, cumulative_extrinsic_return, transition_prediction_error'.
 	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization = 1 - full prioritization)."
 	options["prioritized_drop_probability"] = 1 # "Probability of removing the batch with the lowest priority instead of the oldest batch."
 # Reward manipulators
@@ -72,16 +72,16 @@ def build():
 	options["separate_actor_from_critic"] = False # "Set to True if you want actor and critic not sharing any part of their computational graphs." # default False
 	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
-	options["groups_count"] = 4 # "Number n of groups, the environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training."
+	options["groups_count"] = 4 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."
 	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
 	# Taking gamma < 1 introduces bias into the policy gradient estimate = regardless of the value function accuracy.
 	options["gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95 = for openAI is 0.99
 # Advantage Estimation
-	options["advantage_estimator"] = "GAE_V" # "Can be one of the following: GAE, GAE_V, VTrace, Vanilla." # GAE_V and VTrace reduce variance when replay_ratio > 0
+	options["advantage_estimator"] = "GAE_V" # "Can be one of the following: GAE, GAE_V, VTrace, Vanilla." # GAE_V and VTrace should reduce bias and variance when replay_ratio > 0
 	# Taking lambda < 1 introduces bias only when the value function is inaccurate
-	options["lambd"] = 0.95 # "It is the advantage estimator decay parameter used by GAE and VTrace." # Default for GAE is 0.95, default for VTrace is 1
+	options["lambd"] = 0.95 # "It is the advantage estimator decay parameter used by GAE, GAE_V and VTrace." # Default for GAE is 0.95, default for VTrace is 1
 # Entropy regularization
 	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss. Works only if intrinsic_reward == False" # default True
 	options["beta"] = 1e-3 # "entropy regularization constant" # default is 0.001, for openAI is 0.01

@@ -55,7 +55,7 @@ class Wave_Network(OpenAISmall_Network):
 			input = tf.layers.flatten(input)
 			concat = tf.layers.flatten(concat)
 			input = tf.concat([input, concat], -1) # shape: (batch, concat_size+input_size)
-			#input = tf.layers.dense(name='Concat_Dense1', inputs=input, units=128, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
+			#input = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
 			# Update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# Return result

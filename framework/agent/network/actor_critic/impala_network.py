@@ -61,7 +61,7 @@ class Impala_Network(Base_Network):
 			if concat.get_shape()[-1] > 0:
 				concat = tf.layers.flatten(concat)
 				input = tf.concat([input, concat], -1) # shape: (batch, concat_size+units)
-			input = tf.layers.dense(name='Concat_Dense1', inputs=input, units=256, activation=tf.nn.relu)
+			input = tf.keras.layers.Dense(name='Concat_Dense1',  units=256, activation=tf.nn.relu)(input)
 			# Update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# Return result

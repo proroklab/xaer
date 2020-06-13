@@ -17,9 +17,9 @@ class MSA_Network(OpenAISmall_Network):
 	# 	_, input_height, input_width, input_channel = input.get_shape().as_list()
 	# 	with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 	# 		print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-	# 		input = tf.layers.conv2d(name='CNN_Conv1', inputs=input, filters=16, kernel_size=(input_height,1), dilation_rate=(1,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
-	# 		input = tf.layers.conv2d(name='CNN_Conv2', inputs=input, filters=16, kernel_size=(1,input_width), dilation_rate=(3,1), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
-	# 		input = tf.layers.conv2d(name='CNN_Conv3', inputs=input, filters=32, kernel_size=3, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
+	# 		input = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=16, kernel_size=(input_height,1), dilation_rate=(1,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
+	# 		input = tf.keras.layers.Conv2D(name='CNN_Conv2',  filters=16, kernel_size=(1,input_width), dilation_rate=(3,1), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
+	# 		input = tf.keras.layers.Conv2D(name='CNN_Conv3',  filters=32, kernel_size=3, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
 	# 		# update keys
 	# 		self._update_keys(variable_scope.name, share_trainables)
 	# 		# return result
@@ -33,7 +33,7 @@ class MSA_Network(OpenAISmall_Network):
 			input = tf.layers.flatten(input)
 			concat = tf.layers.flatten(concat)
 			input = tf.concat([input, concat], -1) # shape: (batch, concat_size+input_size)
-			input = tf.layers.dense(name='Concat_Dense1', inputs=input, units=256, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
+			input = tf.keras.layers.Dense(name='Concat_Dense1',  units=256, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
 			# Update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# Return result

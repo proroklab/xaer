@@ -18,9 +18,9 @@ class OpenAISmallCRELU_Network(OpenAISmall_Network):
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
 			# input = tf.contrib.model_pruning.masked_conv2d(inputs=input, num_outputs=16, kernel_size=(3,3), padding='SAME', activation_fn=tf.nn.leaky_relu) # xavier initializer
 			# input = tf.contrib.model_pruning.masked_conv2d(inputs=input, num_outputs=32, kernel_size=(3,3), padding='SAME', activation_fn=tf.nn.leaky_relu) # xavier initializer
-			input = tf.layers.conv2d(name='CNN_Conv1', inputs=input, filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
-			input = tf.layers.conv2d(name='CNN_Conv2', inputs=input, filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
-			input = tf.layers.conv2d(name='CNN_Conv3', inputs=input, filters=64, kernel_size=4, strides=1, padding='SAME', activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
+			input = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
+			input = tf.keras.layers.Conv2D(name='CNN_Conv2',  filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
+			input = tf.keras.layers.Conv2D(name='CNN_Conv3',  filters=64, kernel_size=4, strides=1, padding='SAME', activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
 			# update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# return result
@@ -32,7 +32,7 @@ class OpenAISmallCRELU_Network(OpenAISmall_Network):
 			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
 			kernel = tf.stop_gradient(weights['kernel'])
 			kernel = tf.transpose(kernel, [1, 0])
-			kernel = tf.layers.dense(name='TS_Dense0', inputs=kernel, units=1, activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
+			kernel = tf.keras.layers.Dense(name='TS_Dense0',  units=1, activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(kernel)
 			kernel = tf.reshape(kernel, [1,-1])
 			bias = tf.stop_gradient(weights['bias'])
 			bias = tf.reshape(bias, [1,-1])

@@ -9,7 +9,7 @@ class SA_Network(Base_Network):
 		layer_type = 'CNN'
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "    [{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.layers.conv2d(name='CNN_Conv1', inputs=input, filters=16, kernel_size=(1,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )
+			input = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=16, kernel_size=(1,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )(input)
 			# update keys
 			self._update_keys(variable_scope.name, share_trainables)
 			# return result
@@ -20,7 +20,7 @@ class SA_Network(Base_Network):
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "    [{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
 			input = tf.layers.flatten(input)
-			input = tf.layers.dense(name='Concat_Dense1', inputs=input, units=128, activation=None, kernel_initializer=tf.initializers.variance_scaling)
+			input = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=None, kernel_initializer=tf.initializers.variance_scaling)(input)
 			input = tf.contrib.layers.maxout(inputs=input, num_units=64, axis=-1)
 			input = tf.reshape(input, [-1, 64])
 			if concat.get_shape()[-1] > 0:

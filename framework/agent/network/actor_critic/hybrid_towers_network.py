@@ -10,12 +10,12 @@ class HybridTowers_Network(Base_Network):
 		layer_type = 'CNN'
 		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
 			print( "    [{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			tower1 = tf.layers.conv2d(name='CNN_Tower1_Conv1', inputs=input, filters=64, kernel_size=(3, 3), strides=(1, 1), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
-			tower1 = tf.layers.conv2d(name='CNN_Tower1_Conv2', inputs=tower1, filters=32, kernel_size=(3, 3), strides=(1, 1), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)
+			tower1 = tf.keras.layers.Conv2D(name='CNN_Tower1_Conv1',  filters=64, kernel_size=(3, 3), strides=(1, 1), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(input)
+			tower1 = tf.keras.layers.Conv2D(name='CNN_Tower1_Conv2',  filters=32, kernel_size=(3, 3), strides=(1, 1), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(tower1)
 			tower1 = tf.layers.max_pooling2d(tower1, pool_size=(input_shape[1], input_shape[2]), strides=(input_shape[1], input_shape[2]))
 			tower1 = tf.layers.flatten(tower1)
-			input = tf.layers.conv2d(name='CNN_Tower2_Conv1', inputs=input, filters=16, kernel_size=(3,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )
-			input = tf.layers.conv2d(name='CNN_Tower2_Conv2', inputs=input, filters=8, kernel_size=(3,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )
+			input = tf.keras.layers.Conv2D(name='CNN_Tower2_Conv1',  filters=16, kernel_size=(3,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )(input)
+			input = tf.keras.layers.Conv2D(name='CNN_Tower2_Conv2',  filters=8, kernel_size=(3,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )(input)
 			input = tf.layers.flatten(input)
 			concat = tf.concat([tower1, input], axis=-1)
 			# update keys
