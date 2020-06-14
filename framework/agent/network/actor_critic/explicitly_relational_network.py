@@ -45,14 +45,16 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 		# (batch_size, heads, (channels+2))
 
 		# Spatial embedding
-		left_objects_embedding = tf.keras.layers.Dense( # linear mapping
+		left_objects_embedding = tf.keras.layers.Dense(
 			units=n_relations, 
+			# activation=tf.nn.relu, # non-linear mapping
 			kernel_initializer=self.kernel_initializer,
 			bias_initializer=self.bias_initializer,
 			
 		)(left_objects)
-		right_objects_embedding = tf.keras.layers.Dense( # linear mapping
+		right_objects_embedding = tf.keras.layers.Dense(
 			units=n_relations, 
+			# activation=tf.nn.relu, # non-linear mapping
 			kernel_initializer=self.kernel_initializer,
 			bias_initializer=self.bias_initializer,
 		)(right_objects)
