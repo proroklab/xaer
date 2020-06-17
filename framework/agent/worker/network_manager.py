@@ -15,20 +15,29 @@ flags = options.get()
 class NetworkManager(object):
 	algorithm = eval('{}_Algorithm'.format(flags.algorithm))
 	print('Algorithm:',flags.algorithm)
+	# Experience Replay
 	with_experience_replay = flags.replay_mean > 0
 	print('With Experience Replay:',with_experience_replay)
 	experience_prioritization_scheme = eval(flags.prioritization_scheme) if flags.prioritization_scheme and with_experience_replay else False
 	print('Experience Prioritization Scheme:',experience_prioritization_scheme)
 	prioritized_replay_with_update = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('priority_update_after_replay',False)
 	print('Prioritized Replay With Update:',prioritized_replay_with_update)
+	# Intrinsic Rewards
 	prioritized_with_intrinsic_reward = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('intrinsic_reward',False)
 	print('Prioritized With Intrinsic Reward:',prioritized_with_intrinsic_reward)
 	with_intrinsic_reward = flags.intrinsic_reward or flags.use_learnt_environment_model_as_observation or prioritized_with_intrinsic_reward
 	print('With Intrinsic Reward:', with_intrinsic_reward)
 	prioritized_with_transition_predictor = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('transition_prediction_error',False)
+	# Transition Prediction
 	print('Prioritized With Transition Predictor:',prioritized_with_transition_predictor)
 	with_transition_predictor = flags.with_transition_predictor or prioritized_with_transition_predictor
 	print('With Transition Predictor:',with_transition_predictor)
+	# Relation Extraction
+	prioritized_with_relation_extraction = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('relation_extraction',False)
+	print('Prioritized With Relation Extraction:',prioritized_with_transition_predictor)
+	with_relation_extraction = prioritized_with_relation_extraction
+	print('With Relation Extraction:',with_relation_extraction)
+	# Importance Weight Extraction
 	prioritized_with_importance_weight_extraction = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('importance_weight',False)
 	print('Prioritized With Importance Weight Extraction:',prioritized_with_importance_weight_extraction)
 	with_importance_weight_extraction = algorithm.extract_importance_weight or prioritized_with_importance_weight_extraction
@@ -141,9 +150,11 @@ class NetworkManager(object):
 		agents = [0]*len(actions)
 		return actions, hot_actions, policies, values, new_internal_states, agents
 	
-	def _update_batch(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True, with_importance_weight_extraction=True, with_transition_predictor=True):
+	def _update_batch(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True, with_importance_weight_extraction=True, with_transition_predictor=True, with_relation_extraction=False):
 		if with_importance_weight_extraction:
 			self._get_importance_weight(batch)
+		if with_relation_extraction:
+			self._get_extracted_relations(batch)
 		if with_transition_predictor:
 			self._get_transition_prediction_error(batch)
 		# Intrinsic Rewards
@@ -185,7 +196,16 @@ class NetworkManager(object):
 				'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
 				'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
 			})
-			assert len(batch.states[agent_id]) == len(batch.importance_weights[agent_id]), "Number of importance_weight_batch does not match the number of states"
+			assert len(batch.states[agent_id]) == len(batch.importance_weights[agent_id]), "Number of importance_weights does not match the number of states"
+
+	def _get_extracted_relations(self, batch):
+		for agent_id in range(self.model_size):
+			batch.extracted_actor_relations[agent_id], batch.extracted_critic_relations[agent_id] = self.get_model(agent_id).get_extracted_relations({
+				'states': batch.states[agent_id],
+			})
+			# print(batch.extracted_actor_relations[agent_id])
+			assert len(batch.states[agent_id]) == len(batch.extracted_actor_relations[agent_id]), "Number of extracted_actor_relations does not match the number of states"
+			assert len(batch.states[agent_id]) == len(batch.extracted_critic_relations[agent_id]), "Number of extracted_critic_relations does not match the number of states"
 
 	def _get_transition_prediction_error(self, batch):
 		for agent_id in range(self.model_size):
@@ -338,7 +358,8 @@ class NetworkManager(object):
 				with_bootstrap= False, 
 				with_intrinsic_reward= self.with_intrinsic_reward, 
 				with_importance_weight_extraction= self.with_importance_weight_extraction, 
-				with_transition_predictor= self.prioritized_with_transition_predictor
+				with_transition_predictor= self.prioritized_with_transition_predictor,
+				with_relation_extraction= self.with_relation_extraction,
 			)
 			# Train
 			self._train(replay=True, batch=old_batch)
@@ -359,7 +380,8 @@ class NetworkManager(object):
 			with_bootstrap= True, 
 			with_intrinsic_reward= self.with_intrinsic_reward, 
 			with_importance_weight_extraction= self.with_importance_weight_extraction, 
-			with_transition_predictor= self.with_transition_predictor
+			with_transition_predictor= self.with_transition_predictor,
+			with_relation_extraction= self.with_relation_extraction,
 		)
 		# Train
 		self._train(replay=False, batch=batch)

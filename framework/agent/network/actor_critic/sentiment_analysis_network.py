@@ -7,26 +7,20 @@ class SA_Network(Base_Network):
 	
 	def _cnn_layer(self, input, scope, name="", share_trainables=True):
 		layer_type = 'CNN'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "    [{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=16, kernel_size=(1,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )(input)
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
-			return input
-	
+		def layer_fn():
+			xx = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=16, kernel_size=(1,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )(input)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		layer_type = 'Concat'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "    [{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.layers.flatten(input)
-			input = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=None, kernel_initializer=tf.initializers.variance_scaling)(input)
-			input = tf.contrib.layers.maxout(inputs=input, num_units=64, axis=-1)
-			input = tf.reshape(input, [-1, 64])
+		def layer_fn():
+			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=None, kernel_initializer=tf.initializers.variance_scaling)(xx)
+			xx = tf.contrib.layers.maxout(inputs=xx, num_units=64, axis=-1)
+			xx = tf.reshape(xx, [-1, 64])
 			if concat.get_shape()[-1] > 0:
 				concat = tf.layers.flatten(concat)
-				input = tf.concat([input, concat], -1) # shape: (batch, concat_size+units)
-			# Update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# Return result
-			return input
+				xx = tf.concat([xx, concat], -1) # shape: (batch, concat_size+units)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

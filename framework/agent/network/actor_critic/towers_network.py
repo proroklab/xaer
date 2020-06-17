@@ -9,8 +9,7 @@ class Towers_Network(Base_Network):
 		depth = 2
 		input_shape = input.get_shape().as_list()
 		layer_type = 'CNN'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "    [{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
 			with tf.variable_scope("tower_1"):
 				tower1 = tf.keras.layers.Conv2D(name='CNN_Tower1_Conv1',  activation=tf.nn.relu, filters=64, kernel_size=(3, 3), strides=(1, 1), padding='SAME', kernel_initializer=tf.initializers.variance_scaling)(input)
 				tower1 = tf.keras.layers.Conv2D(name='CNN_Tower1_Conv2',  activation=tf.nn.relu, filters=32, kernel_size=(3, 3), strides=(1, 1), padding='SAME', kernel_initializer=tf.initializers.variance_scaling)(tower1)
@@ -29,7 +28,5 @@ class Towers_Network(Base_Network):
 				tower3 = tf.layers.max_pooling2d(name='CNN_Tower3_MaxPool2', inputs=tower3, pool_size=(max(1,input_shape[1]//4), max(1,input_shape[2]//4)), strides=(max(1,input_shape[1]//4), max(1,input_shape[2]//4)))
 				tower3 = tf.layers.flatten(tower3)
 			concat = tf.concat([tower1, tower2, tower3], axis=-1)
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
 			return concat
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

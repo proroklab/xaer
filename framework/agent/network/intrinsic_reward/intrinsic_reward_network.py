@@ -33,14 +33,13 @@ class IntrinsicReward_Network(Network):
 		# Get loss
 		loss = tf.reduce_mean(tf.nn.dropout(intrinsic_reward, 0.5))
 		# loss = tf.reduce_mean(intrinsic_reward)
-		# Return results
+		# return results
 		intrinsic_reward = tf.reshape(intrinsic_reward, [-1])
 		return intrinsic_reward, loss, training_state
-	
+
 	def _intrinsic_reward_layer(self, input, scope, name="", share_trainables=True):
 		layer_type = 'RandomNetworkDistillation'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
 			# Here we use leaky_relu instead of relu as activation function
 			# Target network
 			target = ktf.Conv2D(name='RND_Target_Conv1', filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=input)
@@ -61,7 +60,5 @@ class IntrinsicReward_Network(Network):
 				'kernel': last_prediction_layer.kernel, 
 				'bias': last_prediction_layer.bias
 			}
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
 			return target, prediction, prediction_weights
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

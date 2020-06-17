@@ -15,6 +15,7 @@ class ExperienceBatch():
 		'transition_prediction_errors', 
 		'internal_states', 'new_internal_states', 
 		'actions', 'action_masks', 'policies', 'values', 'importance_weights',
+		'extracted_actor_relations', 'extracted_critic_relations',
 		'rewards', 'manipulated_rewards', 
 		'cumulative_returns', 'advantages', 'extras'
 	)
@@ -29,6 +30,7 @@ class ExperienceBatch():
 			'transition_prediction_errors',
 			'internal_states','new_internal_states',
 			'actions','action_masks','policies','values','importance_weights',
+			'extracted_actor_relations', 'extracted_critic_relations',
 			'rewards','manipulated_rewards',
 			'cumulative_returns','advantages','extras'
 		])

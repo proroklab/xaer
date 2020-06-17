@@ -10,6 +10,8 @@ def is_continuous_control(policy_depth):
 	return policy_depth <= 1
 
 class Base_Network(Network):
+	produce_explicit_relations = False
+
 	def __init__(self, id, qvalue_estimation, policy_heads, batch_dict, scope_dict, training=True, value_count=1, state_scaler=1):
 		super().__init__(id, training)
 		self.value_count = value_count
@@ -80,7 +82,6 @@ class Base_Network(Network):
 				axis=-1
 			)
 			# print( "	[{}]Relevance shape: {}".format(self.id, self.relevance_batch.get_shape()) )
-		
 		# return self.policy_batch, self.value_batch, self.relevance_batch
 
 	def _state_embedding_layer(self, state_batch, concat_batch):
@@ -89,10 +90,7 @@ class Base_Network(Network):
 			self._cnn_layer(name=i, input=substate_batch/self.state_scaler, scope=self.parent_scope_name)
 			for i,substate_batch in enumerate(state_batch)
 		]
-		embedded_input = [
-			tf.layers.flatten(i)
-			for i in embedded_input
-		]
+		embedded_input = list(map(tf.layers.flatten, embedded_input))
 		embedded_input = tf.concat(embedded_input, -1)
 		print( "	[{}]CNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [Training state]
@@ -101,26 +99,23 @@ class Base_Network(Network):
 			print( "	[{}]Weights layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [Concat]
 		if len(concat_batch) > 0:
+			concat_batch = list(map(tf.layers.flatten, concat_batch))
 			concat_batch = tf.concat(concat_batch, -1)
 			embedded_input = self._concat_layer(input=embedded_input, concat=concat_batch, scope=self.scope_name)
 			print( "	[{}]Concat layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		return embedded_input
-	
+
 	def _cnn_layer(self, input, scope, name="", share_trainables=True):
 		layer_type = 'CNN'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=16, kernel_size=[3,3], strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(input)
-			input = tf.keras.layers.Conv2D(name='CNN_Conv2',  filters=8, kernel_size=[3,3], strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(input)
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
-			return input
-		
+		def layer_fn():
+			xx = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=16, kernel_size=[3,3], strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(input)
+			xx = tf.keras.layers.Conv2D(name='CNN_Conv2',  filters=8, kernel_size=[3,3], strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(xx)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _weights_layer(self, input, weights, scope, name="", share_trainables=True):
 		layer_type = 'Weights'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
 			kernel = tf.stop_gradient(weights['kernel'])
 			# kernel = tf.transpose(kernel, [1, 0])
 			kernel = tf.keras.layers.Dense(name='Concat_Dense0',  units=1, activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(kernel)
@@ -128,31 +123,24 @@ class Base_Network(Network):
 			bias = tf.stop_gradient(weights['bias'])
 			bias = tf.reshape(bias, [-1])
 			weight_state = tf.concat((kernel, bias), -1)
-			input = tf.layers.flatten(input)
-			input = tf.map_fn(fn=lambda b: tf.concat((b,weight_state),-1), elems=input)
-			# Update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# Return result
-			return input
-	
+			xx = tf.layers.flatten(input)
+			xx = tf.map_fn(fn=lambda b: tf.concat((b,weight_state),-1), elems=xx)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		layer_type = 'Concat'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.layers.flatten(input)
-			input = tf.keras.layers.Dense(name='Concat_Dense1',  units=64, activation=tf.nn.elu, kernel_initializer=tf.initializers.variance_scaling)(input)
+		def layer_fn():
+			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=64, activation=tf.nn.elu, kernel_initializer=tf.initializers.variance_scaling)(xx)
 			if concat.get_shape()[-1] > 0:
-				concat = tf.layers.flatten(concat)
-				input = tf.concat([input, concat], -1) # shape: (batch, concat_size+units)
-			# Update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# Return result
-			return input
-		
+				xx = tf.concat([xx, tf.layers.flatten(concat)], -1) # shape: (batch, concat_size+units)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _value_layer(self, input, scope, name="", share_trainables=True):
 		layer_type = 'Value'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
 			if self.qvalue_estimation:
 				policy_depth = sum(h['depth'] for h in self.policy_heads)
 				policy_size = sum(h['size'] for h in self.policy_heads)
@@ -173,15 +161,12 @@ class Base_Network(Network):
 				output = tf.stack(output)
 				output = tf.transpose(output, [1, 0, 2])
 				output = tf.layers.flatten(output)
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
 			return output
-			
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _policy_layer(self, input, scope, name="", share_trainables=True):
 		layer_type = 'Policy'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
 			output_list = []
 			for h,policy_head in enumerate(self.policy_heads):
 				policy_depth = policy_head['depth']
@@ -203,22 +188,18 @@ class Base_Network(Network):
 					if policy_size > 1:
 						policy_batch = tf.reshape(policy_batch, [-1,policy_size,policy_depth])
 				output_list.append(policy_batch)
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
 			return output_list
-		
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _transition_prediction_layer(self, state, action, scope, name="", share_trainables=True):
 		layer_type = 'TransitionPredictor'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			state = tf.stop_gradient(state)
-			action = tf.concat(action, -1)
-			state_action = tf.concat([action,state], -1)
+		def layer_fn():
+			xx = tf.stop_gradient(state)
+			state_action = tf.concat([tf.concat(action, -1),xx], -1)
 			new_transition_prediction = tf.layers.dense(
 				name='{}_Dense_State'.format(layer_type), 
 				inputs=state_action, 
-				units=state.get_shape().as_list()[-1], 
+				units=xx.get_shape().as_list()[-1], 
 				activation=None, 
 				kernel_initializer=tf.initializers.variance_scaling
 			)
@@ -228,26 +209,21 @@ class Base_Network(Network):
 				units=1, 
 				activation=None, 
 				kernel_initializer=tf.initializers.variance_scaling
-			)
-			print( "	[{}]TransitionPredictor layer output shape: {}".format(self.id, new_transition_prediction.get_shape()) )
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
+			)	
 			return new_transition_prediction, reward_prediction
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
 	def _rnn_layer(self, input, scope, name="", share_trainables=True):
 		rnn = RNN(type='LSTM', direction=1, units=64, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)
 		internal_initial_state = rnn.state_placeholder(name="initial_lstm_state") # for stateful lstm
 		internal_default_state = rnn.default_state()
 		layer_type = rnn.type
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
 			output, internal_final_state = rnn.process_batches(
 				input=input, 
 				initial_states=internal_initial_state, 
 				sizes=self.size_batch
 			)
-			# Update keys
-			self._update_keys(variable_scope.name, share_trainables)
 			return output, ([internal_initial_state],[internal_default_state],[internal_final_state])
-		
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+	

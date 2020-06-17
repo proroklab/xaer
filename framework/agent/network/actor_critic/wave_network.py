@@ -30,8 +30,7 @@ class Wave_Network(OpenAISmall_Network):
 		M = self.wavenet_params['filter_width']
 		dilations = [2**i for i in range(N)] * M
 		# build layer
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
 			net = WaveNetModel(
 				dilations=dilations,
 				filter_width=self.wavenet_params['filter_width'],
@@ -41,40 +40,32 @@ class Wave_Network(OpenAISmall_Network):
 				skip_channels=self.wavenet_params['skip_channels'],
 				use_biases=self.wavenet_params['use_biases']
 			)
-			input = tf.reshape(input, [-1, input_size, input_channel])
-			input = net.create_network(input)
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
-			return input
-		
+			xx = tf.reshape(input, [-1, input_size, input_channel])
+			xx = net.create_network(xx)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		layer_type = 'Concat'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.layers.flatten(input)
+		def layer_fn():
+			xx = tf.layers.flatten(input)
 			concat = tf.layers.flatten(concat)
-			input = tf.concat([input, concat], -1) # shape: (batch, concat_size+input_size)
-			#input = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
-			# Update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# Return result
-			return input
-		
+			xx = tf.concat([xx, concat], -1) # shape: (batch, concat_size+input_size)
+			#xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(xx)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _rnn_layer(self, input, scope, name="", share_trainables=True):
 		rnn = RNN(type='LSTM', direction=2, units=128, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)
 		internal_initial_state = rnn.state_placeholder(name="initial_lstm_state") # for stateful lstm
 		internal_default_state = rnn.default_state()
 		layer_type = rnn.type
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
 			output, internal_final_state = rnn.process_batches(
 				input=input, 
 				initial_states=internal_initial_state, 
 				sizes=self.size_batch
 			)
 			output = tf.layers.dropout(output, rate=0.5, training=self.training)
-			# Update keys
-			self._update_keys(variable_scope.name, share_trainables)
 			return output, ([internal_initial_state],[internal_default_state],[internal_final_state])
-		
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

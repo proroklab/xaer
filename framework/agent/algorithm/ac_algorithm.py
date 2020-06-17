@@ -227,6 +227,8 @@ class AC_Algorithm(object):
 			self.new_state_embedding_batch = self.network['TransitionPredictor'].new_state_embedding_batch
 			self.reward_prediction_batch = self.network['TransitionPredictor'].reward_prediction_batch
 			print( "	[{}]Relevance shape: {}".format(self.id, self.relevance_batch.get_shape()) )
+		self.actor_relations_sets = self.network['Actor'].relations_sets if self.network['Actor'].produce_explicit_relations else None
+		self.critic_relations_sets = self.network['Critic'].relations_sets if self.network['Critic'].produce_explicit_relations else None
 			
 	def sample_actions(self):
 		action_batch = []
@@ -479,6 +481,15 @@ class AC_Algorithm(object):
 		# Return value_batch
 		return tf.get_default_session().run(
 			fetches=self.importance_weight_batch, 
+			feed_dict=feed_dict
+		)
+
+	def get_extracted_relations(self, info_dict):
+		# State
+		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
+		# Return value_batch
+		return tf.get_default_session().run(
+			fetches=(self.actor_relations_sets,self.critic_relations_sets), 
 			feed_dict=feed_dict
 		)
 		

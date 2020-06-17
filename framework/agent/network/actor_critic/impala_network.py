@@ -24,7 +24,7 @@ class Impala_Network(Base_Network):
 		if self.use_batch_norm:
 			out = tf.contrib.layers.batch_norm(out, center=True, scale=True, is_training=True)
 		return out
-
+		
 	def residual_block(self, inputs):
 		depth = inputs.get_shape()[-1].value
 		out = tf.nn.relu(inputs)
@@ -42,27 +42,21 @@ class Impala_Network(Base_Network):
 
 	def _cnn_layer(self, input, scope, name="", share_trainables=True):
 		layer_type = 'CNN'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+		def layer_fn():
+			xx = input
 			for depth in self.depths:
-				input = self.conv_sequence(input, depth)
-			input = tf.layers.flatten(input)
-			input = tf.nn.relu(input)
-			# update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# return result
-			return input
-		
+				xx = self.conv_sequence(xx, depth)
+			xx = tf.layers.flatten(xx)
+			xx = tf.nn.relu(xx)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		layer_type = 'Concat'
-		with tf.variable_scope("{}/{}{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
-			input = tf.layers.flatten(input)
+		def layer_fn():
+			xx = tf.layers.flatten(input)
 			if concat.get_shape()[-1] > 0:
-				concat = tf.layers.flatten(concat)
-				input = tf.concat([input, concat], -1) # shape: (batch, concat_size+units)
-			input = tf.keras.layers.Dense(name='Concat_Dense1',  units=256, activation=tf.nn.relu)(input)
-			# Update keys
-			self._update_keys(variable_scope.name, share_trainables)
-			# Return result
-			return input
+				xx = tf.concat([xx, tf.layers.flatten(concat)], -1) # shape: (batch, concat_size+units)
+			xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=256, activation=tf.nn.relu)(xx)
+			return xx
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
