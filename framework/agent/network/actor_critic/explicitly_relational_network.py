@@ -42,7 +42,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 	def _relation_extraction_layer(self, entities, comparator_fn, edge_size_per_object_pair, n_object_pairs, scope, name="", share_trainables=True):
 		layer_type = 'RelationExtraction'
 		def layer_fn():
-			key_size = EDGE_SIZE_PER_OBJECT_PAIR #entities.shape.as_list()[-1] # channels+3
+			key_size = entities.shape.as_list()[-1] # channels+3
 			# What exactly are keys, queries, and values in attention mechanisms? https://stats.stackexchange.com/questions/421935/what-exactly-are-keys-queries-and-values-in-attention-mechanisms
 			queries = self.__query_layer(
 				n_query=2, 
