@@ -19,10 +19,10 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 			# return tf.concat([similarity_relation, priority_relation], -1) # V2
 			# return tf.concat([tf.nn.relu(similarity_relation), priority_relation], -1) # V3
 			# return tf.concat([tf.minimum(0,similarity_relation), priority_relation], -1) # V4
-			# return tf.nn.relu(similarity_relation) # V5, same of: tf.multiply(similarity_relation, priority_relation)
+			return tf.nn.relu(similarity_relation) # V5, same of: tf.multiply(similarity_relation, priority_relation)
 			# return tf.concat([tf.minimum(0,similarity_relation), tf.nn.relu(similarity_relation)], -1) # V6
 			# return priority_relation # V7
-			return tf.minimum(0.,similarity_relation) # V8
+			# return tf.minimum(0.,similarity_relation) # V8
 
 		layer_type = 'ArgLinkExtraction'
 		def layer_fn():

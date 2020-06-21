@@ -130,7 +130,7 @@ class Environment(object):
 			self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)
 			is_terminal = self.last_observation['is_over']
 			self.last_state = self.last_observation['state']
-			self.last_reward = self.last_observation['reward'] if not is_terminal else 1
+			self.last_reward = self.last_observation['reward'] #if not is_terminal else 1
 			self.last_action = action_vector
 			if is_terminal:
 				self.__episode_statistics.add(self.last_observation['statistics'])
