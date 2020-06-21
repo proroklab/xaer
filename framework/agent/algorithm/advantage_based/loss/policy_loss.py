@@ -52,7 +52,6 @@ class PolicyLoss(object):
 				y=tf.stop_gradient(old_action_mask_batch) # false branch
 			)
 
-		self.global_step = global_step
 		self.type = type.replace(' ','_').lower()
 		self.zero = tf.constant(0., dtype=cross_entropy.dtype)
 		self.one = tf.constant(1., dtype=cross_entropy.dtype)
@@ -61,7 +60,7 @@ class PolicyLoss(object):
 		self.clip_range = tf_utils.get_annealable_variable(
 			function_name=flags.clip_annealing_function, 
 			initial_value=flags.clip, 
-			global_step=self.global_step, 
+			global_step=global_step, 
 			decay_steps=flags.clip_decay_steps, 
 			decay_rate=flags.clip_decay_rate
 		) if flags.clip_decay else flags.clip

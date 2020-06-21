@@ -6,17 +6,17 @@ import utils.tensorflow_utils as tf_utils
 from agent.network.network import Network
 
 class IntrinsicReward_Network(Network):
-	def __init__(self, id, batch_dict, scope_dict, training=True):
+	def __init__(self, id, scope_dict, training=True):
 		super().__init__(id, training)
 		self.scope_name = scope_dict['self']
-		# Shape network
-		self.state_batch = batch_dict['new_state']
-		self.state_mean_batch = batch_dict['state_mean']
-		self.state_std_batch = batch_dict['state_std']
 		
-	def build(self):
+	def build_embedding(self, batch_dict):
+		# [Input]
+		state_batch = batch_dict['new_state']
+		state_mean_batch = batch_dict['state_mean']
+		state_std_batch = batch_dict['state_std']
 		# Use state_batch instead of new_state_batch, to save memory
-		normalized_state_batch = (self.state_batch[0]-self.state_mean_batch[0][-1])/self.state_std_batch[0][-1]
+		normalized_state_batch = (state_batch[0]-state_mean_batch[0][-1])/state_std_batch[0][-1]
 		# normalized_state_batch = normalized_state_batch[:, :, :, -1:]
 		normalized_state_batch = tf.clip_by_value(normalized_state_batch, -5.0, 5.0)
 		# Build layer

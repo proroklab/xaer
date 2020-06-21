@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import tensorflow.compat.v1 as tf
-from agent.network.actor_critic.base_network import Base_Network
+from agent.network.base_network import Base_Network
 
 class SA_Network(Base_Network):
 	lstm_units = 128 # the number of units of the LSTM

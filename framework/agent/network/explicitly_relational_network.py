@@ -2,7 +2,7 @@
 import numpy as np
 import tensorflow.compat.v1 as tf
 import utils.tensorflow_utils as tf_utils
-from agent.network.actor_critic.openai_small_network import OpenAISmall_Network
+from agent.network.openai_small_network import OpenAISmall_Network
 import options
 flags = options.get()
 
@@ -182,7 +182,16 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 	def _relational_layer(self, state, concat, scope, name="", share_trainables=True):
 		layer_type = 'Relational'
 		def layer_fn():
-			entities = self._entity_extraction_layer(features=state, scope=scope, name='EE_1', share_trainables=share_trainables)
+			entities = [
+				self._entity_extraction_layer(
+					features=substate/self.state_scaler, 
+					scope=self.parent_scope_name, 
+					name=f'EE_{i}', 
+					share_trainables=share_trainables
+				)
+				for i,substate in enumerate(state)
+			]
+			entities = tf.concat(entities,1)
 			# Concatenate extra features
 			if len(concat) > 0:
 				entities = self._concat_layer(input=entities, concat=concat, scope=scope, name="C_1", share_trainables=share_trainables)
@@ -199,25 +208,14 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			return output, relations_set
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)	
 
-	def _state_embedding_layer(self, state_batch, concat_batch):
+	def _state_embedding_layer(self, state_batch, concat_batch, environment_model):
 		# Extract features
-		relations_batch,self.relations_sets = zip(*[
-			self._relational_layer(
-				state = substate_batch/self.state_scaler, 
-				concat = concat_batch,
-				name = f'RE_{i}', 
-				scope = self.parent_scope_name, 
-			)
-			for i,substate_batch in enumerate(state_batch)	
-		])
-		relations_batch = list(map(tf.layers.flatten, relations_batch))
-		relations_batch = tf.stack(relations_batch)
-		relations_batch = tf.transpose(relations_batch, [1,0,2])
+		relations_batch,self.relations_sets = self._relational_layer(state=state_batch, concat=concat_batch, scope=self.parent_scope_name)
 		embedded_input = tf.layers.flatten(relations_batch)
 		# print( "	[{}]State Relational layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		# embedded_input = tf.keras.layers.Dense(name='DenseEmbedding',  units=256, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(embedded_input)
 		# [Training state]
 		if flags.use_learnt_environment_model_as_observation:
-			embedded_input = self._weights_layer(input=embedded_input, weights=self.training_state, scope=self.parent_scope_name)
+			embedded_input = self._weights_layer(input=embedded_input, weights=environment_model, scope=self.parent_scope_name)
 			# print( "	[{}]Weights layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		return embedded_input

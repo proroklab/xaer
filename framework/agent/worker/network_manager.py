@@ -7,7 +7,6 @@ from agent.worker.prioritization_scheme import *
 from utils.buffer import Buffer, PseudoPrioritizedBuffer as PrioritizedBuffer
 from utils.running_std import RunningMeanStd
 from utils.important_information import ImportantInformation
-from agent.algorithm.ac_algorithm import merge_splitted_advantages
 from threading import Lock
 import options
 flags = options.get()
@@ -63,16 +62,11 @@ class NetworkManager(object):
 		self.model_list = self.build_agents(algorithm=self.algorithm, environment_info=environment_info)
 		# Build global_step and gradient_optimizer
 		if self.is_global_network():
-			self.global_step, self.gradient_optimizer = self.build_gradient_optimizer()
-		else:
-			self.global_step = self.global_network.global_step
-		# Prepare loss
-		self.prepare_loss(self.global_step)
-		if self.training:
-			if not self.is_global_network():
-				self.minimize_local_loss(self.global_network)
+			self.gradient_optimizer = self.build_gradient_optimizer()
 		# Bind optimizer to global
 		if not self.is_global_network():
+			if self.training: # Prepare loss
+				self.setup_local_loss_minimisation(self.global_network)
 			self.bind_to_global(self.global_network)
 		# Intrinsic reward
 		self.can_compute_intrinsic_reward = False
@@ -106,7 +100,7 @@ class NetworkManager(object):
 			environment_info=environment_info, 
 			training=self.training,
 			with_intrinsic_reward=self.with_intrinsic_reward,
-			with_transition_predictor=self.with_transition_predictor,
+			# with_transition_predictor=self.with_transition_predictor,
 		)
 		model_list.append(agent)
 		return model_list
@@ -118,19 +112,15 @@ class NetworkManager(object):
 			model.sync()
 					
 	def build_gradient_optimizer(self):
-		global_step = [None]*self.model_size
-		gradient_optimizer = [None]*self.model_size
-		for i in range(self.model_size):
-			gradient_optimizer[i], global_step[i] = self.model_list[i].build_optimizer(flags.optimizer)
-		return global_step, gradient_optimizer
+		return [
+			m.build_optimizer(flags.optimizer)
+			for m in self.model_list
+		]
 	
-	def minimize_local_loss(self, global_network):
+	def setup_local_loss_minimisation(self, global_network):
 		for i,(local_agent,global_agent) in enumerate(zip(self.model_list, global_network.model_list)):
-			local_agent.minimize_local_loss(optimizer=global_network.gradient_optimizer[i], global_step=global_network.global_step[i], global_agent=global_agent)
-			
-	def prepare_loss(self, global_step):
-		for i,model in enumerate(self.model_list):
-			model.prepare_loss(global_step[i])
+			gradient_optimizer_dict, global_step = global_network.gradient_optimizer[i]
+			local_agent.setup_local_loss_minimisation(gradient_optimizer_dict=gradient_optimizer_dict, global_step=global_step, global_agent=global_agent)
 			
 	def bind_to_global(self, global_network):
 		# for synching local network with global one
@@ -155,8 +145,8 @@ class NetworkManager(object):
 			self._get_importance_weight(batch)
 		if with_relation_extraction:
 			self._get_extracted_relations(batch)
-		if with_transition_predictor:
-			self._get_transition_prediction_error(batch)
+		# if with_transition_predictor:
+		# 	self._get_transition_prediction_error(batch)
 		# Intrinsic Rewards
 		with_intrinsic_reward = with_intrinsic_reward and self.can_compute_intrinsic_reward
 		if with_intrinsic_reward:
@@ -291,6 +281,7 @@ class NetworkManager(object):
 				if not is_valid_end:
 					end = None
 			# Build _train dictionary
+			batch_size = len(batch.states[i][start:end])
 			info_dict = {
 				'states':batch.states[i][start:end] if do_slice else batch.states[i],
 				'new_states':batch.new_states[i][start:end] if do_slice else batch.new_states[i],
@@ -303,6 +294,7 @@ class NetworkManager(object):
 				'internal_state':batch.internal_states[i][start] if is_valid_start else batch.internal_states[i][0],
 				'state_mean':self.state_mean,
 				'state_std':self.state_std,
+				'terminal': [False]*(batch_size-1) + [batch.terminal if not is_valid_end else False],
 				'advantages':batch.advantages[i][start:end] if do_slice else batch.advantages[i],
 			}
 			# Prepare _train

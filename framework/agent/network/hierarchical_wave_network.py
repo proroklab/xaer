@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import tensorflow.compat.v1 as tf
-from agent.network.actor_critic.base_network import Base_Network, is_continuous_control
-from agent.network.actor_critic.openai_small_network import OpenAISmall_Network
+from agent.network.base_network import Base_Network, is_continuous_control
+from agent.network.openai_small_network import OpenAISmall_Network
 import utils.tensorflow_utils as tf_utils
 from utils.rnn import RNN
 from utils.wavenet import WaveNetModel
@@ -54,7 +54,7 @@ class HWave_Network(OpenAISmall_Network):
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _rnn_layer(self, input, scope, name="", share_trainables=True):
+	def _rnn_layer(self, input, size_batch, scope, name="", share_trainables=True):
 		rnns = [
 			RNN(type='LSTM', direction=2, units=128, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type),
 			RNN(type='GRU', direction=1, units=128, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)
@@ -66,13 +66,13 @@ class HWave_Network(OpenAISmall_Network):
 			output_low, internal_final_state_low = rnns[0].process_batches(
 				input=input, 
 				initial_states=internal_initial_state[0], 
-				sizes=self.size_batch
+				sizes=size_batch
 			)
 			output_low = tf.layers.dropout(output_low, rate=0.5, training=self.training)
 			output_high, internal_final_state_high = rnns[1].process_batches(
 				input= internal_final_state_low, 
 				initial_states= internal_initial_state[1], 
-				sizes= 0*self.size_batch+1
+				sizes= 0*size_batch+1
 			)
 			output_high = tf.layers.dropout(output_high, rate=0.5, training=self.training)
 			output = tf.concat((output_low,output_high),-1)

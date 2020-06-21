@@ -18,7 +18,7 @@ class Network():
 
 	def _scopefy(self, output_fn, layer_type, scope, name, share_trainables):
 		with tf.variable_scope("{}/{}-{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			# print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
 			output = output_fn()
 			self._update_keys(variable_scope.name, share_trainables)
 			# print( "	[{}]{} layer shape: {}".format(self.id, layer_type, output.get_shape()) )

@@ -2,7 +2,7 @@
 import numpy as np
 import tensorflow.compat.v1 as tf
 import utils.tensorflow_utils as tf_utils
-from agent.network.actor_critic.explicitly_relational_network import ExplicitlyRelational_Network
+from agent.network.explicitly_relational_network import ExplicitlyRelational_Network
 import options
 flags = options.get()
 
@@ -15,6 +15,7 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 		def argument_comparator_fn(l,r):
 			similarity_relation = tf.subtract(l,r)
 			# priority_relation = tf.cast(tf.greater(l,r), tf.float32)
+			# inverse_priority_relation = tf.cast(tf.less(l,r), tf.float32)
 			# return similarity_relation # V1
 			# return tf.concat([similarity_relation, priority_relation], -1) # V2
 			# return tf.concat([tf.nn.relu(similarity_relation), priority_relation], -1) # V3
@@ -22,7 +23,7 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 			return tf.nn.relu(similarity_relation) # V5, same of: tf.multiply(similarity_relation, priority_relation)
 			# return tf.concat([tf.minimum(0,similarity_relation), tf.nn.relu(similarity_relation)], -1) # V6
 			# return priority_relation # V7
-			# return tf.minimum(0.,similarity_relation) # V8
+			# return tf.minimum(0.,similarity_relation) # V8, same of: tf.multiply(similarity_relation, inverse_priority_relation)
 
 		layer_type = 'ArgLinkExtraction'
 		def layer_fn():
@@ -36,12 +37,16 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 	def _relational_layer(self, state, concat, scope, name="", share_trainables=True):
 		layer_type = 'Relational'
 		def layer_fn():
-			entities = self._entity_extraction_layer(
-				features=state, 
-				scope=scope, 
-				name='EE_1', 
-				share_trainables=share_trainables
-			)
+			entities = [
+				self._entity_extraction_layer(
+					features=substate/self.state_scaler, 
+					scope=self.parent_scope_name, 
+					name=f'EE_{i}', 
+					share_trainables=share_trainables
+				)
+				for i,substate in enumerate(state)
+			]
+			entities = tf.concat(entities,1)
 			# Concatenate extra features
 			if len(concat) > 0:
 				entities = self._concat_layer(input=entities, concat=concat, scope=scope, name="C_1", share_trainables=share_trainables)

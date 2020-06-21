@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from agent.algorithm.ac_algorithm import merge_splitted_advantages
+from agent.algorithm.advantage_based.ac_algorithm import merge_splitted_advantages
 
 class pruned_gain_estimate():
 	requirement = {

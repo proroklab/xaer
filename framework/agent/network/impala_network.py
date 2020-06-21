@@ -4,7 +4,7 @@ flags = options.get()
 
 import numpy as np
 import tensorflow.compat.v1 as tf
-from agent.network.actor_critic.base_network import Base_Network
+from agent.network.base_network import Base_Network
 import utils.tensorflow_utils as tf_utils
 
 class Impala_Network(Base_Network):

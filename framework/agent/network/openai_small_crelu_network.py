@@ -4,7 +4,7 @@ flags = options.get()
 
 import numpy as np
 import tensorflow.compat.v1 as tf
-from agent.network.actor_critic.openai_small_network import OpenAISmall_Network
+from agent.network.openai_small_network import OpenAISmall_Network
 import utils.tensorflow_utils as tf_utils
 from utils.rnn import RNN
 

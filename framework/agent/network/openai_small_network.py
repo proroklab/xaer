@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import tensorflow.compat.v1 as tf
-from agent.network.actor_critic.base_network import Base_Network, is_continuous_control
+from agent.network.base_network import Base_Network, is_continuous_control
 import utils.tensorflow_utils as tf_utils
 from utils.rnn import RNN
 import options
@@ -49,11 +49,11 @@ class OpenAISmall_Network(Base_Network):
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _value_layer(self, input, scope, name="", share_trainables=True):
+	def value_layer(self, input, scope, name="", share_trainables=True, qvalue_estimation=False):
 		layer_type = 'Value'
 		def layer_fn():
 			xx = input + tf.keras.layers.Dense(name='Value_Dense1', units=input.get_shape().as_list()[-1], activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(0.1))(input)
-			if self.qvalue_estimation:
+			if qvalue_estimation:
 				policy_depth = sum(h['depth'] for h in self.policy_heads)
 				policy_size = sum(h['size'] for h in self.policy_heads)
 				units = policy_size*max(1,policy_depth)
@@ -76,7 +76,7 @@ class OpenAISmall_Network(Base_Network):
 			return output
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _policy_layer(self, input, scope, name="", share_trainables=True):
+	def policy_layer(self, input, scope, name="", share_trainables=True):
 		layer_type = 'Policy'
 		def layer_fn():
 			xx = input + tf.keras.layers.Dense(name='Policy_Dense1',  units=input.get_shape().as_list()[-1], activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(0.1))(input)
@@ -103,7 +103,7 @@ class OpenAISmall_Network(Base_Network):
 			return output_list
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _rnn_layer(self, input, scope, name="", share_trainables=True):
+	def _rnn_layer(self, input, size_batch, scope, name="", share_trainables=True):
 		rnn = RNN(type='GRU', direction=1, units=256, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)
 		internal_initial_state = rnn.state_placeholder(name="initial_lstm_state") # for stateful lstm
 		internal_default_state = rnn.default_state()
@@ -112,7 +112,7 @@ class OpenAISmall_Network(Base_Network):
 			output, internal_final_state = rnn.process_batches(
 				input=input, 
 				initial_states=internal_initial_state, 
-				sizes=self.size_batch
+				sizes=size_batch
 			)
 			return output, ([internal_initial_state],[internal_default_state],[internal_final_state])
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

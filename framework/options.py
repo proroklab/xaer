@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Decentralized Distributed Asynchronous
 from types import SimpleNamespace
 
 options = None
@@ -58,7 +59,7 @@ def build():
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
 	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
 	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output)." -> might be useful only if combined with replay_only_best_batches=True
-	options["train_critic_when_replaying"] = False # "Whether to train also the critic when replaying. Works only when separate_actor_from_critic=True."
+	options["train_critic_when_replaying"] = False # "Whether to train also the critic when replaying. Works only when internal_partitions_do_share_nets=False."
 	options["recompute_value_when_replaying"] = False # "Whether to recompute value when replaying, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
@@ -69,7 +70,7 @@ def build():
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
 	options["intrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the intrinsic rewards."
 # Actor-Critic parameters
-	options["separate_actor_from_critic"] = False # "Set to True if you want actor and critic not sharing any part of their computational graphs." # default False
+	options["internal_partitions_do_share_nets"] = True # "Set to True if you want actor and critic not sharing any part of their computational graphs." # default False
 	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 4 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."

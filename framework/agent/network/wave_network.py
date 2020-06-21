@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import tensorflow.compat.v1 as tf
-from agent.network.actor_critic.base_network import Base_Network, is_continuous_control
-from agent.network.actor_critic.openai_small_network import OpenAISmall_Network
+from agent.network.base_network import Base_Network, is_continuous_control
+from agent.network.openai_small_network import OpenAISmall_Network
 import utils.tensorflow_utils as tf_utils
 from utils.rnn import RNN
 from utils.wavenet import WaveNetModel
@@ -55,7 +55,7 @@ class Wave_Network(OpenAISmall_Network):
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _rnn_layer(self, input, scope, name="", share_trainables=True):
+	def _rnn_layer(self, input, size_batch, scope, name="", share_trainables=True):
 		rnn = RNN(type='LSTM', direction=2, units=128, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)
 		internal_initial_state = rnn.state_placeholder(name="initial_lstm_state") # for stateful lstm
 		internal_default_state = rnn.default_state()
@@ -64,7 +64,7 @@ class Wave_Network(OpenAISmall_Network):
 			output, internal_final_state = rnn.process_batches(
 				input=input, 
 				initial_states=internal_initial_state, 
-				sizes=self.size_batch
+				sizes=size_batch
 			)
 			output = tf.layers.dropout(output, rate=0.5, training=self.training)
 			return output, ([internal_initial_state],[internal_default_state],[internal_final_state])

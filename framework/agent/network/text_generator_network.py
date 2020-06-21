@@ -2,7 +2,7 @@
 import numpy as np
 import tensorflow.compat.v1 as tf
 import tensorflow.keras.layers as ktf
-from agent.network.actor_critic.openai_small_network import OpenAISmall_Network
+from agent.network.openai_small_network import OpenAISmall_Network
 import utils.tensorflow_utils as tf_utils
 from utils.rnn import RNN
 import options

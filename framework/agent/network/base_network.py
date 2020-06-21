@@ -12,79 +12,43 @@ def is_continuous_control(policy_depth):
 class Base_Network(Network):
 	produce_explicit_relations = False
 
-	def __init__(self, id, qvalue_estimation, policy_heads, batch_dict, scope_dict, training=True, value_count=1, state_scaler=1):
+	def __init__(self, id, policy_heads, scope_dict, training=True, value_count=1, state_scaler=1):
 		super().__init__(id, training)
 		self.value_count = value_count
 		# scope names
 		self.scope_name = scope_dict['self']
 		self.parent_scope_name = scope_dict['parent']
 		self.sibling_scope_name = scope_dict['sibling']
-		# state batch
-		self.state_batch = [s for s in batch_dict['state'] if len(s.get_shape())==4]
-		self.concat_batch = [s for s in batch_dict['state'] if len(s.get_shape())!=4]
-		# new state batch
-		self.new_state_batch = [s for s in batch_dict['new_state'] if len(s.get_shape())==4]
-		self.new_concat_batch = [s for s in batch_dict['new_state'] if len(s.get_shape())!=4]
-		# action
-		self.action_batch = batch_dict['action']
-		# reward
-		self.reward_batch = batch_dict['reward']
-		# size
-		self.size_batch = batch_dict['size']
-		if flags.use_learnt_environment_model_as_observation:
-			self.training_state = batch_dict['training_state']
 		self.parameters_type = eval('tf.{}'.format(flags.parameters_type))
 		self.policy_heads = policy_heads 
-		self.qvalue_estimation = qvalue_estimation
 		self.state_scaler = state_scaler
 		
-	def build(self, has_actor=True, has_critic=True, has_transition_predictor=True, use_internal_state=True, name='default'):
+	def build_embedding(self, batch_dict, use_internal_state=True, name='default'):
 		self.use_internal_state = use_internal_state
-		print( "	[{}]Building partition {} with has_actor={}, has_critic={}, has_transition_predictor={}, use_internal_state={}".format(self.id, name, has_actor, has_critic, has_transition_predictor, use_internal_state) )
+		print( "	[{}]Building partition {} use_internal_state={}".format(self.id, name, use_internal_state) )
 		print( "	[{}]Parameters type: {}".format(self.id, flags.parameters_type) )
 		print( "	[{}]Algorithm: {}".format(self.id, flags.algorithm) )
 		print( "	[{}]Network configuration: {}".format(self.id, flags.network_configuration) )
-		
+		# [Input]
+		state_batch = [s for s in batch_dict['state'] if len(s.get_shape())==4]
+		concat_batch = [s for s in batch_dict['state'] if len(s.get_shape())!=4]
+		size_batch = batch_dict['size']
+		environment_model = batch_dict['training_state'] if flags.use_learnt_environment_model_as_observation else None
 		# [State Embedding]
-		self.state_embedding_batch = embedded_input = self._state_embedding_layer(self.state_batch, self.concat_batch)
-		print( "	[{}]State Embedding shape: {}".format(self.id, self.state_embedding_batch.get_shape()) )
+		embedded_input = self._state_embedding_layer(state_batch, concat_batch, environment_model)
+		print( "	[{}]State Embedding shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [RNN]
 		if use_internal_state:
-			embedded_input, internal_state_tuple = self._rnn_layer(input=embedded_input, scope=self.scope_name)
+			embedded_input, internal_state_tuple = self._rnn_layer(input=embedded_input, size_batch=size_batch, scope=self.scope_name)
 			self.internal_initial_state, self.internal_default_state, self.internal_final_state = internal_state_tuple
 			print( "	[{}]RNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 			for i,h in enumerate(self.internal_initial_state):
 				print( "	[{}]RNN{} initial state shape: {}".format(self.id, i, h.get_shape()) )
 			for i,h in enumerate(self.internal_final_state):
 				print( "	[{}]RNN{} final state shape: {}".format(self.id, i, h.get_shape()) )
-		
-		# [Policy]
-		self.policy_batch = self._policy_layer(input=embedded_input, scope=self.scope_name) if has_actor else None
-		
-		# [Value]
-		self.value_batch = self._value_layer(input=embedded_input, scope=self.scope_name) if has_critic else None
-		
-		# [New State Prediction]
-		if has_transition_predictor:
-			self.new_transition_prediction_batch, self.reward_prediction_batch = self._transition_prediction_layer(
-				state=self.state_embedding_batch, 
-				action=self.action_batch, 
-				scope=self.scope_name
-			)
-			self.new_state_embedding_batch = self._state_embedding_layer(self.new_state_batch, self.new_concat_batch)
-			self.relevance_batch = tf.norm(
-				self.new_state_embedding_batch-self.new_transition_prediction_batch, 
-				ord='euclidean',
-				axis=-1
-			) + tf.norm(
-				self.reward_batch-self.reward_prediction_batch, 
-				ord='euclidean',
-				axis=-1
-			)
-			# print( "	[{}]Relevance shape: {}".format(self.id, self.relevance_batch.get_shape()) )
-		# return self.policy_batch, self.value_batch, self.relevance_batch
+		return embedded_input
 
-	def _state_embedding_layer(self, state_batch, concat_batch):
+	def _state_embedding_layer(self, state_batch, concat_batch, environment_model):
 		# [CNN]
 		embedded_input = [
 			self._cnn_layer(name=i, input=substate_batch/self.state_scaler, scope=self.parent_scope_name)
@@ -95,7 +59,7 @@ class Base_Network(Network):
 		print( "	[{}]CNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [Training state]
 		if flags.use_learnt_environment_model_as_observation:
-			embedded_input = self._weights_layer(input=embedded_input, weights=self.training_state, scope=self.scope_name)
+			embedded_input = self._weights_layer(input=embedded_input, weights=environment_model, scope=self.scope_name)
 			print( "	[{}]Weights layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [Concat]
 		if len(concat_batch) > 0:
@@ -138,14 +102,14 @@ class Base_Network(Network):
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _value_layer(self, input, scope, name="", share_trainables=True):
+	def value_layer(self, input, scope, name="", share_trainables=True, qvalue_estimation=False):
 		layer_type = 'Value'
 		def layer_fn():
-			if self.qvalue_estimation:
+			if qvalue_estimation:
 				policy_depth = sum(h['depth'] for h in self.policy_heads)
 				policy_size = sum(h['size'] for h in self.policy_heads)
 				units = policy_size*max(1,policy_depth)
-				output = [
+				output = [ # Keep value heads separated
 					tf.keras.layers.Dense(name='{}_Q{}_Dense1'.format(layer_type,i),  units=units, activation=None, kernel_initializer=tf.initializers.variance_scaling)(input)
 					for i in range(self.value_count)
 				]
@@ -164,7 +128,7 @@ class Base_Network(Network):
 			return output
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _policy_layer(self, input, scope, name="", share_trainables=True):
+	def policy_layer(self, input, scope, name="", share_trainables=True):
 		layer_type = 'Policy'
 		def layer_fn():
 			output_list = []
@@ -213,7 +177,7 @@ class Base_Network(Network):
 			return new_transition_prediction, reward_prediction
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _rnn_layer(self, input, scope, name="", share_trainables=True):
+	def _rnn_layer(self, input, size_batch, scope, name="", share_trainables=True):
 		rnn = RNN(type='LSTM', direction=1, units=64, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)
 		internal_initial_state = rnn.state_placeholder(name="initial_lstm_state") # for stateful lstm
 		internal_default_state = rnn.default_state()
@@ -222,7 +186,7 @@ class Base_Network(Network):
 			output, internal_final_state = rnn.process_batches(
 				input=input, 
 				initial_states=internal_initial_state, 
-				sizes=self.size_batch
+				sizes=size_batch,
 			)
 			return output, ([internal_initial_state],[internal_default_state],[internal_final_state])
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
