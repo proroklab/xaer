@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import tensorflow.compat.v1 as tf
 from more_itertools import unique_everseen
+import os
 
 class Network():
 	def __init__(self, id, training):
@@ -16,9 +17,9 @@ class Network():
 			self.shared_keys = list(unique_everseen(self.shared_keys + tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope_name)))
 		self.update_keys = list(unique_everseen(self.update_keys + tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope=scope_name)))
 
-	def _scopefy(self, output_fn, layer_type, scope, name, share_trainables):
-		with tf.variable_scope("{}/{}-{}".format(scope,layer_type,name), reuse=tf.AUTO_REUSE) as variable_scope:
-			print( "	[{}]Building or reusing scope: {}".format(self.id, variable_scope.name) )
+	def _scopefy(self, output_fn, layer_type, scope, name, share_trainables, reuse=False):
+		with tf.variable_scope(os.path.join(str(scope),str(layer_type),str(name)).strip('/'), reuse=reuse) as variable_scope:
+			print( "	[{}]{} scope: {}".format(self.id, "Building" if not reuse else "Reusing", variable_scope.name) )
 			output = output_fn()
 			self._update_keys(variable_scope.name, share_trainables)
 			# print( "	[{}]{} layer shape: {}".format(self.id, layer_type, output.get_shape()) )
@@ -35,7 +36,7 @@ class Network():
 		batch_norm, _ = self._batch_normalization_layer(input=input, scope=scope, name=layer_type)
 		def layer_fn():
 			fentropy = Normal(batch_norm.moving_mean, tf.sqrt(batch_norm.moving_variance)).cross_entropy(input)
-			fentropy = tf.layers.flatten(fentropy)
+			fentropy = tf.keras.layers.Flatten()(fentropy)
 			if len(fentropy.get_shape()) > 1:
 				fentropy = tf.reduce_mean(fentropy, axis=-1)
 			return fentropy

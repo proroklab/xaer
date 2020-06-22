@@ -25,8 +25,11 @@ class TD3_Algorithm(RL_Algorithm):
 		self.tau = 0.005
 		self.policy_delay = 2
 
-	def get_network_partitions(self):
-		return ['Actor','Critic','TargetActor','TargetCritic']
+	def get_main_network_partitions(self):
+		return [
+			['Actor','Critic'],
+			['TargetActor','TargetCritic']
+		]
 
 	def build_network(self):
 		actor_net = self.network['Actor']
@@ -196,7 +199,13 @@ class TD3_Algorithm(RL_Algorithm):
 		return train_info
 
 	def _build_train_feed(self, info_dict):
-		feed_dict = super()._build_train_feed(info_dict)
+		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
+		if self.with_intrinsic_reward:
+			feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states']) )
+		# Internal State
+		if flags.network_has_internal_state:
+			feed_dict.update( self._get_internal_state_feed([info_dict['internal_state']]) )
+			feed_dict.update( {self.size_batch: [len(info_dict['cumulative_returns'])]} )
 		# New states
 		feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states']) )
 		# Add replay boolean to feed dictionary

@@ -14,22 +14,11 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 	produce_explicit_relations = True
 	kernel_initializer = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.1)
 
-	# def _cnn_layer(self, input, scope, name="", share_trainables=True):
-	# 	layer_type = 'CNN'
-	# 	def layer_fn():
-	# 		# input = tf.contrib.model_pruning.masked_conv2d(inputs=input, num_outputs=16, kernel_size=(3,3), padding='SAME', activation_fn=tf.nn.leaky_relu) # xavier initializer
-	# 		# input = tf.contrib.model_pruning.masked_conv2d(inputs=input, num_outputs=32, kernel_size=(3,3), padding='SAME', activation_fn=tf.nn.leaky_relu) # xavier initializer
-	# 		xx = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=32, kernel_size=8, strides=4, padding='SAME', kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
-	# 		xx = tf.keras.layers.Conv2D(name='CNN_Conv2',  filters=64, kernel_size=4, strides=2, padding='SAME', kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(xx)
-	# 		xx = tf.keras.layers.Conv2D(name='CNN_Conv3',  filters=64, kernel_size=4, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(xx)
-	# 		return xx
-	# 	return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
-
-	def _entity_extraction_layer(self, features, scope, name="", share_trainables=True):
+	def _entity_extraction_layer(self, features, scope="", name="", share_trainables=True):
 		layer_type = 'EntityExtraction'
 		def layer_fn():
 			# [B,Height,W,D]
-			x = self._cnn_layer(input=features, scope=scope, name=name, share_trainables=share_trainables)
+			x = self._cnn_layer(input=features, share_trainables=share_trainables)
 			# [B,Height,W,D+3]
 			coordinates = self.get_coordinates(x)
 			x = tf.concat([x, coordinates], axis=-1)
@@ -39,7 +28,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			return entities
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _relation_extraction_layer(self, entities, comparator_fn, edge_size_per_object_pair, n_object_pairs, scope, name="", share_trainables=True):
+	def _relation_extraction_layer(self, entities, comparator_fn, edge_size_per_object_pair, n_object_pairs, scope="", name="", share_trainables=True):
 		layer_type = 'RelationExtraction'
 		def layer_fn():
 			key_size = entities.shape.as_list()[-1] # channels+3
@@ -49,14 +38,14 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 				entities=entities, 
 				n_object_pairs=n_object_pairs, 
 				key_size=key_size, 
-				scope=scope, share_trainables=share_trainables
+				share_trainables=share_trainables
 			)
 			# (batch_size, heads, n_query, key_size)
 			keys = self.__key_layer(
 				entities=entities, 
 				n_object_pairs=n_object_pairs, 
 				key_size=key_size, 
-				scope=scope, share_trainables=share_trainables
+				share_trainables=share_trainables
 			)
 			# (batch_size, heads, height*width, key_size)
 			values = tf.tile(tf.expand_dims(entities, 1), [1, n_object_pairs, 1, 1])
@@ -96,7 +85,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			return triples, attention_weights
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def __key_layer(self, entities, n_object_pairs, key_size, scope, name="", share_trainables=True):
+	def __key_layer(self, entities, n_object_pairs, key_size, scope="", name="", share_trainables=True):
 		layer_type = 'Key'
 		def layer_fn():
 			key = tf.keras.layers.Dense(
@@ -111,11 +100,11 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			return key
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def __query_layer(self, n_query, entities, n_object_pairs, key_size, scope, name="", share_trainables=True):
+	def __query_layer(self, n_query, entities, n_object_pairs, key_size, scope="", name="", share_trainables=True):
 		layer_type = 'Query'
 		def layer_fn():
 			# Queries
-			flatten_entities = tf.layers.flatten(entities)
+			flatten_entities = tf.keras.layers.Flatten()(entities)
 			
 			query = tf.keras.layers.Dense(
 				units=n_object_pairs*n_query*key_size, 
@@ -149,7 +138,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 		coor = tf.tile(coor, [batch_size, 1, 1, 1])
 		return coor
 
-	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
+	def _concat_layer(self, input, concat, scope="", name="", share_trainables=True):
 		channels = input.shape.as_list()[-1] - 3
 
 		layer_type = 'Concat'
@@ -163,7 +152,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 				)(c)
 				for i,c in enumerate(concat)
 			]
-			new_concat = list(map(tf.layers.flatten, new_concat))
+			new_concat = list(map(tf.keras.layers.Flatten(), new_concat))
 			new_concat = tf.stack(new_concat)
 			# (y, batch_size, channels)
 			new_concat = tf.transpose(new_concat, [1,0,2])
@@ -179,13 +168,12 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			return new_input
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _relational_layer(self, state, concat, scope, name="", share_trainables=True):
+	def _relational_layer(self, state, concat, scope="", name="", share_trainables=True):
 		layer_type = 'Relational'
 		def layer_fn():
 			entities = [
 				self._entity_extraction_layer(
 					features=substate/self.state_scaler, 
-					scope=self.parent_scope_name, 
 					name=f'EE_{i}', 
 					share_trainables=share_trainables
 				)
@@ -194,9 +182,19 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			entities = tf.concat(entities,1)
 			# Concatenate extra features
 			if len(concat) > 0:
-				entities = self._concat_layer(input=entities, concat=concat, scope=scope, name="C_1", share_trainables=share_trainables)
+				entities = self._concat_layer(
+					input=entities, 
+					concat=concat, 
+					share_trainables=share_trainables
+				)
 			print( "	[{}]Entity Extraction layer {} output shape: {}".format(self.id, name, entities.get_shape()) )
-			relations, attention_weights = self._relation_extraction_layer(entities, comparator_fn=tf.subtract, edge_size_per_object_pair=EDGE_SIZE_PER_OBJECT_PAIR, n_object_pairs=OBJECT_PAIRS, scope=scope, name="RE_1", share_trainables=share_trainables)
+			relations, attention_weights = self._relation_extraction_layer(
+				entities, 
+				comparator_fn=tf.subtract, 
+				edge_size_per_object_pair=EDGE_SIZE_PER_OBJECT_PAIR, 
+				n_object_pairs=OBJECT_PAIRS, 
+				share_trainables=share_trainables
+			)
 			print( "	[{}]Relation Extraction layer {} output shape: {}".format(self.id, name, relations.get_shape()) )
 			output = relations
 			relations_set = {
@@ -206,16 +204,23 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 				},
 			}
 			return output, relations_set
-		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)	
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _state_embedding_layer(self, state_batch, concat_batch, environment_model):
-		# Extract features
-		relations_batch,self.relations_sets = self._relational_layer(state=state_batch, concat=concat_batch, scope=self.parent_scope_name)
-		embedded_input = tf.layers.flatten(relations_batch)
-		# print( "	[{}]State Relational layer output shape: {}".format(self.id, embedded_input.get_shape()) )
-		# embedded_input = tf.keras.layers.Dense(name='DenseEmbedding',  units=256, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(embedded_input)
-		# [Training state]
-		if flags.use_learnt_environment_model_as_observation:
-			embedded_input = self._weights_layer(input=embedded_input, weights=environment_model, scope=self.parent_scope_name)
-			# print( "	[{}]Weights layer output shape: {}".format(self.id, embedded_input.get_shape()) )
-		return embedded_input
+	def _state_embedding_layer(self, state_batch, concat_batch, environment_model, scope="", name="", share_trainables=True):
+		layer_type = 'StateEmbedding'
+		def layer_fn():
+			# Extract features
+			relations_batch,self.relations_sets = self._relational_layer(
+				state=state_batch, 
+				concat=concat_batch,
+				share_trainables=share_trainables,
+			)
+			embedded_input = tf.keras.layers.Flatten()(relations_batch)
+			if flags.use_learnt_environment_model_as_observation:
+				embedded_input = self._weights_layer(
+					input=embedded_input, 
+					weights=environment_model, 
+					share_trainables=share_trainables,
+				)
+			return embedded_input
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

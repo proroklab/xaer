@@ -4,6 +4,7 @@ import tensorflow.compat.v1 as tf
 import itertools as it
 from collections import deque
 from utils.statistics import Statistics
+from utils.misc import flatten
 from agent.network import *
 #===============================================================================
 # from utils.running_std import RunningMeanStd
@@ -13,7 +14,6 @@ flags = options.get()
 
 class RL_Algorithm(object):
 	extract_importance_weight = False
-	predict_value = False
 
 	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
 		self.parameters_type = eval('tf.{}'.format(flags.parameters_type))
@@ -61,11 +61,26 @@ class RL_Algorithm(object):
 	def get_main_network_partitions(self):
 		pass
 
-	def get_auxiliary_network_partitions(self):
-		return []
+	def build_network(self):
+		pass
+
+	def _build_train_feed(self, info_dict):
+		pass
+
+	def _train(self, feed_dict, replay=False):
+		pass
+
+	def predict_action(self, info_dict):
+		pass
+
+	def get_importance_weight(self, info_dict):
+		pass
 
 	def get_external_network_partitions(self):
-		return ['Reward']
+		return [['Reward']]
+
+	def get_auxiliary_network_partitions(self):
+		return []
 
 	def get_internal_network_partitions(self):
 		return self.get_main_network_partitions() + self.get_auxiliary_network_partitions()
@@ -78,28 +93,24 @@ class RL_Algorithm(object):
 		# Build intrinsic reward network here because we need its internal state for building actor and critic
 		self.network['Reward'] = IntrinsicReward_Network(id=self.id, scope_dict={'self': "IRNet{0}".format(self.id)}, training=self.training)
 		# Build internal partitions
-		for p in self.get_internal_network_partitions():
-			if not flags.internal_partitions_do_share_nets: # non-shared graph
-				node_id = self.id + p
-				parent_id = self.parent.id + p
-				sibling_id = self.sibling.id + p
-			else: # shared graph
-				node_id = self.id
-				parent_id = self.parent.id
-				sibling_id = self.sibling.id
+		for pid,partition_group in enumerate(self.get_internal_network_partitions()):
+			node_id = self.id
+			parent_id = self.parent.id
+			sibling_id = self.sibling.id
 			scope_dict = {
-				'self': "Net{0}".format(node_id),
-				'parent': "Net{0}".format(parent_id),
-				'sibling': "Net{0}".format(sibling_id)
+				'self': "Net{0}_G{1}".format(node_id,pid),
+				'parent': "Net{0}_G{1}".format(parent_id,pid),
+				'sibling': "Net{0}_G{1}".format(sibling_id,pid)
 			}
-			self.network[p] = eval('{}_Network'.format(flags.network_configuration))(
-				id=node_id, 
-				policy_heads=self.policy_heads,
-				scope_dict=scope_dict, 
-				training=self.training,
-				value_count=self.value_count,
-				state_scaler=self.state_scaler
-			)
+			for p in partition_group:
+				self.network[p] = eval('{}_Network'.format(flags.network_configuration))(
+					id=node_id, 
+					policy_heads=self.policy_heads,
+					scope_dict=scope_dict, 
+					training=self.training,
+					value_count=self.value_count,
+					state_scaler=self.state_scaler
+				)
 		
 	def get_statistics(self):
 		return self._train_statistics.get()
@@ -130,18 +141,23 @@ class RL_Algorithm(object):
 		if self.has_masked_actions:
 			self.old_action_mask_batch = [self._action_placeholder(policy_size=head['size'], policy_depth=1, name="old_action_mask_batch{}".format(i)) for i,head in enumerate(self.policy_heads)]
 				
-	def build_network(self):
-		pass
-			
 	def predict_value(self, info_dict):
-		pass
+		state_batch = info_dict['states']
+		size_batch = info_dict['sizes']
+		bootstrap = info_dict['bootstrap']
+		for i,b in enumerate(bootstrap):
+			state_batch = state_batch + [b['state']]
+			size_batch[i] += 1
+		# State
+		feed_dict = self._get_multihead_feed(target=self.state_batch, source=state_batch)
+		# Internal State
+		if flags.network_has_internal_state:
+			feed_dict.update( self._get_internal_state_feed(info_dict['internal_states']) )
+			feed_dict.update( {self.size_batch: size_batch} )
+		# Return value_batch
+		value_batch = tf.get_default_session().run(fetches=self.state_value_batch, feed_dict=feed_dict)
+		return value_batch[:-1], value_batch[-1], None
 	
-	def predict_action(self, info_dict):
-		pass
-
-	def get_importance_weight(self, info_dict):
-		pass
-
 	def get_extracted_relations(self, info_dict):
 		# State
 		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
@@ -151,9 +167,6 @@ class RL_Algorithm(object):
 			feed_dict=feed_dict
 		)
 
-	def _train(self, feed_dict, replay=False):
-		pass
-		
 	def _policy_placeholder(self, policy_size, policy_depth, name=None, batch_size=None):
 		if is_continuous_control(policy_depth):
 			shape = [batch_size,2,policy_size]
@@ -200,7 +213,7 @@ class RL_Algorithm(object):
 		# gradient optimizer
 		gradient_optimizer_dict = {
 			p: tf_utils.get_optimization_function(optimization_algoritmh)(learning_rate=learning_rate, use_locking=True)
-			for p in self.get_network_partitions()	
+			for p in flatten(self.get_network_partitions())
 		}
 		return gradient_optimizer_dict,global_step
 	
@@ -208,14 +221,14 @@ class RL_Algorithm(object):
 		if partitions is None:
 			partitions = self.get_network_partitions()
 		# set removes duplicates
-		key_list = set(it.chain.from_iterable(self.network[p].shared_keys for p in partitions))
+		key_list = set(flatten(self.network[p].shared_keys for p in flatten(partitions)))
 		return sorted(key_list, key=lambda x: x.name)
 	
 	def get_update_keys(self, partitions=None):
 		if partitions is None:
 			partitions = self.get_network_partitions()
 		# set removes duplicates
-		key_list = set(it.chain.from_iterable(self.network[p].update_keys for p in partitions))
+		key_list = set(flatten(self.network[p].update_keys for p in flatten(partitions)))
 		return sorted(key_list, key=lambda x: x.name)
 
 	def _get_train_op(self, global_step, optimizer, loss, shared_keys, update_keys, global_keys):
@@ -271,14 +284,18 @@ class RL_Algorithm(object):
 		return tf.get_default_session().run(fetches=self.intrinsic_reward_batch, feed_dict=feed_dict)
 
 	def _get_internal_state(self):
-		return tuple(self.network[p].internal_final_state for p in self.get_network_partitions() if self.network[p].use_internal_state)
+		return tuple(
+			self.network[p].internal_final_state 
+			for p in flatten(self.get_network_partitions())
+			if self.network[p].use_internal_state
+		)
 	
 	def _get_internal_state_feed(self, internal_states):
 		if not flags.network_has_internal_state:
 			return {}
 		feed_dict = {}
 		i = 0
-		for partition in self.get_network_partitions():
+		for partition in flatten(self.get_network_partitions()):
 			network_partition = self.network[partition]
 			if network_partition.use_internal_state:
 				partition_batch_states = [
@@ -336,18 +353,7 @@ class RL_Algorithm(object):
 			# Intrinsic Reward
 			if self.with_intrinsic_reward:
 				state_mean, state_std = info_dict['state_mean'], info_dict['state_std']
-				feed_dict.update( self._get_multihead_feed(target=self.state_mean_batch, source=[state_mean]) )
-				feed_dict.update( self._get_multihead_feed(target=self.state_std_batch, source=[state_std]) )
+				current_global_feed.update( self._get_multihead_feed(target=self.state_mean_batch, source=[state_mean]) )
+				current_global_feed.update( self._get_multihead_feed(target=self.state_std_batch, source=[state_std]) )
 			return self._train(feed_dict=current_global_feed, replay=replay)
 		return None
-
-	def _build_train_feed(self, info_dict):
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
-		if self.with_intrinsic_reward:
-			feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states']) )
-		# Internal State
-		if flags.network_has_internal_state:
-			feed_dict.update( self._get_internal_state_feed([info_dict['internal_state']]) )
-			feed_dict.update( {self.size_batch: [len(info_dict['cumulative_returns'])]} )
-		return feed_dict
-

@@ -11,7 +11,7 @@ flags = options.get()
 
 class OpenAISmall_Network(Base_Network):
 
-	def _cnn_layer(self, input, scope, name="", share_trainables=True):
+	def _cnn_layer(self, input, scope="", name="", share_trainables=True):
 		layer_type = 'CNN'
 		def layer_fn():
 			# input = tf.contrib.model_pruning.masked_conv2d(inputs=input, num_outputs=16, kernel_size=(3,3), padding='SAME', activation_fn=tf.nn.leaky_relu) # xavier initializer
@@ -22,7 +22,7 @@ class OpenAISmall_Network(Base_Network):
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _weights_layer(self, input, weights, scope, name="", share_trainables=True):
+	def _weights_layer(self, input, weights, scope="", name="", share_trainables=True):
 		layer_type = 'Weights'
 		def layer_fn():
 			kernel = tf.stop_gradient(weights['kernel'])
@@ -34,22 +34,22 @@ class OpenAISmall_Network(Base_Network):
 			weight_state = tf.concat((kernel, bias), -1)
 			weight_state = tf.keras.layers.Dense(name='TS_Dense1', units=64, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(weight_state)
 			weight_state = tf.reshape(weight_state, [-1])
-			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Flatten()(input)
 			xx = tf.map_fn(fn=lambda b: tf.concat((b,weight_state),-1), elems=xx)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
+	def _concat_layer(self, input, concat, scope="", name="", share_trainables=True):
 		layer_type = 'Concat'
 		def layer_fn():
-			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Flatten()(input)
 			if concat.get_shape()[-1] > 0:
-				xx = tf.concat([xx, tf.layers.flatten(concat)], -1) # shape: (batch, concat_size+units)
+				xx = tf.concat([xx, tf.keras.layers.Flatten()(concat)], -1) # shape: (batch, concat_size+units)
 			xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=256, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(xx)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def value_layer(self, input, scope, name="", share_trainables=True, qvalue_estimation=False):
+	def value_layer(self, input, scope="", name="", share_trainables=True, qvalue_estimation=False):
 		layer_type = 'Value'
 		def layer_fn():
 			xx = input + tf.keras.layers.Dense(name='Value_Dense1', units=input.get_shape().as_list()[-1], activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(0.1))(input)
@@ -72,11 +72,11 @@ class OpenAISmall_Network(Base_Network):
 				]
 				output = tf.stack(output)
 				output = tf.transpose(output, [1, 0, 2])
-				output = tf.layers.flatten(output)
+				output = tf.keras.layers.Flatten()(output)
 			return output
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def policy_layer(self, input, scope, name="", share_trainables=True):
+	def policy_layer(self, input, scope="", name="", share_trainables=True):
 		layer_type = 'Policy'
 		def layer_fn():
 			xx = input + tf.keras.layers.Dense(name='Policy_Dense1',  units=input.get_shape().as_list()[-1], activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(0.1))(input)
@@ -103,7 +103,7 @@ class OpenAISmall_Network(Base_Network):
 			return output_list
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _rnn_layer(self, input, size_batch, scope, name="", share_trainables=True):
+	def _rnn_layer(self, input, size_batch, scope="", name="", share_trainables=True):
 		rnn = RNN(type='GRU', direction=1, units=256, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)
 		internal_initial_state = rnn.state_placeholder(name="initial_lstm_state") # for stateful lstm
 		internal_default_state = rnn.default_state()

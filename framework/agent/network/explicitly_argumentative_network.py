@@ -11,7 +11,7 @@ EDGE_SIZE_PER_OBJECT_PAIR = 4
 
 class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 	
-	def argument_link_extraction_layer(self, relations, n_links, n_object_pairs, scope, name="", share_trainables=True):
+	def argument_link_extraction_layer(self, relations, n_links, n_object_pairs, scope="", name="", share_trainables=True):
 		def argument_comparator_fn(l,r):
 			similarity_relation = tf.subtract(l,r)
 			# priority_relation = tf.cast(tf.greater(l,r), tf.float32)
@@ -31,17 +31,22 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 			arguments = tf.concat([arguments, self.get_coordinates(arguments, task_id=0.5)], axis=-1)
 			_, h, w, ext_channels = arguments.shape.as_list()
 			arguments = tf.reshape(arguments, [-1, h * w, ext_channels])
-			return self._relation_extraction_layer(arguments, comparator_fn=argument_comparator_fn, edge_size_per_object_pair=n_links, n_object_pairs=n_object_pairs, scope=scope, name="RE_1", share_trainables=share_trainables)
+			return self._relation_extraction_layer(
+				arguments, 
+				comparator_fn=argument_comparator_fn, 
+				edge_size_per_object_pair=n_links, 
+				n_object_pairs=n_object_pairs, 
+				share_trainables=share_trainables
+			)
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _relational_layer(self, state, concat, scope, name="", share_trainables=True):
+	def _relational_layer(self, state, concat, scope="", name="", share_trainables=True):
 		layer_type = 'Relational'
 		def layer_fn():
 			entities = [
 				self._entity_extraction_layer(
 					features=substate/self.state_scaler, 
-					scope=self.parent_scope_name, 
-					name=f'EE_{i}', 
+					name=f'EE_{i}'+name, 
 					share_trainables=share_trainables
 				)
 				for i,substate in enumerate(state)
@@ -49,11 +54,26 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 			entities = tf.concat(entities,1)
 			# Concatenate extra features
 			if len(concat) > 0:
-				entities = self._concat_layer(input=entities, concat=concat, scope=scope, name="C_1", share_trainables=share_trainables)
+				entities = self._concat_layer(
+					input=entities, 
+					concat=concat,
+					share_trainables=share_trainables
+				)
 			print( "	[{}]Entity Extraction layer {} output shape: {}".format(self.id, name, entities.get_shape()) )
-			entity_relations, entity_attention_weights = self._relation_extraction_layer(entities=entities, comparator_fn=tf.subtract, edge_size_per_object_pair=EDGE_SIZE_PER_OBJECT_PAIR, n_object_pairs=OBJECT_PAIRS, scope=scope, name="RE_1", share_trainables=share_trainables)
+			entity_relations, entity_attention_weights = self._relation_extraction_layer(
+				entities=entities, 
+				comparator_fn=tf.subtract, 
+				edge_size_per_object_pair=EDGE_SIZE_PER_OBJECT_PAIR, 
+				n_object_pairs=OBJECT_PAIRS, 
+				share_trainables=share_trainables
+			)
 			print( "	[{}]Relation Extraction layer {} output shape: {}".format(self.id, name, entity_relations.get_shape()) )
-			argument_links, relation_attention_weights = self.argument_link_extraction_layer(relations=entity_relations, n_links=EDGE_SIZE_PER_OBJECT_PAIR, n_object_pairs=OBJECT_PAIRS, scope=scope, name="ALE_1", share_trainables=share_trainables)
+			argument_links, relation_attention_weights = self.argument_link_extraction_layer(
+				relations=entity_relations, 
+				n_links=EDGE_SIZE_PER_OBJECT_PAIR, 
+				n_object_pairs=OBJECT_PAIRS, 
+				share_trainables=share_trainables
+			)
 			print( "	[{}]Argument Link Extraction layer {} output shape: {}".format(self.id, name, argument_links.get_shape()) )
 			output = tf.concat([entity_relations,argument_links], 1)
 			relations_set = {

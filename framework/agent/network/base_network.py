@@ -35,11 +35,20 @@ class Base_Network(Network):
 		size_batch = batch_dict['size']
 		environment_model = batch_dict['training_state'] if flags.use_learnt_environment_model_as_observation else None
 		# [State Embedding]
-		embedded_input = self._state_embedding_layer(state_batch, concat_batch, environment_model)
+		embedded_input = self._state_embedding_layer(
+			state_batch, 
+			concat_batch, 
+			environment_model, 
+			scope=self.parent_scope_name
+		)
 		print( "	[{}]State Embedding shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [RNN]
 		if use_internal_state:
-			embedded_input, internal_state_tuple = self._rnn_layer(input=embedded_input, size_batch=size_batch, scope=self.scope_name)
+			embedded_input, internal_state_tuple = self._rnn_layer(
+				input=embedded_input, 
+				size_batch=size_batch, 
+				scope=self.scope_name
+			)
 			self.internal_initial_state, self.internal_default_state, self.internal_final_state = internal_state_tuple
 			print( "	[{}]RNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 			for i,h in enumerate(self.internal_initial_state):
@@ -48,28 +57,33 @@ class Base_Network(Network):
 				print( "	[{}]RNN{} final state shape: {}".format(self.id, i, h.get_shape()) )
 		return embedded_input
 
-	def _state_embedding_layer(self, state_batch, concat_batch, environment_model):
-		# [CNN]
-		embedded_input = [
-			self._cnn_layer(name=i, input=substate_batch/self.state_scaler, scope=self.parent_scope_name)
-			for i,substate_batch in enumerate(state_batch)
-		]
-		embedded_input = list(map(tf.layers.flatten, embedded_input))
-		embedded_input = tf.concat(embedded_input, -1)
-		print( "	[{}]CNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
-		# [Training state]
-		if flags.use_learnt_environment_model_as_observation:
-			embedded_input = self._weights_layer(input=embedded_input, weights=environment_model, scope=self.scope_name)
-			print( "	[{}]Weights layer output shape: {}".format(self.id, embedded_input.get_shape()) )
-		# [Concat]
-		if len(concat_batch) > 0:
-			concat_batch = list(map(tf.layers.flatten, concat_batch))
-			concat_batch = tf.concat(concat_batch, -1)
-			embedded_input = self._concat_layer(input=embedded_input, concat=concat_batch, scope=self.scope_name)
-			print( "	[{}]Concat layer output shape: {}".format(self.id, embedded_input.get_shape()) )
-		return embedded_input
+	def _state_embedding_layer(self, state_batch, concat_batch, environment_model, scope="", name="", share_trainables=True):
+		layer_type = 'StateEmbedding'
+		def layer_fn():
+			# [CNN]
+			embedded_input = [
+				self._cnn_layer(name=i, input=substate_batch/self.state_scaler, share_trainables=share_trainables)
+				for i,substate_batch in enumerate(state_batch)
+			]
+			embedded_input = tf.concat(embedded_input, -2)
+			embedded_input = tf.keras.layers.Flatten()(embedded_input)
+			print( "	[{}]CNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
+			# [Training state]
+			if flags.use_learnt_environment_model_as_observation:
+				embedded_input = self._weights_layer(input=embedded_input, weights=environment_model, share_trainables=share_trainables)
+				print( "	[{}]Weights layer output shape: {}".format(self.id, embedded_input.get_shape()) )
+			# [Concat]
+			if len(concat_batch) > 0:
+				embedded_input = self._concat_layer(
+					input=embedded_input, 
+					concat=tf.concat(list(map(tf.keras.layers.Flatten(), concat_batch)), -1), 
+					share_trainables=share_trainables
+				)
+				print( "	[{}]Concat layer output shape: {}".format(self.id, embedded_input.get_shape()) )
+			return embedded_input
+		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _cnn_layer(self, input, scope, name="", share_trainables=True):
+	def _cnn_layer(self, input, scope="", name="", share_trainables=True):
 		layer_type = 'CNN'
 		def layer_fn():
 			xx = tf.keras.layers.Conv2D(name='CNN_Conv1',  filters=16, kernel_size=[3,3], strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(input)
@@ -77,7 +91,7 @@ class Base_Network(Network):
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _weights_layer(self, input, weights, scope, name="", share_trainables=True):
+	def _weights_layer(self, input, weights, scope="", name="", share_trainables=True):
 		layer_type = 'Weights'
 		def layer_fn():
 			kernel = tf.stop_gradient(weights['kernel'])
@@ -87,22 +101,22 @@ class Base_Network(Network):
 			bias = tf.stop_gradient(weights['bias'])
 			bias = tf.reshape(bias, [-1])
 			weight_state = tf.concat((kernel, bias), -1)
-			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Flatten()(input)
 			xx = tf.map_fn(fn=lambda b: tf.concat((b,weight_state),-1), elems=xx)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
+	def _concat_layer(self, input, concat, scope="", name="", share_trainables=True):
 		layer_type = 'Concat'
 		def layer_fn():
-			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Flatten()(input)
 			xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=64, activation=tf.nn.elu, kernel_initializer=tf.initializers.variance_scaling)(xx)
 			if concat.get_shape()[-1] > 0:
-				xx = tf.concat([xx, tf.layers.flatten(concat)], -1) # shape: (batch, concat_size+units)
+				xx = tf.concat([xx, tf.keras.layers.Flatten()(concat)], -1) # shape: (batch, concat_size+units)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def value_layer(self, input, scope, name="", share_trainables=True, qvalue_estimation=False):
+	def value_layer(self, input, scope="", name="", share_trainables=True, qvalue_estimation=False):
 		layer_type = 'Value'
 		def layer_fn():
 			if qvalue_estimation:
@@ -124,11 +138,11 @@ class Base_Network(Network):
 				]
 				output = tf.stack(output)
 				output = tf.transpose(output, [1, 0, 2])
-				output = tf.layers.flatten(output)
+				output = tf.keras.layers.Flatten()(output)
 			return output
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def policy_layer(self, input, scope, name="", share_trainables=True):
+	def policy_layer(self, input, scope="", name="", share_trainables=True):
 		layer_type = 'Policy'
 		def layer_fn():
 			output_list = []
@@ -155,7 +169,7 @@ class Base_Network(Network):
 			return output_list
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _transition_prediction_layer(self, state, action, scope, name="", share_trainables=True):
+	def _transition_prediction_layer(self, state, action, scope="", name="", share_trainables=True):
 		layer_type = 'TransitionPredictor'
 		def layer_fn():
 			xx = tf.stop_gradient(state)
@@ -177,7 +191,7 @@ class Base_Network(Network):
 			return new_transition_prediction, reward_prediction
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _rnn_layer(self, input, size_batch, scope, name="", share_trainables=True):
+	def _rnn_layer(self, input, size_batch, scope="", name="", share_trainables=True):
 		rnn = RNN(type='LSTM', direction=1, units=64, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)
 		internal_initial_state = rnn.state_placeholder(name="initial_lstm_state") # for stateful lstm
 		internal_default_state = rnn.default_state()

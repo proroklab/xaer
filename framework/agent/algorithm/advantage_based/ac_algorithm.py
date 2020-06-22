@@ -17,7 +17,6 @@ def merge_splitted_advantages(advantage):
 
 class AC_Algorithm(RL_Algorithm):
 	extract_importance_weight = flags.advantage_estimator.lower() in ["vtrace","gae_v"]
-	predict_value = True
 
 	@staticmethod
 	def get_reversed_cumulative_return(gamma, last_value, reversed_reward, reversed_value, reversed_extra, reversed_importance_weight):
@@ -31,7 +30,7 @@ class AC_Algorithm(RL_Algorithm):
 		)
 
 	def get_main_network_partitions(self):
-		return ['Actor','Critic']
+		return [['Actor','Critic']]
 
 	def build_network(self):
 		actor_net = self.network['Actor']
@@ -83,50 +82,52 @@ class AC_Algorithm(RL_Algorithm):
 		if self.with_intrinsic_reward:
 			self._loss_builder['Reward'] = lambda global_step: intrinsic_reward_loss
 		def get_actor_loss(global_step):
-			print( "Preparing Actor loss {}".format(self.id) )
-			policy_builder = PolicyLoss(
-				global_step= global_step,
-				type= flags.policy_loss,
-				beta= self.beta,
-				policy_heads= self.policy_heads, 
-				actor_batch= self.actor_batch,
-				old_policy_batch= self.old_policy_batch, 
-				old_action_batch= self.old_action_batch, 
-				is_replayed_batch= self.is_replayed_batch,
-				old_action_mask_batch= self.old_action_mask_batch if self.has_masked_actions else None,
-			)
-			# if flags.runtime_advantage:
-			# 	self.advantage_batch = adv = self.cumulative_return_batch - self.state_value_batch # baseline is always up to date
-			self.importance_weight_batch = policy_builder.get_importance_weight_batch()
-			print( "	[{}]Importance Weight shape: {}".format(self.id, self.importance_weight_batch.get_shape()) )
-			self.policy_kl_divergence = policy_builder.approximate_kullback_leibler_divergence()
-			self.policy_clipping_frequency = policy_builder.get_clipping_frequency()
-			self.policy_entropy_regularization = policy_builder.get_entropy_regularization()
-			policy_loss = policy_builder.get(tf.map_fn(fn=merge_splitted_advantages, elems=self.advantage_batch) if self.value_count > 1 else self.advantage_batch)
-			# [Entropy regularization]
-			if not flags.intrinsic_reward and flags.entropy_regularization:
-				policy_loss += -self.policy_entropy_regularization
-			# [Constraining Replay]
-			if self.constrain_replay:
-				constrain_loss = sum(
-					0.5*builder.reduce_function(tf.squared_difference(new_distribution.mean(), tf.stop_gradient(old_action))) 
-					for builder, new_distribution, old_action in zip(policy_loss_builder, new_policy_distributions, self.old_action_batch)
+			with tf.variable_scope("actor_loss", reuse=False):
+				print( "Preparing Actor loss {}".format(self.id) )
+				policy_builder = PolicyLoss(
+					global_step= global_step,
+					type= flags.policy_loss,
+					beta= self.beta,
+					policy_heads= self.policy_heads, 
+					actor_batch= self.actor_batch,
+					old_policy_batch= self.old_policy_batch, 
+					old_action_batch= self.old_action_batch, 
+					is_replayed_batch= self.is_replayed_batch,
+					old_action_mask_batch= self.old_action_mask_batch if self.has_masked_actions else None,
 				)
-				policy_loss += tf.cond(
-					pred=self.is_replayed_batch[0], 
-					true_fn=lambda: constrain_loss,
-					false_fn=lambda: tf.constant(0., dtype=self.parameters_type)
-				)
-			return policy_loss
+				# if flags.runtime_advantage:
+				# 	self.advantage_batch = adv = self.cumulative_return_batch - self.state_value_batch # baseline is always up to date
+				self.importance_weight_batch = policy_builder.get_importance_weight_batch()
+				print( "	[{}]Importance Weight shape: {}".format(self.id, self.importance_weight_batch.get_shape()) )
+				self.policy_kl_divergence = policy_builder.approximate_kullback_leibler_divergence()
+				self.policy_clipping_frequency = policy_builder.get_clipping_frequency()
+				self.policy_entropy_regularization = policy_builder.get_entropy_regularization()
+				policy_loss = policy_builder.get(tf.map_fn(fn=merge_splitted_advantages, elems=self.advantage_batch) if self.value_count > 1 else self.advantage_batch)
+				# [Entropy regularization]
+				if not flags.intrinsic_reward and flags.entropy_regularization:
+					policy_loss += -self.policy_entropy_regularization
+				# [Constraining Replay]
+				if self.constrain_replay:
+					constrain_loss = sum(
+						0.5*builder.reduce_function(tf.squared_difference(new_distribution.mean(), tf.stop_gradient(old_action))) 
+						for builder, new_distribution, old_action in zip(policy_loss_builder, new_policy_distributions, self.old_action_batch)
+					)
+					policy_loss += tf.cond(
+						pred=self.is_replayed_batch[0], 
+						true_fn=lambda: constrain_loss,
+						false_fn=lambda: tf.constant(0., dtype=self.parameters_type)
+					)
+				return policy_loss
 		self._loss_builder['Actor'] = lambda global_step: get_actor_loss(global_step)
 		def get_critic_loss(global_step):
-			return flags.value_coefficient * ValueLoss(
-				global_step=global_step,
-				loss=flags.value_loss,
-				prediction=self.state_value_batch, 
-				old_prediction=self.old_state_value_batch, 
-				target=self.cumulative_return_batch
-			).get()
+			with tf.variable_scope("critic_loss", reuse=False):
+				return flags.value_coefficient * ValueLoss(
+					global_step=global_step,
+					loss=flags.value_loss,
+					prediction=self.state_value_batch, 
+					old_prediction=self.old_state_value_batch, 
+					target=self.cumulative_return_batch
+				).get()
 		self._loss_builder['Critic'] = lambda global_step: get_critic_loss(global_step)
 	
 	def sample_actions(self, actor_batch):
@@ -147,23 +148,6 @@ class AC_Algorithm(RL_Algorithm):
 		# Give self esplicative name to output for easily retrieving it in frozen graph
 		# tf.identity(action_batch, name="action")
 		return action_batch, hot_action_batch
-		
-	def predict_value(self, info_dict):
-		state_batch = info_dict['states']
-		size_batch = info_dict['sizes']
-		bootstrap = info_dict['bootstrap']
-		for i,b in enumerate(bootstrap):
-			state_batch = state_batch + [b['state']]
-			size_batch[i] += 1
-		# State
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=state_batch)
-		# Internal State
-		if flags.network_has_internal_state:
-			feed_dict.update( self._get_internal_state_feed(info_dict['internal_states']) )
-			feed_dict.update( {self.size_batch: size_batch} )
-		# Return value_batch
-		value_batch = tf.get_default_session().run(fetches=self.state_value_batch, feed_dict=feed_dict)
-		return value_batch[:-1], value_batch[-1], None
 	
 	def predict_action(self, info_dict):
 		batch_size = info_dict['sizes']
@@ -186,7 +170,19 @@ class AC_Algorithm(RL_Algorithm):
 			feed_dict=feed_dict
 		)
 		# Properly format for output the internal state
-		new_internal_states = self._format_internal_state(new_internal_states, batch_count)
+		if len(new_internal_states) == 0:
+			new_internal_states = [new_internal_states]*batch_count
+		else:
+			new_internal_states = [
+				[
+					[
+						sub_partition_new_internal_state[i]
+						for sub_partition_new_internal_state in partition_new_internal_states
+					]
+					for partition_new_internal_states in new_internal_states
+				]
+				for i in range(batch_count)
+			]
 		# Properly format for output: action and policy may have multiple heads, swap 1st and 2nd axis
 		action_batch = tuple(zip(*action_batch))
 		hot_action_batch = tuple(zip(*hot_action_batch))
@@ -230,7 +226,7 @@ class AC_Algorithm(RL_Algorithm):
 		# Build fetch
 		fetches = [train_tuple] # Minimize loss
 		# Get loss values for logging
-		fetches += [(self.loss_dict['Actor']+self.loss_dict['Critic'], self.loss_dict['Actor'], self.loss_dict['Critic'])] if flags.print_loss else [()]
+		fetches += [(self.loss_dict['Actor'], self.loss_dict['Critic'])] if flags.print_loss else [()]
 		# Debug info
 		fetches += [(self.policy_kl_divergence, self.policy_clipping_frequency, self.policy_entropy_regularization)] if flags.print_policy_info else [()]
 		# Intrinsic reward
@@ -241,7 +237,8 @@ class AC_Algorithm(RL_Algorithm):
 		# Build and return loss dict
 		train_info = {}
 		if flags.print_loss:
-			train_info["loss_total"], train_info["loss_actor"], train_info["loss_critic"] = loss
+			train_info["loss_actor"], train_info["loss_critic"] = loss
+			train_info["loss_total"] = sum(loss)
 		if flags.print_policy_info:
 			train_info["actor_kl_divergence"], train_info["actor_clipping_frequency"], train_info["actor_entropy"] = policy_info
 		if self.with_intrinsic_reward:
@@ -254,19 +251,25 @@ class AC_Algorithm(RL_Algorithm):
 		# 	self.actor_loss_is_too_small = self.loss_distribution_estimator.mean <= flags.loss_stationarity_range
 		#=======================================================================
 		return train_info
-		
+
 	def _build_train_feed(self, info_dict):
-		feed_dict = super()._build_train_feed(info_dict)
 		# State & Cumulative Return & Old Value
+		feed_dict = {}
 		feed_dict.update({self.cumulative_return_batch: info_dict['cumulative_returns']})
 		# PVO
 		if flags.value_loss.lower() == 'pvo':
 			feed_dict.update({self.old_state_value_batch: info_dict['values']})
+		feed_dict.update( self._get_multihead_feed(target=self.state_batch, source=info_dict['states']) )
+		feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states']) )
 		# Advantage
-		feed_dict.update({self.advantage_batch: info_dict['advantages']})
+		feed_dict.update( {self.advantage_batch: info_dict['advantages']} )
 		# Old Policy & Action
 		feed_dict.update( self._get_multihead_feed(target=self.old_policy_batch, source=info_dict['policies']) )
 		feed_dict.update( self._get_multihead_feed(target=self.old_action_batch, source=info_dict['actions']) )
 		if self.has_masked_actions:
 			feed_dict.update( self._get_multihead_feed(target=self.old_action_mask_batch, source=info_dict['action_masks']) )
+		# Internal State
+		if flags.network_has_internal_state:
+			feed_dict.update( self._get_internal_state_feed([info_dict['internal_state']]) )
+			feed_dict.update( {self.size_batch: [len(info_dict['cumulative_returns'])]} )
 		return feed_dict

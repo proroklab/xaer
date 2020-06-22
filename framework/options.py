@@ -13,7 +13,7 @@ def build():
 	options["env_type"] = "CarController" # "environment types: CarController or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
-	options["algorithm"] = "AC" # "algorithms: AC, ACER"
+	options["algorithm"] = "AC" # "algorithms: AC, TD3"
 	options["network_configuration"] = "ExplicitlyArgumentative" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala, ExplicitlyRelational, ExplicitlyArgumentative"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = "Adam" # "gradient optimizer: PowerSign, AddSign, ElasticAverage, LazyAdam, Nadam, Adadelta, AdagradDA, Adagrad, Adam, Ftrl, GradientDescent, Momentum, ProximalAdagrad, ProximalGradientDescent, RMSProp" # default is Adam, for vanilla A3C is RMSProp
@@ -59,7 +59,7 @@ def build():
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
 	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
 	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output)." -> might be useful only if combined with replay_only_best_batches=True
-	options["train_critic_when_replaying"] = False # "Whether to train also the critic when replaying. Works only when internal_partitions_do_share_nets=False."
+	options["train_critic_when_replaying"] = False # "Whether to train also the critic when replaying."
 	options["recompute_value_when_replaying"] = False # "Whether to recompute value when replaying, using always up to date state values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
@@ -70,7 +70,6 @@ def build():
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
 	options["intrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the intrinsic rewards."
 # Actor-Critic parameters
-	options["internal_partitions_do_share_nets"] = True # "Set to True if you want actor and critic not sharing any part of their computational graphs." # default False
 	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 4 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."

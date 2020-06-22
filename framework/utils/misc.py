@@ -19,8 +19,12 @@ def accumulate(iterable, func=operator.add, initial_value=0.):
 def get_padded_size(size, kernel, stride):
 	return kernel if size <= kernel else size + (stride - (size - kernel)%stride)%stride 
 	
-def flatten(l): 
-	return [item for sublist in l for item in sublist]
+def flatten(A):
+	rt = []
+	for i in A:
+		if isinstance(i,list): rt.extend(flatten(i))
+		else: rt.append(i)
+	return rt
 
 def softmax(logits, axis=-1):
 	val = np.exp(logits)

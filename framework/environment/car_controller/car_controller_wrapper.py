@@ -28,7 +28,7 @@ class CarControllerGameWrapper(GameWrapper):
 	max_deceleration = 7.1 # m/s^2
 	max_steering_degree = 30
 	max_step_per_spline = 75
-	control_points_per_step = 10
+	min_control_points_per_step = 10
 	max_distance_to_path = 0.3 # meters
 	# obstacles related stuff
 	max_obstacle_count = 6
@@ -45,8 +45,7 @@ class CarControllerGameWrapper(GameWrapper):
 		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
 		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		return [
-			(1,self.control_points_per_step,2),
-			(1,self.max_obstacle_count,3),
+			(2,self.control_points_per_step,3 if self.max_obstacle_count > 0 else 2),
 			(self.get_concatenation_size(),)
 		]
 
@@ -56,12 +55,12 @@ class CarControllerGameWrapper(GameWrapper):
 	def __init__(self, config_dict):
 		self.max_step = self.max_step_per_spline*self.spline_number
 		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)
+		self.control_points_per_step = max(self.min_control_points_per_step,self.max_obstacle_count)
 		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
 		# Shapes
-		self.control_points_shape = self.get_state_shape()[0]
-		self.obstacles_shape = self.get_state_shape()[1]
+		self.state_shape = self.get_state_shape()[0]
 		self.action_shape = self.get_action_shape()
 	
 	def reset(self):
@@ -289,7 +288,7 @@ class CarControllerGameWrapper(GameWrapper):
 	def get_control_points(self, source_point, source_orientation, source_position): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		source_goal = self.get_goal(source_position)
 		# print(source_position, source_goal)
-		control_points = np.zeros((self.control_points_per_step,2), dtype=np.float16)
+		control_points = np.zeros((self.control_points_per_step,2 if self.max_obstacle_count < 1 else 3), dtype=np.float16)
 		source_x, source_y = source_point
 		control_distance = (source_goal-source_position)/self.control_points_per_step
 		# add control points
@@ -310,16 +309,17 @@ class CarControllerGameWrapper(GameWrapper):
 				control_obstacles.append((ro_x, ro_y, obstacle_radius))
 		# sort obstacles by euclidean distance from closer to most distant
 		control_obstacles.sort(key=lambda t: np.absolute(euclidean_distance((t[0],t[1]),car_point)-t[2]))
-		for _ in range(self.max_obstacle_count-len(control_obstacles)):
+		for _ in range(self.control_points_per_step-len(control_obstacles)):
 			control_obstacles.append((0.,0.,0.))
 		return control_obstacles
 		
 	def get_state(self, car_point, car_orientation, car_progress, obstacles):
-		return [
-			np.reshape(self.get_control_points(car_point, car_orientation, car_progress), self.control_points_shape), # add control points
-			np.reshape(self.get_control_obstacles(car_point, car_orientation, obstacles), self.obstacles_shape), # add control obstacles
-			np.array(self.get_concatenation()),
-		]
+		state = np.zeros(self.state_shape)
+		# add control points
+		state[0] = self.get_control_points(car_point, car_orientation, car_progress)
+		# add control obstacles
+		state[1] = self.get_control_obstacles(car_point, car_orientation, obstacles)
+		return [state, self.get_concatenation()]
 		
 	def get_goal(self, position):
 		return position + self.get_horizon_around(position)
