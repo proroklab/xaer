@@ -48,8 +48,8 @@ class Wave_Network(OpenAISmall_Network):
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		layer_type = 'Concat'
 		def layer_fn():
-			xx = tf.layers.flatten(input)
-			concat = tf.layers.flatten(concat)
+			xx = tf.keras.layers.Flatten()(input)
+			concat = tf.keras.layers.Flatten()(concat)
 			xx = tf.concat([xx, concat], -1) # shape: (batch, concat_size+input_size)
 			#xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(xx)
 			return xx

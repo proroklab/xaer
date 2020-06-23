@@ -48,8 +48,8 @@ class HWave_Network(OpenAISmall_Network):
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		layer_type = 'Concat'
 		def layer_fn():
-			xx = tf.layers.flatten(input)
-			xx = tf.concat([xx, tf.layers.flatten(concat)], -1) # shape: (batch, concat_size+input_size)
+			xx = tf.keras.layers.Flatten()(input)
+			xx = tf.concat([xx, tf.keras.layers.Flatten()(concat)], -1) # shape: (batch, concat_size+input_size)
 			#input = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(input)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

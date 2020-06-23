@@ -27,15 +27,13 @@ class TD3_Algorithm(RL_Algorithm):
 
 	def get_main_network_partitions(self):
 		return [
-			['Actor','Critic'],
-			['TargetActor','TargetCritic']
+			['ActorCritic'],
+			['TargetActorCritic']
 		]
 
 	def build_network(self):
-		actor_net = self.network['Actor']
-		critic_net = self.network['Critic']
-		target_actor_net = self.network['TargetActor']
-		target_critic_net = self.network['TargetCritic']
+		main_net = self.network['ActorCritic']
+		target_net = self.network['TargetActorCritic']
 		batch_dict = {
 			'state': self.state_batch, 
 			'size': self.size_batch,
@@ -56,9 +54,10 @@ class TD3_Algorithm(RL_Algorithm):
 		####################################
 		# [Model]
 		# Create the policy
-		self.policy_out = policy_out = actor_net.policy_layer(
-			input=actor_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='Actor'), 
-			scope=actor_net.scope_name
+		embedded_input = main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='ActorCritic')
+		self.policy_out = policy_out = main_net.policy_layer(
+			input=embedded_input, 
+			scope=main_net.scope_name
 		)
 		def concat_action(embedding, action):
 			action = list(map(tf.layers.flatten,action))
@@ -66,23 +65,23 @@ class TD3_Algorithm(RL_Algorithm):
 			action = tf.layers.flatten(action)
 			return = tf.concat([embedding, action], axis=-1)
 		# Use two Q-functions to improve performance by reducing overestimation bias
-		embedded_critic_input = critic_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='Critic')
-		old_qf = concat_action(embedded_critic_input, self.old_action_batch)
-		qf1 = critic_net.value_layer(name='qf1', input=old_qf, scope=critic_net.scope_name)
-		qf2 = critic_net.value_layer(name='qf2', input=old_qf, scope=critic_net.scope_name)
+		old_qf = concat_action(embedded_input, self.old_action_batch)
+		qf1 = main_net.value_layer(name='qf1', input=old_qf, scope=main_net.scope_name)
+		qf2 = main_net.value_layer(name='qf2', input=old_qf, scope=main_net.scope_name)
 		# Q value when following the current policy
-		qf1_pi = critic_net.value_layer(
+		qf1_pi = main_net.value_layer(
 			name='qf1', # reusing qf1 net
-			input=concat_action(embedded_critic_input, policy_out), 
-			scope=critic_net.scope_name
+			input=concat_action(embedded_input, policy_out), 
+			scope=main_net.scope_name
 		)
 		####################################
 		# [Target]
 		# Create target networks
+		target_embedded_input = target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetActorCritic')
 		batch_dict['state'] = self.new_state_batch
-		target_policy_out = target_actor_net.policy_layer(
-			input=target_actor_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetActor'), 
-			scope=target_actor_net.scope_name
+		target_policy_out = target_net.policy_layer(
+			input=target_embedded_input, 
+			scope=target_net.scope_name
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
 		target_noise = tf.random_normal(tf.shape(target_policy_out), stddev=self.target_policy_noise)
@@ -90,21 +89,19 @@ class TD3_Algorithm(RL_Algorithm):
 		# Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
 		noisy_target_action = tf.clip_by_value(target_policy_out + target_noise, -1, 1)
 		# Q values when following the target policy
-		embedded_critic_input = target_critic_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='Critic')
-		noisy_qf = concat_action(embedded_critic_input, noisy_target_action)
-		qf1_target = target_critic_net.value_layer(input=noisy_qf, scope=target_critic_net.scope_name, name='qf1_target')
-		qf2_target = target_critic_net.value_layer(input=noisy_qf, scope=target_critic_net.scope_name, name='qf2_target')
+		noisy_qf = concat_action(target_embedded_input, noisy_target_action)
+		qf1_target = target_net.value_layer(input=noisy_qf, scope=target_net.scope_name, name='qf1_target')
+		qf2_target = target_net.value_layer(input=noisy_qf, scope=target_net.scope_name, name='qf2_target')
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
-			self.state_value_batch = min_qf_target = tf.minimum(qf1_target, qf2_target)
+		self.state_value_batch = min_qf_target = tf.minimum(qf1_target, qf2_target)
 		####################################
 		# [Relations sets]
-		self.actor_relations_sets = actor_net.relations_sets if actor_net.produce_explicit_relations else None
-		self.critic_relations_sets = critic_net.relations_sets if critic_net.produce_explicit_relations else None
+		self.relations_sets = main_net.relations_sets if main_net.produce_explicit_relations else None
 		####################################
 		# [Loss]
 		self._loss_builder = {}
 		if self.with_intrinsic_reward:
-			self._loss_builder['Reward'] = lambda global_step: intrinsic_reward_loss
+			self._loss_builder['Reward'] = lambda global_step: (intrinsic_reward_loss,)
 		def get_critic_loss(global_step):
 			# Targets for Q value regression
 			q_backup = tf.stop_gradient(
@@ -117,15 +114,14 @@ class TD3_Algorithm(RL_Algorithm):
 			qf2_loss = tf.reduce_mean((q_backup - qf2) ** 2)
 
 			return qf1_loss + qf2_loss
-		self._loss_builder['Critic'] = lambda global_step: get_critic_loss(global_step)
 		def get_actor_loss(global_step):
 			return -tf.reduce_mean(qf1_pi) # Policy loss: maximise q value
-		self._loss_builder['Actor'] = lambda global_step: get_actor_loss(global_step)
+		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step), get_critic_loss(global_step))
 		####################################
 		# [Params]
 		# Q Values and policy target params
-		source_params = self.network['Actor'].shared_keys + self.network['Critic'].shared_keys
-		target_params = self.network['TargetActor'].shared_keys + self.network['TargetCritic'].shared_keys
+		source_params = self.network['ActorCritic'].shared_keys
+		target_params = self.network['TargetActorCritic'].shared_keys
 		# Polyak averaging for target variables
 		self.target_ops = [
 			tf.assign(target, (1 - self.tau) * target + self.tau * source)
@@ -166,27 +162,26 @@ class TD3_Algorithm(RL_Algorithm):
 			train_tuple += (self.target_ops,)
 		self.train_step = (self.train_step + 1)%self.policy_delay
 		# Build _train fetches
-		train_tuple = (self.train_operations_dict['Actor'],)
-		if not replay or flags.train_critic_when_replaying:
-			train_tuple += (self.train_operations_dict['Critic'],)
+		train_tuple = (self.train_operations_dict['ActorCritic'],)
 		# Do not replay intrinsic reward training otherwise it would start to reward higher the states distant from extrinsic rewards
 		if self.with_intrinsic_reward and not replay:
 			train_tuple += (self.train_operations_dict['Reward'],)
 		# Build fetch
 		fetches = [train_tuple] # Minimize loss
 		# Get loss values for logging
-		fetches += [(self.loss_dict['Actor']+self.loss_dict['Critic'], self.loss_dict['Actor'], self.loss_dict['Critic'])] if flags.print_loss else [()]
+		fetches += [self.loss_dict['ActorCritic']] if flags.print_loss else [()]
 		# Debug info
 		fetches += [()]
 		# Intrinsic reward
-		fetches += [(self.loss_dict['Reward'], )] if self.with_intrinsic_reward else [()]
+		fetches += [self.loss_dict['Reward']] if self.with_intrinsic_reward else [()]
 		# Run
 		_, loss, policy_info, reward_info = tf.get_default_session().run(fetches=fetches, feed_dict=feed_dict)
 		self.sync()
 		# Build and return loss dict
 		train_info = {}
 		if flags.print_loss:
-			train_info["loss_total"], train_info["loss_actor"], train_info["loss_critic"] = loss
+			train_info["loss_actor"], train_info["loss_critic"] = loss
+			train_info["loss_total"] = sum(loss)
 		if self.with_intrinsic_reward:
 			train_info["intrinsic_reward_loss"] = reward_info
 		# Build loss statistics

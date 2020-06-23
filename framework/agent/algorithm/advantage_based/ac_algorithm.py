@@ -18,6 +18,10 @@ def merge_splitted_advantages(advantage):
 class AC_Algorithm(RL_Algorithm):
 	extract_importance_weight = flags.advantage_estimator.lower() in ["vtrace","gae_v"]
 
+	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
+		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
+		self.train_critic_when_replaying = flags.train_critic_when_replaying
+
 	@staticmethod
 	def get_reversed_cumulative_return(gamma, last_value, reversed_reward, reversed_value, reversed_extra, reversed_importance_weight):
 		return eval(flags.advantage_estimator.lower())(
@@ -30,11 +34,10 @@ class AC_Algorithm(RL_Algorithm):
 		)
 
 	def get_main_network_partitions(self):
-		return [['Actor','Critic']]
+		return [['ActorCritic']]
 
 	def build_network(self):
-		actor_net = self.network['Actor']
-		critic_net = self.network['Critic']
+		net = self.network['ActorCritic']
 		batch_dict = {
 			'state': self.state_batch, 
 			'size': self.size_batch,
@@ -54,9 +57,10 @@ class AC_Algorithm(RL_Algorithm):
 			batch_dict['training_state'] = self.training_state
 		####################################
 		# [Actor]
-		self.actor_batch = actor_net.policy_layer(
-			input=actor_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='Actor'), 
-			scope=actor_net.scope_name
+		embedding = net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='ActorCritic')
+		self.actor_batch = net.policy_layer(
+			input=embedding, 
+			scope=net.scope_name
 		)
 		for i,b in enumerate(self.actor_batch): 
 			print( "	[{}]Actor{} output shape: {}".format(self.id, i, b.get_shape()) )
@@ -67,20 +71,19 @@ class AC_Algorithm(RL_Algorithm):
 			print( "	[{}]HotAction{} output shape: {}".format(self.id, i, b.get_shape()) )
 		####################################
 		# [Critic]
-		self.state_value_batch = critic_net.value_layer(
-			input=critic_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='Critic'), 
-			scope=critic_net.scope_name
+		self.state_value_batch = net.value_layer(
+			input=embedding, 
+			scope=net.scope_name
 		)
 		print( "	[{}]Critic output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
 		####################################
 		# [Relations sets]
-		self.actor_relations_sets = actor_net.relations_sets if actor_net.produce_explicit_relations else None
-		self.critic_relations_sets = critic_net.relations_sets if critic_net.produce_explicit_relations else None
+		self.relations_sets = net.relations_sets if net.produce_explicit_relations else None
 		####################################
 		# [Loss]
 		self._loss_builder = {}
 		if self.with_intrinsic_reward:
-			self._loss_builder['Reward'] = lambda global_step: intrinsic_reward_loss
+			self._loss_builder['Reward'] = lambda global_step: (intrinsic_reward_loss,)
 		def get_actor_loss(global_step):
 			with tf.variable_scope("actor_loss", reuse=False):
 				print( "Preparing Actor loss {}".format(self.id) )
@@ -118,18 +121,24 @@ class AC_Algorithm(RL_Algorithm):
 						false_fn=lambda: tf.constant(0., dtype=self.parameters_type)
 					)
 				return policy_loss
-		self._loss_builder['Actor'] = lambda global_step: get_actor_loss(global_step)
 		def get_critic_loss(global_step):
 			with tf.variable_scope("critic_loss", reuse=False):
-				return flags.value_coefficient * ValueLoss(
+				loss = flags.value_coefficient * ValueLoss(
 					global_step=global_step,
 					loss=flags.value_loss,
 					prediction=self.state_value_batch, 
 					old_prediction=self.old_state_value_batch, 
 					target=self.cumulative_return_batch
 				).get()
-		self._loss_builder['Critic'] = lambda global_step: get_critic_loss(global_step)
-	
+				if self.train_critic_when_replaying:
+					return loss
+				return tf.cond(
+					pred=self.is_replayed_batch[0], 
+					true_fn=lambda: tf.constant(0., dtype=self.parameters_type),
+					false_fn=lambda: loss
+				)
+		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step), get_critic_loss(global_step))
+
 	def sample_actions(self, actor_batch):
 		action_batch = []
 		hot_action_batch = []
@@ -213,31 +222,31 @@ class AC_Algorithm(RL_Algorithm):
 		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
 		# Return value_batch
 		return tf.get_default_session().run(
-			fetches=(self.actor_relations_sets,self.critic_relations_sets), 
+			fetches=self.relations_sets, 
 			feed_dict=feed_dict
 		)
 	
 	def _train(self, feed_dict, replay=False):
 		# Build _train fetches
-		train_tuple = (self.train_operations_dict['Actor'], self.train_operations_dict['Critic']) if not replay or flags.train_critic_when_replaying else (self.train_operations_dict['Actor'], )
+		train_tuple = (self.train_operations_dict['ActorCritic'],)
 		# Do not replay intrinsic reward training otherwise it would start to reward higher the states distant from extrinsic rewards
 		if self.with_intrinsic_reward and not replay:
 			train_tuple += (self.train_operations_dict['Reward'],)
 		# Build fetch
 		fetches = [train_tuple] # Minimize loss
 		# Get loss values for logging
-		fetches += [(self.loss_dict['Actor'], self.loss_dict['Critic'])] if flags.print_loss else [()]
+		fetches += [self.loss_dict['ActorCritic']] if flags.print_loss else [()]
 		# Debug info
 		fetches += [(self.policy_kl_divergence, self.policy_clipping_frequency, self.policy_entropy_regularization)] if flags.print_policy_info else [()]
 		# Intrinsic reward
-		fetches += [(self.loss_dict['Reward'], )] if self.with_intrinsic_reward else [()]
+		fetches += [self.loss_dict['Reward']] if self.with_intrinsic_reward else [()]
 		# Run
 		_, loss, policy_info, reward_info = tf.get_default_session().run(fetches=fetches, feed_dict=feed_dict)
 		self.sync()
 		# Build and return loss dict
 		train_info = {}
 		if flags.print_loss:
-			train_info["loss_actor"], train_info["loss_critic"] = loss
+			train_info["loss_actor"],train_info["loss_critic"] = loss
 			train_info["loss_total"] = sum(loss)
 		if flags.print_policy_info:
 			train_info["actor_kl_divergence"], train_info["actor_clipping_frequency"], train_info["actor_entropy"] = policy_info

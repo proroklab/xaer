@@ -31,24 +31,16 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 	def _relation_extraction_layer(self, entities, comparator_fn, edge_size_per_object_pair, n_object_pairs, scope="", name="", share_trainables=True):
 		layer_type = 'RelationExtraction'
 		def layer_fn():
-			key_size = entities.shape.as_list()[-1] # channels+3
 			# What exactly are keys, queries, and values in attention mechanisms? https://stats.stackexchange.com/questions/421935/what-exactly-are-keys-queries-and-values-in-attention-mechanisms
 			queries = self.__query_layer(
 				n_query=2, 
 				entities=entities, 
 				n_object_pairs=n_object_pairs, 
-				key_size=key_size, 
-				share_trainables=share_trainables
+				key_size=entities.shape.as_list()[-1], # channels+3, 
+				share_trainables=share_trainables,
 			)
-			# (batch_size, heads, n_query, key_size)
-			keys = self.__key_layer(
-				entities=entities, 
-				n_object_pairs=n_object_pairs, 
-				key_size=key_size, 
-				share_trainables=share_trainables
-			)
-			# (batch_size, heads, height*width, key_size)
-			values = tf.tile(tf.expand_dims(entities, 1), [1, n_object_pairs, 1, 1])
+			# (batch_size, heads, n_query, channels+3)
+			keys = values = tf.tile(tf.expand_dims(entities, 1), [1, n_object_pairs, 1, 1])
 			# (batch_size, heads, height*width, channels+3)
 
 			# Compute a pair of features using attention weights # objects = tf.keras.layers.Attention()([queries,values,keys])

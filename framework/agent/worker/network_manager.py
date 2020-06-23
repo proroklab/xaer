@@ -190,12 +190,11 @@ class NetworkManager(object):
 
 	def _get_extracted_relations(self, batch):
 		for agent_id in range(self.model_size):
-			batch.extracted_actor_relations[agent_id], batch.extracted_critic_relations[agent_id] = self.get_model(agent_id).get_extracted_relations({
+			batch.extracted_relations[agent_id] = self.get_model(agent_id).get_extracted_relations({
 				'states': batch.states[agent_id],
 			})
-			# print(batch.extracted_actor_relations[agent_id])
-			assert len(batch.states[agent_id]) == len(batch.extracted_actor_relations[agent_id]), "Number of extracted_actor_relations does not match the number of states"
-			assert len(batch.states[agent_id]) == len(batch.extracted_critic_relations[agent_id]), "Number of extracted_critic_relations does not match the number of states"
+			# print(batch.extracted_relations[agent_id])
+			assert len(batch.states[agent_id]) == len(batch.extracted_relations[agent_id]), "Number of extracted_relations does not match the number of states"
 
 	def _get_transition_prediction_error(self, batch):
 		for agent_id in range(self.model_size):

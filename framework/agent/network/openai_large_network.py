@@ -14,9 +14,9 @@ class OpenAILarge_Network(OpenAISmall_Network):
 
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		def layer_fn():
-			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Flatten()(input)
 			if concat.get_shape()[-1] > 0:
-				concat = tf.layers.flatten(concat)
+				concat = tf.keras.layers.Flatten()(concat)
 				xx = tf.concat([xx, concat], -1) # shape: (batch, concat_size+units)
 			xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=256, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(xx)
 			xx = tf.keras.layers.Dense(name='Concat_Dense2',  units=448, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))(xx)

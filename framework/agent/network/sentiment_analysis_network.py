@@ -15,12 +15,12 @@ class SA_Network(Base_Network):
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		layer_type = 'Concat'
 		def layer_fn():
-			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Flatten()(input)
 			xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=128, activation=None, kernel_initializer=tf.initializers.variance_scaling)(xx)
 			xx = tf.contrib.layers.maxout(inputs=xx, num_units=64, axis=-1)
 			xx = tf.reshape(xx, [-1, 64])
 			if concat.get_shape()[-1] > 0:
-				concat = tf.layers.flatten(concat)
+				concat = tf.keras.layers.Flatten()(concat)
 				xx = tf.concat([xx, concat], -1) # shape: (batch, concat_size+units)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

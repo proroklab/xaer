@@ -265,7 +265,7 @@ class RL_Algorithm(object):
 			p: self._get_train_op(
 				global_step=global_step,
 				optimizer=optimization_fn, 
-				loss=self.loss_dict[p], 
+				loss=sum(self.loss_dict[p]), 
 				shared_keys=self.get_shared_keys([p]), 
 				global_keys=global_agent.get_shared_keys([p]),
 				update_keys=self.get_update_keys([p])

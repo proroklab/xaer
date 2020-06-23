@@ -35,7 +35,7 @@ class OpenAISmallCRELU_Network(OpenAISmall_Network):
 			weight_state = tf.concat((kernel, bias), -1)
 			weight_state = tf.layers.dense(name='TS_Dense1', inputs=weight_state, units=64, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
 			weight_state = tf.reshape(weight_state, [-1])
-			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Flatten()(input)
 			xx = tf.map_fn(fn=lambda b: tf.concat((b,weight_state),-1), elems=xx)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

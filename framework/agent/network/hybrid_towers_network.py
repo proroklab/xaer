@@ -12,10 +12,10 @@ class HybridTowers_Network(Base_Network):
 			tower1 = tf.keras.layers.Conv2D(name='CNN_Tower1_Conv1',  filters=64, kernel_size=(3, 3), strides=(1, 1), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(input)
 			tower1 = tf.keras.layers.Conv2D(name='CNN_Tower1_Conv2',  filters=32, kernel_size=(3, 3), strides=(1, 1), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling)(tower1)
 			tower1 = tf.layers.max_pooling2d(tower1, pool_size=(input_shape[1], input_shape[2]), strides=(input_shape[1], input_shape[2]))
-			tower1 = tf.layers.flatten(tower1)
+			tower1 = tf.keras.layers.Flatten()(tower1)
 			xx = tf.keras.layers.Conv2D(name='CNN_Tower2_Conv1',  filters=16, kernel_size=(3,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )(input)
 			xx = tf.keras.layers.Conv2D(name='CNN_Tower2_Conv2',  filters=8, kernel_size=(3,3), padding='SAME', activation=tf.nn.relu, kernel_initializer=tf.initializers.variance_scaling )(xx)
-			xx = tf.layers.flatten(xx)
+			xx = tf.keras.layers.Flatten()(xx)
 			concat = tf.concat([tower1, xx], axis=-1)
 			return concat
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

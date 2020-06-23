@@ -46,7 +46,7 @@ class Impala_Network(Base_Network):
 			xx = input
 			for depth in self.depths:
 				xx = self.conv_sequence(xx, depth)
-			xx = tf.layers.flatten(xx)
+			xx = tf.keras.layers.Flatten()(xx)
 			xx = tf.nn.relu(xx)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
@@ -54,9 +54,9 @@ class Impala_Network(Base_Network):
 	def _concat_layer(self, input, concat, scope, name="", share_trainables=True):
 		layer_type = 'Concat'
 		def layer_fn():
-			xx = tf.layers.flatten(input)
+			xx = tf.keras.layers.Flatten()(input)
 			if concat.get_shape()[-1] > 0:
-				xx = tf.concat([xx, tf.layers.flatten(concat)], -1) # shape: (batch, concat_size+units)
+				xx = tf.concat([xx, tf.keras.layers.Flatten()(concat)], -1) # shape: (batch, concat_size+units)
 			xx = tf.keras.layers.Dense(name='Concat_Dense1',  units=256, activation=tf.nn.relu)(xx)
 			return xx
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
