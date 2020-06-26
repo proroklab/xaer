@@ -6,13 +6,44 @@ from agent.network.openai_small_network import OpenAISmall_Network
 import options
 flags = options.get()
 
-OBJECT_PAIRS = 16
-EDGE_SIZE_PER_OBJECT_PAIR = 4
-
 # Shanahan, Murray, et al. "An explicitly relational neural network architecture." arXiv preprint arXiv:1905.10307 (2019).
 class ExplicitlyRelational_Network(OpenAISmall_Network):
 	produce_explicit_relations = True
 	kernel_initializer = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.1)
+
+	def __init__(self, id, policy_heads, scope_dict, training=True, value_count=1, state_scaler=1):
+		super().__init__(id, policy_heads, scope_dict, training, value_count, state_scaler)
+		self.object_pairs = 16
+		self.edge_size_per_object_pair = 1
+		self.relational_layer_operators_set = [self.OR,self.NOR,self.AND,self.NAND,self.XOR,self.XNOR]
+
+	@staticmethod
+	def NOT(x):
+		return 1. - x
+
+	@staticmethod
+	def AND(x,y):
+		return tf.minimum(x,y) # x*y
+
+	@staticmethod
+	def OR(x,y):
+		return tf.maximum(x,y) # x + y - ExplicitlyRelational_Network.AND(x,y)
+
+	@staticmethod
+	def NAND(x,y):
+		return ExplicitlyRelational_Network.NOT(ExplicitlyRelational_Network.AND(x,y)) # 1. - x*y
+
+	@staticmethod
+	def NOR(x,y):
+		return ExplicitlyRelational_Network.NOT(ExplicitlyRelational_Network.OR(x,y)) # 1. - x + y - ExplicitlyRelational_Network.AND(x,y)
+
+	@staticmethod
+	def XOR(x,y):
+		return ExplicitlyRelational_Network.AND(ExplicitlyRelational_Network.OR(x,y), ExplicitlyRelational_Network.OR(ExplicitlyRelational_Network.NOT(x), ExplicitlyRelational_Network.NOT(y)))
+
+	@staticmethod
+	def XNOR(x,y):
+		return ExplicitlyRelational_Network.OR(ExplicitlyRelational_Network.AND(ExplicitlyRelational_Network.NOT(x), ExplicitlyRelational_Network.NOT(y)), ExplicitlyRelational_Network.AND(x, y))
 
 	def _entity_extraction_layer(self, features, scope="", name="", share_trainables=True):
 		layer_type = 'EntityExtraction'
@@ -28,7 +59,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			return entities
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _relation_extraction_layer(self, entities, comparator_fn, edge_size_per_object_pair, n_object_pairs, scope="", name="", share_trainables=True):
+	def _relation_extraction_layer(self, entities, operators_set, edge_size_per_object_pair, n_object_pairs, scope="", name="", share_trainables=True):
 		layer_type = 'RelationExtraction'
 		def layer_fn():
 			# What exactly are keys, queries, and values in attention mechanisms? https://stats.stackexchange.com/questions/421935/what-exactly-are-keys-queries-and-values-in-attention-mechanisms
@@ -43,7 +74,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			keys = values = tf.tile(tf.expand_dims(entities, 1), [1, n_object_pairs, 1, 1])
 			# (batch_size, heads, height*width, channels+3)
 
-			# Compute a pair of features using attention weights # objects = tf.keras.layers.Attention()([queries,values,keys])
+			# Compute a pair of features using self-attention weights # objects = tf.keras.layers.Attention()([queries,values,keys])
 			scores = tf.matmul(queries, keys, transpose_b=True)
 			# (batch_size, heads, n_query, height*width)
 			attention_weights = tf.nn.softmax(scores)
@@ -53,16 +84,45 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 
 			# Spatial embedding
 			objects_embedding = tf.keras.layers.Dense(
+				name='Dense1',
 				units=edge_size_per_object_pair, 
-				use_bias=False,
-				activation=tf.nn.relu, # non-linear mapping
+				# use_bias=True,
+				# activation=tf.nn.relu, # non-linear mapping
 				kernel_initializer=self.kernel_initializer,
 			)(objects)
 			# (batch_size, heads, n_query, relations)
 
-			# Comparator
+			# Normalize in [0,1]
+			objects_embedding = (1. + tf.keras.layers.LayerNormalization(name='LayerNorm_1')(objects_embedding))/2.
+			objects_embedding = tf.clip_by_value(objects_embedding, 0., 1.)
+			# (batch_size, heads, n_query, relations)
+
 			object1_embedding, object2_embedding = tf.unstack(objects_embedding, axis=2)
-			differences = comparator_fn(object1_embedding, object2_embedding)
+			# (batch_size, heads, relations)
+			if len(operators_set) > 1:
+				print( "	[{}]Relation Extraction layer {} operators: {}".format(self.id, name, operators_set) )
+				objects_embedding_shape = objects_embedding.shape.as_list()
+				reshaped_operator_logits = tf.reshape(objects_embedding, [-1, objects_embedding_shape[1], np.prod(objects_embedding_shape[2:])])
+				# (batch_size, heads, n_query*relations)
+				operator_logits = tf.keras.layers.Dense(
+					name='Dense2',
+					units=edge_size_per_object_pair*len(operators_set), 
+					# use_bias=True,
+					# activation=tf.nn.relu, # non-linear mapping
+					kernel_initializer=tf_utils.orthogonal_initializer()
+				)(reshaped_operator_logits)
+				operator_logits = tf.keras.layers.LayerNormalization(name='LayerNorm_2')(operator_logits)
+				# (batch_size, heads, relations*ops)
+				operator_logits = tf.reshape(operator_logits, [-1, operator_logits.shape.as_list()[1], edge_size_per_object_pair, len(operators_set)])
+				# (batch_size, heads, relations, ops)
+				operators_mask = tf.nn.softmax(operator_logits*1e2, -1)
+				# (batch_size, heads, relations, ops)
+				operators_result = tf.stack([op(object1_embedding, object2_embedding) for i,op in enumerate(operators_set)], -1)
+				# (batch_size, heads, relations, ops)
+				result = tf.reduce_sum(tf.multiply(operators_result,operators_mask), -1)
+				# (batch_size, heads, relations)
+			else:
+				result = operators_set[0](object1_embedding, object2_embedding)
 
 			# Positions
 			object_positions = tf.slice(objects, [0, 0, 0, objects.shape.as_list()[-1]-3], [-1, -1, -1, -1]) # task,x,y coordinates are the last 3
@@ -72,7 +132,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			# (batch_size, heads, 3)
 
 			# Collect differences and concatenate positions (objects)
-			triples = tf.concat([differences, pos_obj1, pos_obj2], -1)
+			triples = tf.concat([result, pos_obj1, pos_obj2], -1)
 			# (batch_size, heads, differences+6)
 			return triples, attention_weights
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
@@ -82,7 +142,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 		def layer_fn():
 			key = tf.keras.layers.Dense(
 				units=key_size, 
-				activation=tf.nn.relu, # non-linear mapping
+				# activation=tf.nn.relu, # non-linear mapping
 				use_bias=False,
 				kernel_initializer=self.kernel_initializer,
 			)(entities)
@@ -100,7 +160,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			
 			query = tf.keras.layers.Dense(
 				units=n_object_pairs*n_query*key_size, 
-				activation=tf.nn.relu, # non-linear mapping
+				# activation=tf.nn.relu, # non-linear mapping
 				use_bias=False,
 				kernel_initializer=self.kernel_initializer,
 			)(flatten_entities)
@@ -182,9 +242,9 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			print( "	[{}]Entity Extraction layer {} output shape: {}".format(self.id, name, entities.get_shape()) )
 			relations, attention_weights = self._relation_extraction_layer(
 				entities, 
-				comparator_fn=tf.subtract, 
-				edge_size_per_object_pair=EDGE_SIZE_PER_OBJECT_PAIR, 
-				n_object_pairs=OBJECT_PAIRS, 
+				operators_set=self.relational_layer_operators_set, 
+				edge_size_per_object_pair=self.edge_size_per_object_pair, 
+				n_object_pairs=self.object_pairs, 
 				share_trainables=share_trainables
 			)
 			print( "	[{}]Relation Extraction layer {} output shape: {}".format(self.id, name, relations.get_shape()) )

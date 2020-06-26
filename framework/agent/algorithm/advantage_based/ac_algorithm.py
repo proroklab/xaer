@@ -22,6 +22,28 @@ class AC_Algorithm(RL_Algorithm):
 		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
 		self.train_critic_when_replaying = flags.train_critic_when_replaying
 
+	def build_fetch_maps(self):
+		self.feed_map = {
+			'states': self.state_batch,
+			'new_states': self.new_state_batch,
+			'policies': self.old_policy_batch,
+			'actions': self.old_action_batch,
+			'action_masks': self.old_action_mask_batch if self.has_masked_actions else None,
+			'state_mean': self.state_mean_batch,
+			'state_std': self.state_std_batch,
+			'sizes': self.size_batch,
+		}
+		self.fetch_map = {
+			'actions': self.action_batch, 
+			'hot_actions': self.hot_action_batch, 
+			'policies': self.actor_batch, 
+			'values': self.state_value_batch, 
+			'new_internal_states': self._get_internal_state() if flags.network_has_internal_state else None,
+			'importance_weights': self.importance_weight_batch,
+			'extracted_relations': self.relations_sets if self.network['ActorCritic'].produce_explicit_relations else None,
+			'intrinsic_rewards': self.intrinsic_reward_batch if self.with_intrinsic_reward else None,
+		}
+
 	@staticmethod
 	def get_reversed_cumulative_return(gamma, last_value, reversed_reward, reversed_value, reversed_extra, reversed_importance_weight):
 		return eval(flags.advantage_estimator.lower())(
@@ -157,74 +179,6 @@ class AC_Algorithm(RL_Algorithm):
 		# Give self esplicative name to output for easily retrieving it in frozen graph
 		# tf.identity(action_batch, name="action")
 		return action_batch, hot_action_batch
-	
-	def predict_action(self, info_dict):
-		batch_size = info_dict['sizes']
-		batch_count = len(batch_size)
-		# State
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
-		# Internal state
-		if flags.network_has_internal_state:
-			feed_dict.update( self._get_internal_state_feed( info_dict['internal_states'] ) )
-			feed_dict.update( {self.size_batch: batch_size} )
-		# Return action_batch, policy_batch, new_internal_state
-		action_batch, hot_action_batch, policy_batch, value_batch, new_internal_states = tf.get_default_session().run(
-			fetches=[
-				self.action_batch, 
-				self.hot_action_batch, 
-				self.actor_batch, 
-				self.state_value_batch, 
-				self._get_internal_state(),
-			], 
-			feed_dict=feed_dict
-		)
-		# Properly format for output the internal state
-		if len(new_internal_states) == 0:
-			new_internal_states = [new_internal_states]*batch_count
-		else:
-			new_internal_states = [
-				[
-					[
-						sub_partition_new_internal_state[i]
-						for sub_partition_new_internal_state in partition_new_internal_states
-					]
-					for partition_new_internal_states in new_internal_states
-				]
-				for i in range(batch_count)
-			]
-		# Properly format for output: action and policy may have multiple heads, swap 1st and 2nd axis
-		action_batch = tuple(zip(*action_batch))
-		hot_action_batch = tuple(zip(*hot_action_batch))
-		policy_batch = tuple(zip(*policy_batch))
-		# Return output
-		return action_batch, hot_action_batch, policy_batch, value_batch, new_internal_states
-
-	def get_importance_weight(self, info_dict):
-		# State
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
-		# Old Policy & Action
-		feed_dict.update( self._get_multihead_feed(target=self.old_policy_batch, source=info_dict['policies']) )
-		feed_dict.update( self._get_multihead_feed(target=self.old_action_batch, source=info_dict['actions']) )
-		if self.has_masked_actions:
-			feed_dict.update( self._get_multihead_feed(target=self.old_action_mask_batch, source=info_dict['action_masks']) )
-		# Internal State
-		if flags.network_has_internal_state:
-			feed_dict.update( self._get_internal_state_feed(info_dict['internal_states']) )
-			feed_dict.update( {self.size_batch: info_dict['sizes']} )
-		# Return value_batch
-		return tf.get_default_session().run(
-			fetches=self.importance_weight_batch, 
-			feed_dict=feed_dict
-		)
-
-	def get_extracted_relations(self, info_dict):
-		# State
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
-		# Return value_batch
-		return tf.get_default_session().run(
-			fetches=self.relations_sets, 
-			feed_dict=feed_dict
-		)
 	
 	def _train(self, feed_dict, replay=False):
 		# Build _train fetches

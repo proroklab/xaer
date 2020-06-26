@@ -5,7 +5,7 @@ from agent.algorithm.advantage_based.loss.policy_loss import PolicyLoss
 from agent.algorithm.advantage_based.loss.value_loss import ValueLoss
 from utils.distributions import Categorical, Normal
 from agent.network import is_continuous_control
-from agent.algorithm.qvalue_based.noise import *
+# from agent.algorithm.qvalue_based.noise import *
 #===============================================================================
 # from utils.running_std import RunningMeanStd
 #===============================================================================
@@ -16,20 +16,50 @@ class TD3_Algorithm(RL_Algorithm):
 
 	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
 		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
-		self.action_noise = [
-			OrnsteinUhlenbeckActionNoise(mean=np.zeros(head['size']), sigma=0.1 * np.ones(head['size']))
-			for head in self.policy_heads
-		]
+		# self.action_noise = [
+		# 	OrnsteinUhlenbeckActionNoise(mean=np.zeros(head['size']), sigma=0.1 * np.ones(head['size']))
+		# 	for head in self.policy_heads
+		# ]
 		self.target_policy_noise = 0.2
 		self.gamma = flags.gamma
 		self.tau = 0.005
 		self.policy_delay = 2
+		self.target_noise_clip=0.5
 
 	def get_main_network_partitions(self):
 		return [
 			['ActorCritic'],
 			['TargetActorCritic']
 		]
+
+	def build_fetch_maps(self):
+		self.feed_map = {
+			'states': self.state_batch,
+			'new_states': self.new_state_batch,
+			'policies': self.old_policy_batch,
+			'actions': self.old_action_batch,
+			'action_masks': self.old_action_mask_batch if self.has_masked_actions else None,
+			'state_mean': self.state_mean_batch,
+			'state_std': self.state_std_batch,
+			'sizes': self.size_batch,
+		}
+		self.fetch_map = {
+			'actions': self.noisy_policy_out, 
+			'hot_actions': self.noisy_policy_out, 
+			'policies': self.policy_out, 
+			'values': self.state_value_batch, 
+			'new_internal_states': self._get_internal_state() if flags.network_has_internal_state else None,
+			'importance_weights': None,
+			'extracted_relations': self.relations_sets if self.network['ActorCritic'].produce_explicit_relations else None,
+			'intrinsic_rewards': self.intrinsic_reward_batch if self.with_intrinsic_reward else None,
+		}
+
+	def _get_noisy_action(self, target_policy_out, stddev, noise_clip):
+		# Target policy smoothing, by adding clipped noise to target actions
+		target_noise = tf.random_normal(tf.shape(target_policy_out), stddev=stddev)
+		target_noise = tf.clip_by_value(target_noise, -noise_clip, noise_clip)
+		# Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
+		return tf.clip_by_value(target_policy_out + target_noise, -1, 1)
 
 	def build_network(self):
 		main_net = self.network['ActorCritic']
@@ -59,6 +89,7 @@ class TD3_Algorithm(RL_Algorithm):
 			input=embedded_input, 
 			scope=main_net.scope_name
 		)
+		self.noisy_policy_out = self._get_noisy_action(policy_out, self.target_policy_noise, self.target_noise_clip)
 		def concat_action(embedding, action):
 			action = list(map(tf.layers.flatten,action))
 			action = tf.transpose(action, [1,0,2])
@@ -84,10 +115,7 @@ class TD3_Algorithm(RL_Algorithm):
 			scope=target_net.scope_name
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
-		target_noise = tf.random_normal(tf.shape(target_policy_out), stddev=self.target_policy_noise)
-		target_noise = tf.clip_by_value(target_noise, -self.target_noise_clip, self.target_noise_clip)
-		# Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
-		noisy_target_action = tf.clip_by_value(target_policy_out + target_noise, -1, 1)
+		noisy_target_action = self._get_noisy_action(target_policy_out, self.target_policy_noise, self.target_noise_clip)
 		# Q values when following the target policy
 		noisy_qf = concat_action(target_embedded_input, noisy_target_action)
 		qf1_target = target_net.value_layer(input=noisy_qf, scope=target_net.scope_name, name='qf1_target')
@@ -128,34 +156,6 @@ class TD3_Algorithm(RL_Algorithm):
 			for target, source in zip(target_params, source_params)
 		]
 		self.train_step = 0
-
-	def predict_action(self, info_dict):
-		batch_size = info_dict['sizes']
-		batch_count = len(batch_size)
-		# State
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
-		# Internal state
-		if flags.network_has_internal_state:
-			feed_dict.update( self._get_internal_state_feed( info_dict['internal_states'] ) )
-			feed_dict.update( {self.size_batch: batch_size} )
-		# Return action_batch, policy_batch, new_internal_state
-		policy_batch, action_batch, value_batch, new_internal_states = tf.get_default_session().run(
-			fetches=[
-				self.policy_out, 
-				self.noisy_policy_out, 
-				self.state_value_batch, 
-				self._get_internal_state(),
-			], 
-			feed_dict=feed_dict
-		)
-		# Properly format for output the internal state
-		new_internal_states = self._format_internal_state(new_internal_states, batch_count)
-		# Properly format for output: action and policy may have multiple heads, swap 1st and 2nd axis
-		action_batch = tuple(zip(*action_batch))
-		hot_action_batch = tuple(zip(*action_batch))
-		policy_batch = tuple(zip(*policy_batch))
-		# Return output
-		return action_batch, hot_action_batch, policy_batch, value_batch, new_internal_states
 
 	def _train(self, feed_dict, replay=False):
 		if self.train_step == 0:

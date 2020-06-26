@@ -70,10 +70,7 @@ class RL_Algorithm(object):
 	def _train(self, feed_dict, replay=False):
 		pass
 
-	def predict_action(self, info_dict):
-		pass
-
-	def get_importance_weight(self, info_dict):
+	def build_fetch_maps(self):
 		pass
 
 	def get_external_network_partitions(self):
@@ -141,32 +138,6 @@ class RL_Algorithm(object):
 		if self.has_masked_actions:
 			self.old_action_mask_batch = [self._action_placeholder(policy_size=head['size'], policy_depth=1, name="old_action_mask_batch{}".format(i)) for i,head in enumerate(self.policy_heads)]
 				
-	def predict_value(self, info_dict):
-		state_batch = info_dict['states']
-		size_batch = info_dict['sizes']
-		bootstrap = info_dict['bootstrap']
-		for i,b in enumerate(bootstrap):
-			state_batch = state_batch + [b['state']]
-			size_batch[i] += 1
-		# State
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=state_batch)
-		# Internal State
-		if flags.network_has_internal_state:
-			feed_dict.update( self._get_internal_state_feed(info_dict['internal_states']) )
-			feed_dict.update( {self.size_batch: size_batch} )
-		# Return value_batch
-		value_batch = tf.get_default_session().run(fetches=self.state_value_batch, feed_dict=feed_dict)
-		return value_batch[:-1], value_batch[-1], None
-	
-	def get_extracted_relations(self, info_dict):
-		# State
-		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
-		# Return value_batch
-		return tf.get_default_session().run(
-			fetches=(self.actor_relations_sets,self.critic_relations_sets), 
-			feed_dict=feed_dict
-		)
-
 	def _policy_placeholder(self, policy_size, policy_depth, name=None, batch_size=None):
 		if is_continuous_control(policy_depth):
 			shape = [batch_size,2,policy_size]
@@ -198,6 +169,50 @@ class RL_Algorithm(object):
 		input = tf.zeros(shape if batch_size is not None else [1] + shape[1:], dtype=self.parameters_type) # default value
 		return tf.placeholder_with_default(input=input, shape=shape, name=name) # with default we can use batch normalization directly on it
 		
+	def _get_internal_state(self):
+		return tuple(
+			self.network[p].internal_final_state 
+			for p in flatten(self.get_network_partitions())
+			if self.network[p].use_internal_state
+		)
+	
+	def _get_internal_state_feed(self, internal_states):
+		if not flags.network_has_internal_state:
+			return {}
+		feed_dict = {}
+		i = 0
+		for partition in flatten(self.get_network_partitions()):
+			network_partition = self.network[partition]
+			if network_partition.use_internal_state:
+				partition_batch_states = [
+					network_partition.internal_default_state if internal_state is None else internal_state[i]
+					for internal_state in internal_states
+				]
+				for j, initial_state in enumerate(zip(*partition_batch_states)):
+					feed_dict.update( {network_partition.internal_initial_state[j]: initial_state} )
+				i += 1
+		return feed_dict
+
+	@staticmethod
+	def _format_internal_state(new_internal_states, batch_count):
+		if len(new_internal_states) == 0:
+			return [new_internal_states]*batch_count
+		else:
+			return [
+				[
+					[
+						sub_partition_new_internal_state[i]
+						for sub_partition_new_internal_state in partition_new_internal_states
+					]
+					for partition_new_internal_states in new_internal_states
+				]
+				for i in range(batch_count)
+			]
+
+	def _get_multihead_feed(self, source, target):
+		# Action and policy may have multiple heads, swap 1st and 2nd axis of source with zip*
+		return { t:s for t,s in zip(target, zip(*source)) }
+
 	def build_optimizer(self, optimization_algoritmh):
 		print("Gradient {} optimized by {}".format(self.id, optimization_algoritmh))
 		# global step
@@ -261,6 +276,7 @@ class RL_Algorithm(object):
 		
 	def setup_local_loss_minimisation(self, gradient_optimizer_dict, global_step, global_agent): # minimize loss and apply gradients to global vars.
 		self.loss_dict = self.build_loss(global_step, list(gradient_optimizer_dict.keys()))
+		self.build_fetch_maps()
 		self.train_operations_dict = {
 			p: self._get_train_op(
 				global_step=global_step,
@@ -274,59 +290,6 @@ class RL_Algorithm(object):
 			if p in self.loss_dict
 		}
 		
-	def predict_reward(self, info_dict):
-		assert self.with_intrinsic_reward, "Cannot get intrinsic reward if the RND layer is not built"
-		# State
-		feed_dict = self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states'])
-		feed_dict.update( self._get_multihead_feed(target=self.state_mean_batch, source=[info_dict['state_mean']]) )
-		feed_dict.update( self._get_multihead_feed(target=self.state_std_batch, source=[info_dict['state_std']]) )
-		# Return intrinsic_reward
-		return tf.get_default_session().run(fetches=self.intrinsic_reward_batch, feed_dict=feed_dict)
-
-	def _get_internal_state(self):
-		return tuple(
-			self.network[p].internal_final_state 
-			for p in flatten(self.get_network_partitions())
-			if self.network[p].use_internal_state
-		)
-	
-	def _get_internal_state_feed(self, internal_states):
-		if not flags.network_has_internal_state:
-			return {}
-		feed_dict = {}
-		i = 0
-		for partition in flatten(self.get_network_partitions()):
-			network_partition = self.network[partition]
-			if network_partition.use_internal_state:
-				partition_batch_states = [
-					network_partition.internal_default_state if internal_state is None else internal_state[i]
-					for internal_state in internal_states
-				]
-				for j, initial_state in enumerate(zip(*partition_batch_states)):
-					feed_dict.update( {network_partition.internal_initial_state[j]: initial_state} )
-				i += 1
-		return feed_dict
-
-	@staticmethod
-	def _format_internal_state(new_internal_states, batch_count):
-		if len(new_internal_states) == 0:
-			return [new_internal_states]*batch_count
-		else:
-			return [
-				[
-					[
-						sub_partition_new_internal_state[i]
-						for sub_partition_new_internal_state in partition_new_internal_states
-					]
-					for partition_new_internal_states in new_internal_states
-				]
-				for i in range(batch_count)
-			]
-
-	def _get_multihead_feed(self, source, target):
-		# Action and policy may have multiple heads, swap 1st and 2nd axis of source with zip*
-		return { t:s for t,s in zip(target, zip(*source)) }
-
 	def prepare_train(self, info_dict, replay):
 		''' Prepare training batch, then _train once using the biggest possible batch '''
 		train_type = 1 if replay else 0
@@ -357,3 +320,39 @@ class RL_Algorithm(object):
 				current_global_feed.update( self._get_multihead_feed(target=self.state_std_batch, source=[state_std]) )
 			return self._train(feed_dict=current_global_feed, replay=replay)
 		return None
+
+	def fetch_info(self, fetch_label_list, info_dict):
+		feed_label_set = set(list(info_dict.keys()))
+		fetch_label_set = set(fetch_label_list)
+		# Build minimised feed dict
+		feed_dict = {}
+		multihead_set = set(['states', 'new_states', 'policies', 'actions', 'hot_actions', 'state_mean', 'state_std'])
+		for feed_label in feed_label_set:
+			if self.feed_map.get(feed_label,None) == None:
+				continue
+			if feed_label in multihead_set:
+				feed_dict.update(self._get_multihead_feed(target=self.feed_map[feed_label], source=info_dict[feed_label]))
+			elif feed_label  == 'internal_states':
+				if flags.network_has_internal_state:
+					feed_dict.update( self._get_internal_state_feed( info_dict['internal_states'] ) )
+					feed_dict.update( {self.feed_map['sizes']: info_dict['sizes']} )
+			else:
+				feed_dict.update( {self.feed_map[feed_label]: info_dict[feed_label]} )
+		# Build minimised fetch dict
+		fetch_dict = {
+			fetch_label: self.fetch_map[fetch_label]
+			for fetch_label in fetch_label_set
+			if self.fetch_map.get(fetch_label,None) != None
+		}
+		# Get results
+		result_dict = tf.get_default_session().run(
+			fetches=fetch_dict, 
+			feed_dict=feed_dict
+		)
+		# Format results
+		for k,v in result_dict.items():
+			if k in multihead_set: # Properly format for output: action and policy may have multiple heads, swap 1st and 2nd axis
+				result_dict[k] = tuple(zip(*v))
+			elif k == 'new_internal_states':
+				result_dict[k] = self._format_internal_state(v, len(info_dict['sizes']))
+		return result_dict

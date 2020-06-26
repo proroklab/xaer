@@ -6,9 +6,6 @@ from agent.network.explicitly_relational_network import ExplicitlyRelational_Net
 import options
 flags = options.get()
 
-OBJECT_PAIRS = 16
-EDGE_SIZE_PER_OBJECT_PAIR = 4
-
 class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 	
 	def argument_link_extraction_layer(self, relations, n_links, n_object_pairs, scope="", name="", share_trainables=True):
@@ -33,7 +30,7 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 			arguments = tf.reshape(arguments, [-1, h * w, ext_channels])
 			return self._relation_extraction_layer(
 				arguments, 
-				comparator_fn=argument_comparator_fn, 
+				operators_set=[argument_comparator_fn], 
 				edge_size_per_object_pair=n_links, 
 				n_object_pairs=n_object_pairs, 
 				share_trainables=share_trainables
@@ -62,16 +59,16 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 			print( "	[{}]Entity Extraction layer {} output shape: {}".format(self.id, name, entities.get_shape()) )
 			entity_relations, entity_attention_weights = self._relation_extraction_layer(
 				entities=entities, 
-				comparator_fn=tf.subtract, 
-				edge_size_per_object_pair=EDGE_SIZE_PER_OBJECT_PAIR, 
-				n_object_pairs=OBJECT_PAIRS, 
+				operators_set=self.relational_layer_operators_set, 
+				edge_size_per_object_pair=self.edge_size_per_object_pair, 
+				n_object_pairs=self.object_pairs, 
 				share_trainables=share_trainables
 			)
 			print( "	[{}]Relation Extraction layer {} output shape: {}".format(self.id, name, entity_relations.get_shape()) )
 			argument_links, relation_attention_weights = self.argument_link_extraction_layer(
 				relations=entity_relations, 
-				n_links=EDGE_SIZE_PER_OBJECT_PAIR, 
-				n_object_pairs=OBJECT_PAIRS, 
+				n_links=self.edge_size_per_object_pair, 
+				n_object_pairs=self.object_pairs, 
 				share_trainables=share_trainables
 			)
 			print( "	[{}]Argument Link Extraction layer {} output shape: {}".format(self.id, name, argument_links.get_shape()) )

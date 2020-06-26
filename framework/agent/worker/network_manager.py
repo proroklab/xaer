@@ -131,88 +131,81 @@ class NetworkManager(object):
 		return self.model_list[id]
 
 	def predict_action(self, states, internal_states):
-		info_dict = {
-			'states': states,
-			'internal_states': internal_states,
-			'sizes': [1 for _ in range(len(states))] # states are from different environments with different internal states
-		}
-		actions, hot_actions, policies, values, new_internal_states = self.get_model().predict_action(info_dict)
+		result_dict = self.get_model().fetch_info(
+			fetch_label_list=['actions', 'hot_actions', 'policies', 'values', 'new_internal_states'], 
+			info_dict={
+				'states': states,
+				'internal_states': internal_states,
+				'sizes': [1]*len(states) # states are from different environments with different internal states
+			}
+		)
+		actions, hot_actions, policies, values = result_dict['actions'], result_dict['hot_actions'], result_dict['policies'], result_dict['values']
+		new_internal_states = result_dict.get('new_internal_states',[None]*len(states))
 		agents = [0]*len(actions)
 		return actions, hot_actions, policies, values, new_internal_states, agents
 	
 	def _update_batch(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True, with_importance_weight_extraction=True, with_transition_predictor=True, with_relation_extraction=False):
+		fetch_label_list = []
+		agent_info_dict = {agent_id:{} for agent_id in range(self.model_size)}
 		if with_importance_weight_extraction:
-			self._get_importance_weight(batch)
+			fetch_label_list += ['importance_weights', 'new_internal_states']
+			for agent_id in range(self.model_size):
+				agent_info_dict[agent_id].update({
+					'actions': batch.actions[agent_id],
+					'action_masks': batch.action_masks[agent_id],
+					'policies': batch.policies[agent_id],
+					'states': batch.states[agent_id],
+					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
+					'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
+				})
 		if with_relation_extraction:
-			self._get_extracted_relations(batch)
-		# if with_transition_predictor:
-		# 	self._get_transition_prediction_error(batch)
-		# Intrinsic Rewards
+			fetch_label_list += ['extracted_relations']
+			for agent_id in range(self.model_size):
+				agent_info_dict[agent_id].update({
+					'states': batch.states[agent_id],
+				})
+		if with_value:
+			fetch_label_list += ['values', 'new_internal_states']
+			for agent_id in range(self.model_size):
+				agent_info_dict[agent_id].update({
+					'states': batch.states[agent_id],
+					'actions': batch.actions[agent_id],
+					'policies': batch.policies[agent_id],
+					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
+					'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
+				})
+		if len(fetch_label_list) > 0:
+			for agent_id in range(self.model_size):
+				result_dict = self.get_model(agent_id).fetch_info(
+					fetch_label_list=fetch_label_list, 
+					info_dict=agent_info_dict[agent_id]
+				)
+				for k,v in result_dict.items():
+					batch_k = getattr(batch,k)
+					batch_k[agent_id] = v
+					assert len(batch.states[agent_id]) == len(batch_k[agent_id]), "Number of {} does not match the number of states".format(k)
+		# Compute intrinsic rewards
 		with_intrinsic_reward = with_intrinsic_reward and self.can_compute_intrinsic_reward
 		if with_intrinsic_reward:
 			self._compute_intrinsic_rewards(batch)
-		# Compute values and bootstrap
-		if with_value:
-			self._get_value(batch)
-		elif with_bootstrap:
+		# Bootstrap (only after computing value, for an up-to-date internal state)
+		if with_bootstrap:
 			self._bootstrap(batch)
 		# Recompute discounted cumulative reward and advantage
 		if with_value or with_bootstrap or with_intrinsic_reward or (with_importance_weight_extraction and self.algorithm.extract_importance_weight):
 			self._compute_discounted_cumulative_reward(batch)
 
-	def _get_value(self, batch):
-		for agent_id in range(self.model_size):
-			value_batch, bootstrap_value, extra_batch = self.get_model(agent_id).predict_value({
-				'states': batch.states[agent_id],
-				'actions': batch.actions[agent_id],
-				'policies': batch.policies[agent_id],
-				'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
-				'bootstrap': [ {'state':batch.new_states[agent_id][-1]} ],
-				'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
-			})
-			if extra_batch is not None:
-				batch.extras[agent_id] = list(extra_batch)
-			batch.values[agent_id] = list(value_batch)
-			batch.bootstrap[agent_id] = bootstrap_value
-			assert len(batch.states[agent_id]) == len(batch.values[agent_id]), "Number of values does not match the number of states"
-
-	def _get_importance_weight(self, batch):
-		for agent_id in range(self.model_size):
-			batch.importance_weights[agent_id] = self.get_model(agent_id).get_importance_weight({
-				'actions': batch.actions[agent_id],
-				'action_masks': batch.action_masks[agent_id],
-				'policies': batch.policies[agent_id],
-				'states': batch.states[agent_id],
-				'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
-				'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
-			})
-			assert len(batch.states[agent_id]) == len(batch.importance_weights[agent_id]), "Number of importance_weights does not match the number of states"
-
-	def _get_extracted_relations(self, batch):
-		for agent_id in range(self.model_size):
-			batch.extracted_relations[agent_id] = self.get_model(agent_id).get_extracted_relations({
-				'states': batch.states[agent_id],
-			})
-			# print(batch.extracted_relations[agent_id])
-			assert len(batch.states[agent_id]) == len(batch.extracted_relations[agent_id]), "Number of extracted_relations does not match the number of states"
-
-	def _get_transition_prediction_error(self, batch):
-		for agent_id in range(self.model_size):
-			batch.transition_prediction_errors[agent_id] = self.get_model(agent_id).predict_transition_relevance({
-				'states': batch.states[agent_id], 
-				'actions': batch.actions[agent_id], 
-				'new_states': batch.new_states[agent_id],
-				'rewards': batch.rewards[agent_id],
-			})
-			assert len(batch.states[agent_id]) == len(batch.transition_prediction_errors[agent_id]), "Number of transition_prediction_errors does not match the number of states"
-			
 	def _bootstrap(self, batch):
 		for agent_id in range(self.model_size):
-			_, _, _, (bootstrap_value,), _, _ = self.predict_action(
-				states=batch.new_states[agent_id][-1:],  
-				internal_states=batch.new_internal_states[agent_id][-1:]
+			result_dict = self.get_model(agent_id).fetch_info(
+				fetch_label_list=['values'], 
+				info_dict={
+					'states': batch.new_states[agent_id][-1:],
+					'internal_states': batch.new_internal_states[agent_id][-1:],
+					'sizes': [1],
+				}
 			)
-			batch.bootstrap[agent_id] = bootstrap_value
+			batch.bootstrap[agent_id] = result_dict['values'][0]
 
 	def _compute_intrinsic_rewards(self, batch):
 		for agent_id in range(self.model_size):
@@ -220,12 +213,15 @@ class NetworkManager(object):
 			rewards = batch.rewards[agent_id]
 			manipulated_rewards = batch.manipulated_rewards[agent_id]
 			# Predict intrinsic rewards
-			info_dict = {
-				'new_states': batch.new_states[agent_id],
-				'state_mean': self.state_mean,
-				'state_std':self.state_std
-			}
-			intrinsic_rewards = self.get_model(agent_id).predict_reward(info_dict)
+			result_dict = self.get_model(agent_id).fetch_info(
+				fetch_label_list=['intrinsic_rewards'], 
+				info_dict={
+					'new_states': batch.new_states[agent_id],
+					'state_mean': [self.state_mean],
+					'state_std': [self.state_std]
+				}
+			)
+			intrinsic_rewards = result_dict['intrinsic_rewards']
 			# Scale intrinsic rewards
 			if flags.scale_intrinsic_reward:
 				scaler = self.intrinsic_reward_scaler[agent_id]
@@ -346,7 +342,7 @@ class NetworkManager(object):
 			self._update_batch(
 				batch= old_batch, 
 				with_value= flags.recompute_value_when_replaying, 
-				with_bootstrap= False, 
+				with_bootstrap= flags.recompute_value_when_replaying, 
 				with_intrinsic_reward= self.with_intrinsic_reward, 
 				with_importance_weight_extraction= self.with_importance_weight_extraction, 
 				with_transition_predictor= self.prioritized_with_transition_predictor,
