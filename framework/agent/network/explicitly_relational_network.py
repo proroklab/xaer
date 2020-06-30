@@ -6,6 +6,27 @@ from agent.network.openai_small_network import OpenAISmall_Network
 import options
 flags = options.get()
 
+def NOT(x):
+	return 1. - x
+
+def AND(x,y):
+	return tf.minimum(x,y) # x*y
+
+def OR(x,y):
+	return tf.maximum(x,y) # x + y - AND(x,y)
+
+def NAND(x,y):
+	return NOT(AND(x,y)) # 1. - x*y
+
+def NOR(x,y):
+	return NOT(OR(x,y)) # 1. - x + y - AND(x,y)
+
+def XOR(x,y):
+	return AND(OR(x,y), OR(NOT(x), NOT(y)))
+
+def XNOR(x,y):
+	return OR(AND(x,y), AND(NOT(x), NOT(y))) # NOT(XOR(x,y))
+
 # Shanahan, Murray, et al. "An explicitly relational neural network architecture." arXiv preprint arXiv:1905.10307 (2019).
 class ExplicitlyRelational_Network(OpenAISmall_Network):
 	produce_explicit_relations = True
@@ -14,36 +35,8 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 	def __init__(self, id, policy_heads, scope_dict, training=True, value_count=1, state_scaler=1):
 		super().__init__(id, policy_heads, scope_dict, training, value_count, state_scaler)
 		self.object_pairs = 16
-		self.edge_size_per_object_pair = 1
-		self.relational_layer_operators_set = [self.OR,self.NOR,self.AND,self.NAND,self.XOR,self.XNOR]
-
-	@staticmethod
-	def NOT(x):
-		return 1. - x
-
-	@staticmethod
-	def AND(x,y):
-		return tf.minimum(x,y) # x*y
-
-	@staticmethod
-	def OR(x,y):
-		return tf.maximum(x,y) # x + y - ExplicitlyRelational_Network.AND(x,y)
-
-	@staticmethod
-	def NAND(x,y):
-		return ExplicitlyRelational_Network.NOT(ExplicitlyRelational_Network.AND(x,y)) # 1. - x*y
-
-	@staticmethod
-	def NOR(x,y):
-		return ExplicitlyRelational_Network.NOT(ExplicitlyRelational_Network.OR(x,y)) # 1. - x + y - ExplicitlyRelational_Network.AND(x,y)
-
-	@staticmethod
-	def XOR(x,y):
-		return ExplicitlyRelational_Network.AND(ExplicitlyRelational_Network.OR(x,y), ExplicitlyRelational_Network.OR(ExplicitlyRelational_Network.NOT(x), ExplicitlyRelational_Network.NOT(y)))
-
-	@staticmethod
-	def XNOR(x,y):
-		return ExplicitlyRelational_Network.OR(ExplicitlyRelational_Network.AND(ExplicitlyRelational_Network.NOT(x), ExplicitlyRelational_Network.NOT(y)), ExplicitlyRelational_Network.AND(x, y))
+		self.edge_size_per_object_pair = 2
+		self.relational_layer_operators_set = [OR,NOR,AND,NAND,XOR,XNOR]
 
 	def _entity_extraction_layer(self, features, scope="", name="", share_trainables=True):
 		layer_type = 'EntityExtraction'
@@ -64,7 +57,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 		def layer_fn():
 			# What exactly are keys, queries, and values in attention mechanisms? https://stats.stackexchange.com/questions/421935/what-exactly-are-keys-queries-and-values-in-attention-mechanisms
 			queries = self.__query_layer(
-				n_query=2, 
+				n_query=2, # binary relations
 				entities=entities, 
 				n_object_pairs=n_object_pairs, 
 				key_size=entities.shape.as_list()[-1], # channels+3, 
@@ -83,7 +76,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			# (batch_size, heads, n_query, (channels+3))
 
 			# Spatial embedding
-			objects_embedding = tf.keras.layers.Dense(
+			objects_embedding = tf.keras.layers.Dense( # negation operator is embedded in here
 				name='Dense1',
 				units=edge_size_per_object_pair, 
 				# use_bias=True,
@@ -111,10 +104,10 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 					# activation=tf.nn.relu, # non-linear mapping
 					kernel_initializer=tf_utils.orthogonal_initializer()
 				)(reshaped_operator_logits)
-				operator_logits = tf.keras.layers.LayerNormalization(name='LayerNorm_2')(operator_logits)
 				# (batch_size, heads, relations*ops)
 				operator_logits = tf.reshape(operator_logits, [-1, operator_logits.shape.as_list()[1], edge_size_per_object_pair, len(operators_set)])
 				# (batch_size, heads, relations, ops)
+				operator_logits = tf.keras.layers.LayerNormalization(name='LayerNorm_2')(operator_logits)
 				operators_mask = tf.nn.softmax(operator_logits*1e2, -1)
 				# (batch_size, heads, relations, ops)
 				operators_result = tf.stack([op(object1_embedding, object2_embedding) for i,op in enumerate(operators_set)], -1)
