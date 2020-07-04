@@ -12,7 +12,7 @@ from scipy import optimize
 from environment.game_wrapper import GameWrapper
 from environment.car_controller.car_stuff.utils import *
 
-class CarControllerGameWrapper(GameWrapper):
+class CarControllerV1(GameWrapper):
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
 	horizon_distance = 3 # meters
 	track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
@@ -80,6 +80,8 @@ class CarControllerGameWrapper(GameWrapper):
 		self.obstacles = self.get_new_obstacles()
 		# init concat variables
 		self.last_reward = 0
+		self.last_reward_type = 'move_forward'
+		self.last_action_mask = None
 		self.last_state = self.get_state(car_point=self.car_point, car_orientation=self.car_orientation, car_progress=self.car_progress, obstacles=self.obstacles)
 		# init log variables
 		self.cumulative_reward = 0
@@ -229,7 +231,7 @@ class CarControllerGameWrapper(GameWrapper):
 		# update position and direction
 		car_position = self.find_closest_position(point=self.car_point, previous_position=self.car_progress)
 		# compute perceived reward
-		reward, dead = self.get_reward(car_speed=self.speed, car_point=self.car_point, old_car_point=old_car_point, car_progress=self.car_progress, car_position=car_position, obstacles=self.obstacles)
+		reward, dead, reward_type = self.get_reward(car_speed=self.speed, car_point=self.car_point, old_car_point=old_car_point, car_progress=self.car_progress, car_position=car_position, obstacles=self.obstacles)
 		if car_position > self.car_progress: # is moving toward next position
 			self.car_progress = car_position # progress update
 		# compute new state (after updating progress)
@@ -237,6 +239,7 @@ class CarControllerGameWrapper(GameWrapper):
 		# update last action/state/reward
 		self.last_state = state
 		self.last_reward = reward
+		self.last_reward_type = reward_type
 		# update cumulative reward
 		self.cumulative_reward += reward
 		self.avg_speed_per_steps += self.speed
@@ -252,7 +255,7 @@ class CarControllerGameWrapper(GameWrapper):
 			if self.max_obstacle_count > 0:
 				stats["hit"] = 1 if dead else 0
 			self.episode_statistics = stats
-		return state, reward, terminal, None
+		return state, reward, terminal
 	
 	def get_concatenation_size(self):
 		return 3
@@ -270,7 +273,7 @@ class CarControllerGameWrapper(GameWrapper):
 		if closest_obstacle is not None:
 			obstacle_point, obstacle_radius = closest_obstacle
 			if self.has_collided_obstacle(obstacle=closest_obstacle, old_car_point=old_car_point, car_point=car_point): # collision
-				return (-1, True) # terminate episode
+				return (-1, True, 'collision') # terminate episode
 			if euclidean_distance(obstacle_point, car_projection_point) <= obstacle_radius: # could collide obstacle
 				max_distance_to_path += obstacle_radius
 		if car_position > car_progress: # is moving toward next position
@@ -281,9 +284,9 @@ class CarControllerGameWrapper(GameWrapper):
 			malus = self.speed_upper_limit*max(0,car_speed/self.speed_upper_limit-1)*self.seconds_per_step
 			# smaller distances to path give higher rewards
 			bonus = min(car_speed,self.speed_upper_limit)*self.seconds_per_step*inverse_distance_ratio
-			return (bonus-malus, False) # do not terminate episode
+			return (bonus-malus, False, 'move_forward') # do not terminate episode
 		#else is NOT moving toward next position
-		return (-0.1, False) # do not terminate episode
+		return (-0.1, False, 'move_backward') # do not terminate episode
 		
 	def get_control_points(self, source_point, source_orientation, source_position): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		source_goal = self.get_goal(source_position)

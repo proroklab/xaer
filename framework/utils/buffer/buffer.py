@@ -69,6 +69,9 @@ class Buffer(object):
 		type = self.get_type(type_id)
 		self.batches[type].append(batch)
 
-	def sample(self):
+	def sample(self, remove=False):
 		type = choice(self.type_values)
-		return choice(self.batches[type])
+		result = choice(self.batches[type])
+		if remove:
+			self.batches[type].remove(result)
+		return result

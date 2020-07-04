@@ -9,7 +9,7 @@ from collections import deque
 from utils.statistics import Statistics
 from utils.misc import flatten, softmax
 from environment.environment import Environment
-from agent.worker.batch import ExperienceBatch, CompositeBatch
+from agent.worker.experience_manager.batch import ExperienceBatch, CompositeBatch
 
 # get command line args
 import options
@@ -50,8 +50,8 @@ class EnvironmentManager(object):
 		self.environment.reset()
 		print("Environment {}.{} Initialization: Start".format(self.group_id, self.environment_id))
 		for _ in range(step_count):
-			new_state, _, terminal, _ = self.environment.process(self.environment.sample_random_action())
-			state_batch.append(new_state)
+			observation, terminal = self.environment.process(self.environment.sample_random_action())
+			state_batch.append(observation['new_state'])
 			if terminal:
 				self.environment.reset()
 		print("Environment {}.{} Initialization: End".format(self.group_id, self.environment_id))
@@ -227,24 +227,23 @@ class EnvironmentManager(object):
 		self.terminal = terminal
 		self._last_internal_state = internal_state
 		
-	def apply_action_to_batch(self, agent, action_dict, extrinsic_reward):
+	def apply_action_to_batch(self, agent, action_dict):
+		extrinsic_reward = action_dict['reward']
 		# Build total reward (intrinsic reward is computed later, more efficiently)
 		reward = np.array([extrinsic_reward, 0.])
 		manipulated_reward = np.array([self.extrinsic_reward_manipulator(extrinsic_reward), 0.])
 		# Add action to _batch
-		action_dict.update({
-			'rewards': reward,
-			'manipulated_rewards': manipulated_reward,
-		})
+		action_dict['reward'] = reward
+		action_dict['manipulated_reward'] = manipulated_reward
 		self._batch.add_action(agent_id=agent, feed_dict=action_dict)
 		# Save frame info
 		if self.save_frame_info:
 			self.__episode_step.append({
 				'screen': self.environment.get_screen(),
 				'extra': self.environment.get_info(),
-				'action': action_dict['actions'],
-				'policy': action_dict['policies'],
-				'value': action_dict['values'],
+				'action': action_dict['action'],
+				'policy': action_dict['policy'],
+				'value': action_dict['value'],
 				'reward': reward,
 				'manipulated_reward': manipulated_reward,
 			})

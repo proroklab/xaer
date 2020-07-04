@@ -61,7 +61,7 @@ class PrioritizedBuffer(Buffer):
 		self.batches[type].update({unique_batch_priority: batch}) # O(log)
 		self.prefixsum[type] = None # compute prefixsum only if needed, when sampling
 		
-	def keyed_sample(self): # O(n) after a new put, O(log) otherwise
+	def keyed_sample(self, remove=False): # O(n) after a new put, O(log) otherwise
 		type_id = choice(self.type_keys)
 		type = self.get_type(type_id)
 		if self.prefixsum[type] is None: # compute prefixsum
@@ -71,10 +71,13 @@ class PrioritizedBuffer(Buffer):
 		keys = self.batches[type].keys()
 		if idx == len(keys): # this may happen when self.prefixsum[type] is negative
 			idx = -1
-		return self.batches[type][keys[idx]], idx, type_id
+		result = self.batches[type][keys[idx]]
+		if remove:
+			self.batches[type].remove(result)
+		return result, idx, type_id
 		
-	def sample(self): # O(n) after a new put, O(log) otherwise
-		return self.keyed_sample()[0]
+	def sample(self, remove=False): # O(n) after a new put, O(log) otherwise
+		return self.keyed_sample(remove)[0]
 
 	def update_priority(self, idx, priority, type_id=0): # O(log)
 		type = self.get_type(type_id)

@@ -2,9 +2,10 @@
 from collections import deque
 import numpy as np
 from agent.algorithm import *
-from agent.worker.batch import CompositeBatch
-from agent.worker.prioritization_scheme import *
-from utils.buffer import Buffer, PseudoPrioritizedBuffer as PrioritizedBuffer
+from agent.worker.experience_manager.batch import CompositeBatch
+from agent.worker.experience_manager.prioritization_scheme import *
+from agent.worker.experience_manager.clustering_scheme import *
+from utils.buffer import Buffer, PseudoPrioritizedBuffer
 from utils.running_std import RunningMeanStd
 from utils.important_information import ImportantInformation
 from threading import Lock
@@ -17,10 +18,14 @@ class NetworkManager(object):
 	# Experience Replay
 	with_experience_replay = flags.replay_mean > 0
 	print('With Experience Replay:',with_experience_replay)
-	experience_prioritization_scheme = eval(flags.prioritization_scheme) if flags.prioritization_scheme and with_experience_replay else False
+	# Experience Prioritisation
+	experience_prioritization_scheme = eval(flags.prioritization_scheme)() if flags.prioritization_scheme and with_experience_replay else False
 	print('Experience Prioritization Scheme:',experience_prioritization_scheme)
 	prioritized_replay_with_update = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('priority_update_after_replay',False)
 	print('Prioritized Replay With Update:',prioritized_replay_with_update)
+	# Experience Clustering
+	experience_clustering_scheme = eval(flags.experience_clustering_scheme)() if flags.experience_clustering_scheme and with_experience_replay else False
+	print('Experience Clustering Scheme:',experience_clustering_scheme)
 	# Intrinsic Rewards
 	prioritized_with_intrinsic_reward = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('intrinsic_reward',False)
 	print('Prioritized With Intrinsic Reward:',prioritized_with_intrinsic_reward)
@@ -44,10 +49,11 @@ class NetworkManager(object):
 	if with_experience_replay:
 		experience_buffer_lock = Lock() # Use a locking mechanism to access the buffer because buffers are shared among threads
 		if experience_prioritization_scheme:
-			experience_buffer = PrioritizedBuffer(
+			experience_buffer = PseudoPrioritizedBuffer(
 				size=flags.replay_buffer_size, 
 				alpha=flags.prioritized_replay_alpha, 
-				prioritized_drop_probability=flags.prioritized_drop_probability
+				prioritized_drop_probability=flags.prioritized_drop_probability,
+				global_distribution_matching=flags.global_distribution_matching,
 			)
 		else:
 			experience_buffer = Buffer(size=flags.replay_buffer_size)
@@ -153,7 +159,7 @@ class NetworkManager(object):
 				agent_info_dict[agent_id].update({
 					'actions': batch.actions[agent_id],
 					'action_masks': batch.action_masks[agent_id],
-					'policies': batch.policies[agent_id],
+					'policies': batch.policys[agent_id],
 					'states': batch.states[agent_id],
 					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
 					'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
@@ -170,7 +176,7 @@ class NetworkManager(object):
 				agent_info_dict[agent_id].update({
 					'states': batch.states[agent_id],
 					'actions': batch.actions[agent_id],
-					'policies': batch.policies[agent_id],
+					'policies': batch.policys[agent_id],
 					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
 					'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
 				})
@@ -283,7 +289,7 @@ class NetworkManager(object):
 				'actions':batch.actions[i][start:end] if do_slice else batch.actions[i],
 				'action_masks':batch.action_masks[i][start:end] if do_slice else batch.action_masks[i],
 				'values':batch.values[i][start:end] if do_slice else batch.values[i],
-				'policies':batch.policies[i][start:end] if do_slice else batch.policies[i],
+				'policies':batch.policys[i][start:end] if do_slice else batch.policys[i],
 				'cumulative_returns':batch.cumulative_returns[i][start:end] if do_slice else batch.cumulative_returns[i],
 				'rewards':batch.rewards[i][start:end] if do_slice else batch.rewards[i],
 				'internal_state':batch.internal_states[i][start] if is_valid_start else batch.internal_states[i][0],
@@ -295,18 +301,11 @@ class NetworkManager(object):
 			# Prepare _train
 			train_result = model.prepare_train(info_dict=info_dict, replay=replay)
 		
-	def _add_to_replay_buffer(self, batch, is_best):
+	def _add_to_replay_buffer(self, batch, episode_type):
 		# Check whether batch is empty
 		if batch.is_empty(self.agents_set):
 			return False
-		# Build batch type
-		batch_extrinsic_reward, batch_intrinsic_reward = batch.get_cumulative_reward(self.agents_set)
-		#=======================================================================
-		# if batch_extrinsic_reward > 0:
-		# 	print("Adding new batch with reward: extrinsic {}, intrinsic {}".format(batch_extrinsic_reward, batch_intrinsic_reward))
-		#=======================================================================
-		type_id = '1' if batch_extrinsic_reward > 0 else '0'
-		type_id += '1' if is_best else '0'
+		type_id = self.experience_clustering_scheme.get_batch_type(batch, self.agents_set, episode_type)
 		# Populate buffer
 		params_dict = {
 			'batch': batch,
@@ -375,8 +374,8 @@ class NetworkManager(object):
 		# Populate replay buffer
 		if self.with_experience_replay:
 			# Check whether to save the whole episode list into the replay buffer
-			extrinsic_reward, _ = batch.get_cumulative_reward(self.agents_set)
-			is_best = extrinsic_reward > 0 # Best batches = batches that lead to positive extrinsic reward
+			episode_type = self.experience_clustering_scheme.get_episode_type(composite_batch, self.agents_set)
+			is_best = self.experience_clustering_scheme.is_best(episode_type)
 			#===================================================================
 			# # Build the best known cumulative return
 			# if is_best and flags.recompute_value_when_replaying:
@@ -387,6 +386,6 @@ class NetworkManager(object):
 			add_composite_batch_to_buffer = is_best or (not flags.replay_only_best_batches and batch.terminal)
 			if add_composite_batch_to_buffer:
 				for old_batch in composite_batch.get():
-					self._add_to_replay_buffer(batch=old_batch, is_best=is_best)
+					self._add_to_replay_buffer(batch=old_batch, episode_type=episode_type)
 				# Clear composite batch
 				composite_batch.clear()

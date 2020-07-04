@@ -128,14 +128,3 @@ class cumulative_extrinsic_return():
 	@staticmethod
 	def get(batch, agents):
 		return batch.get_cumulative_reward(agents)[0]
-
-class transition_prediction_error():
-	requirement = {
-		'priority_update_after_replay': True,
-		'transition_prediction_error': True
-	}
-
-	@staticmethod
-	def get(batch, agents):
-		return batch.get_cumulative_action('transition_prediction_errors', agents)
-

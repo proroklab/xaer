@@ -10,7 +10,7 @@ def build():
 	options["timesteps_before_starting_training"] = 2**10 # "Number of initialization steps."
 	options["shuffle_sequences"] = True # Whether to shuffle sequences in the batch when training (recommended).
 # Environment
-	options["env_type"] = "CarController" # "environment types: CarController or environments from https://gym.openai.com/envs"
+	options["env_type"] = "CarControllerV1" # "environment types: CarControllerV[1,2,3] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
 	options["algorithm"] = "AC" # "algorithms: AC, TD3"
@@ -19,7 +19,7 @@ def build():
 	options["optimizer"] = "Adam" # "gradient optimizer: PowerSign, AddSign, ElasticAverage, LazyAdam, Nadam, Adadelta, AdagradDA, Adagrad, Adam, Ftrl, GradientDescent, Momentum, ProximalAdagrad, ProximalGradientDescent, RMSProp" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.
 	options["only_non_negative_entropy"] = True # "Cross-entropy and entropy are used for policy loss and if this flag is True, then entropy=max(0,entropy). If cross-entropy measures the average number of bits needed to identify an event, then it cannot be negative."
-	# Use mean losses if max_batch_size is too big = in order to avoid NaN
+	# Use mean losses if max_batch_size is too big, in order to avoid NaN
 	options["loss_type"] = "mean" # "type of loss reduction: sum, mean"
 	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO, DISC"
 	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO"
@@ -62,10 +62,14 @@ def build():
 	options["train_critic_when_replaying"] = True # "Whether to train also the critic when replaying."
 	options["recompute_value_when_replaying"] = True # "Whether to recompute value when replaying, using always up to date values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
-# Prioritized Experience Replay: Schaul = Tom = et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
+# Prioritized Experience Replay: Schaul, Tom, et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritization_scheme"] = "unclipped_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: 'pruned_gain_estimate, clipped_gain_estimate, clipped_mean_gain_estimate, clipped_best_gain_estimate, unclipped_gain_estimate, unclipped_mean_gain_estimate, unclipped_best_gain_estimate, surprise, cumulative_extrinsic_return, transition_prediction_error'.
-	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization = 1 - full prioritization)."
+	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
 	options["prioritized_drop_probability"] = 1 # "Probability of removing the batch with the lowest priority instead of the oldest batch."
+	# Isele, David, and Akansel Cosgun. "Selective experience replay for lifelong learning." Thirty-second AAAI conference on artificial intelligence. 2018.
+	options["global_distribution_matching"] = False # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
+# Experience Clustering
+	options["experience_clustering_scheme"] = "reward_with_type" # 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
 	options["intrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the intrinsic rewards."
@@ -76,8 +80,8 @@ def build():
 	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
-	# Taking gamma < 1 introduces bias into the policy gradient estimate = regardless of the value function accuracy.
-	options["gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95 = for openAI is 0.99
+	# Taking gamma < 1 introduces bias into the policy gradient estimate, regardless of the value function accuracy.
+	options["gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95, for openAI is 0.99
 # Advantage Estimation
 	options["advantage_estimator"] = "GAE_V" # "Can be one of the following: GAE, GAE_V, VTrace, Vanilla." # GAE_V and VTrace should reduce bias and variance when replay_ratio > 0
 	# Taking lambda < 1 introduces bias only when the value function is inaccurate

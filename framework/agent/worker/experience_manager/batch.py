@@ -3,42 +3,38 @@ import numpy as np
 from collections import deque
 from utils.misc import is_tuple, decompress, compress
 # from agent.algorithm.ac_algorithm import merge_splitted_advantages
+from itertools import chain
 import options
 flags = options.get()
 
 class ExperienceBatch():
+	__batch_list_elements__ = (
+		'states', 'new_states', 
+		'transition_prediction_errors', 
+		'internal_states', 'new_internal_states', 
+		'actions', 'action_masks', 'policys', 'values', 'importance_weights',
+		'extracted_relations',
+		'rewards', 'manipulated_rewards', 'reward_types',
+		'cumulative_returns', 'advantages'
+	)
 	# Use slots to save memory, because this type of object may be spawned very frequently
 	__slots__ = (
 		'_model_size', '_batch_keys', '_agent_list', '_agent_position_list',
 		'bootstrap', 'terminal',
-		'states', 'new_states', 
-		'transition_prediction_errors', 
-		'internal_states', 'new_internal_states', 
-		'actions', 'action_masks', 'policies', 'values', 'importance_weights',
-		'extracted_relations',
-		'rewards', 'manipulated_rewards', 
-		'cumulative_returns', 'advantages', 'extras'
-	)
+	) + __batch_list_elements__
 	
 	def __init__(self, model_size):
 		self._model_size = model_size
 		self._agent_list = tuple(range(self._model_size))
 		self._batch_keys = []
 		# Add batch keys, after setting model size
-		self._add_batch_key_if_not_exist([
-			'states','new_states',
-			'transition_prediction_errors',
-			'internal_states','new_internal_states',
-			'actions','action_masks','policies','values','importance_weights',
-			'extracted_relations',
-			'rewards','manipulated_rewards',
-			'cumulative_returns','advantages','extras'
-		])
+		self._add_batch_key_if_not_exist(self.__batch_list_elements__)
 		self._agent_position_list = []
 		self.bootstrap = {}
 		self.terminal = False
 		
 	def _add_batch_key_if_not_exist(self, key_list):
+		# print(is_tuple(key_list), key_list)
 		if not is_tuple(key_list):
 			key_list = [key_list]
 		for key in key_list:
@@ -109,7 +105,10 @@ class ExperienceBatch():
 
 	def add_action(self, feed_dict, agent_id):
 		for (key, value) in feed_dict.items():
-			getattr(self,key)[agent_id].append(value)
+			key=key+'s'
+			if not hasattr(self,key):
+				continue
+			getattr(self,key,None)[agent_id].append(value)
 		# (agent_id, batch_position), for step_generator 
 		self._agent_position_list.append( (agent_id, len(self.states[agent_id])-1) )
 		
@@ -151,6 +150,7 @@ class ExperienceBatch():
 		last_value = 0 + self.bootstrap[last_agent] # copy by value, summing zero
 		# Get accumulation sequences and initial values
 		reversed_reward, reversed_value, reversed_importance_weight = self.get_all_actions(actions=['manipulated_rewards','values','importance_weights'], agents=agents, reverse=True)
+		# print(len(reversed_reward), len(reversed_value), len(reversed_importance_weight))
 		if flags.split_values: # There are 2 value heads: one for intrinsinc and one for extrinsic rewards
 			gamma = np.array([gamma, flags.intrinsic_reward_gamma])
 			if terminal: # episodic reward
@@ -170,7 +170,6 @@ class ExperienceBatch():
 			reversed_reward=reversed_reward, 
 			reversed_value=reversed_value, 
 			reversed_importance_weight=reversed_importance_weight,
-			reversed_extra=self.get_all_actions(actions=['extras'], agents=agents, reverse=True)[0] if self.has_actions(actions=['extras'], agents=agents) else None 
 		)
 		# Add accumulations to batch
 		if len(agents) == 1: # Optimized code for single agent
@@ -179,8 +178,10 @@ class ExperienceBatch():
 			self.advantages[agent_id] = list(reversed(reversed_advantage))
 		else: # Multi-agents code
 			for i,agent_pos in enumerate(self.step_generator(agents, reverse=True)):
-				feed_dict = {'cumulative_returns': reversed_cumulative_return[i]}
-				feed_dict['advantages'] = reversed_advantage[i] 
+				feed_dict = {
+					'cumulative_returns': reversed_cumulative_return[i],
+					'advantages': reversed_advantage[i],
+				}
 				self.set_action(feed_dict, *agent_pos)
 			
 	def append(self, batch):
@@ -217,6 +218,9 @@ class CompositeBatch():
 		# Can add only ExperienceBatch items
 		assert isinstance(batch, ExperienceBatch)
 		self._batch_list.append(batch)
+
+	def __getitem__(self, idx):
+		return self._batch_list[idx]
 		
 	def get(self):
 		return self._batch_list
@@ -227,6 +231,21 @@ class CompositeBatch():
 	def clear(self):
 		if self.maxlen > 1:
 			self._batch_list = deque(maxlen=self.maxlen)
+
+	def get_all_actions(self, actions=None, agents=None, reverse=False):
+		return sum((
+			batch.get_all_actions(actions=actions, agents=agents, reverse=reverse)
+			for batch in self._batch_list
+		), ())
+
+	def get_cumulative_reward(self, agents=None):
+		return self.get_cumulative_action('rewards', agents)
+
+	def get_cumulative_action(self, action, agents=None):
+		return sum((
+			batch.get_cumulative_action(action, agents)
+			for batch in self._batch_list
+		))
 	
 	def compute_discounted_cumulative_reward(self, agents, gamma, cumulative_return_builder):
 		last_batch = self._batch_list[-1]

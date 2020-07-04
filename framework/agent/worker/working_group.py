@@ -71,10 +71,10 @@ class Group(object):
 	def _process_step(self, workers):
 		if self.training:
 			self.network_manager.sync()
-		internal_states = [worker.get_internal_states() for worker in workers]
-		states = tuple(worker.environment.last_state for worker in workers)
+		internal_states = tuple(worker.get_internal_states() for worker in workers)
+		states = tuple(worker.environment.last_observation['new_state'] for worker in workers)
 		actions, hot_actions, policies, values, new_internal_states, agents = self.network_manager.predict_action(states, internal_states)
-		new_states, extrinsic_rewards, terminals, action_masks = zip(*[worker.environment.process(action) for worker, action in zip(workers, actions)])
+		observations, terminals = zip(*[worker.environment.process(action) for worker, action in zip(workers, actions)])
 		# Update batch state
 		for i in range(len(workers)):
 			workers[i].update_batch_state(
@@ -84,7 +84,7 @@ class Group(object):
 		# Build batch
 		if self.training:
 			# Update state distribution estimator
-			for i, sub_state in enumerate(zip(*new_states)):
+			for i, sub_state in enumerate(zip(*map(lambda x: x['new_state'], observations))):
 				estimator = self.state_distribution_estimator[i]
 				if estimator.update(sub_state):
 					self.network_manager.state_mean[i] = estimator.mean
@@ -93,20 +93,18 @@ class Group(object):
 			for i in range(len(workers)):
 				# Build action dictionary
 				action_dict = {
-					'states': states[i],
-					'new_states': new_states[i],
-					'actions': hot_actions[i],
-					'action_masks': action_masks[i],
-					'values': values[i],
-					'policies': policies[i],
-					'internal_states': internal_states[i],
-					'new_internal_states': new_internal_states[i],
+					'state': states[i],
+					'action': hot_actions[i],
+					'value': values[i],
+					'policy': policies[i],
+					'internal_state': internal_states[i],
+					'new_internal_state': new_internal_states[i],
 				}
+				action_dict.update(observations[i])
 				# Apply action
 				workers[i].apply_action_to_batch(
 					agent= agents[i], 
-					action_dict= action_dict, 
-					extrinsic_reward= extrinsic_rewards[i]
+					action_dict= action_dict
 				)
 	
 	def process(self, global_step=0, batch=True, data_id=0):

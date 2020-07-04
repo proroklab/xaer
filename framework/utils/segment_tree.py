@@ -28,6 +28,7 @@ class SegmentTree(object):
 		assert capacity > 0 and capacity & (capacity - 1) == 0, "capacity must be positive and a power of 2."
 		self._capacity = capacity
 		self._value = [neutral_element]*(2 * capacity)
+		self._neutral_element = neutral_element
 
 	def _reduce_helper(self, start, end, node, node_start, node_end): # O(log)
 		if (start == node_start and end == node_end) or node_start >= node_end:
@@ -69,7 +70,7 @@ class SegmentTree(object):
 	def __setitem__(self, idx, val): # O(log)
 		# index of the leaf
 		idx += self._capacity
-		self._value[idx] = val
+		self._value[idx] = val if val else self._neutral_element
 		idx //= 2
 		while idx >= 1:
 			self._value[idx] = self._operation(

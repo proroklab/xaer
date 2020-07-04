@@ -35,21 +35,24 @@ class Environment(object):
 
 	@staticmethod
 	def create_environment(env_type, env_id=0, training=True, group_id=0):
-		if env_type == 'CarController':
-			from environment.car_controller.car_controller_wrapper import CarControllerGameWrapper
-			return Environment(f'{group_id}.{env_id}', CarControllerGameWrapper)
+		env_name = f'{group_id}.{env_id}'
+		if env_type.startswith('CarController'):
+			import environment.car_controller as car_controller
+			return Environment(env_name, eval(f'car_controller.{env_type}'))
 		else:
 			from environment.openai_gym.openai_gym_wrapper import GymGameWrapper
 			Environment.state_scaler = GymGameWrapper.state_scaler
-			return Environment(f'{group_id}.{env_id}', GymGameWrapper, {'game': env_type})
+			return Environment(env_name, GymGameWrapper, {'game': env_type})
 
 	@staticmethod
 	def __game_worker(input_queue, output_queue, game_wrapper, config_dict):
 		def get_observation_dict(game):
 			observation_dict = {
-				'state': game.last_state,
+				'new_state': game.last_state,
 				'reward': game.last_reward,
-				'step': game.step,
+				'reward_type': game.last_reward_type,
+				'action_mask': game.last_action_mask,
+				# 'step': game.step,
 				'is_over': game.is_over,
 				'statistics': game.get_statistics(),
 			}
@@ -118,27 +121,21 @@ class Environment(object):
 		# self.__game_thread.daemon = True
 		self.__game_thread.start()
 		self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)
-		self.last_state = self.last_observation['state']
-		self.last_reward = 0
-		self.last_action = None
 		self.step = 0
-		return self.last_state
+		return self.last_observation
 
 	def process(self, action_vector):
 		put_timed_queue(self.__input_queue, action_vector, qid=self.id)
 		if self.__game_thread.is_alive():
 			self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)
 			is_terminal = self.last_observation['is_over']
-			self.last_state = self.last_observation['state']
-			self.last_reward = self.last_observation['reward'] #if not is_terminal else 1
-			self.last_action = action_vector
 			if is_terminal:
 				self.__episode_statistics.add(self.last_observation['statistics'])
 		else:
 			is_terminal = True
 		# complete step
 		self.step += 1
-		return self.last_state, self.last_reward, is_terminal, None
+		return self.last_observation, is_terminal
 		
 	def sample_random_action(self):
 		result = []

@@ -69,6 +69,8 @@ class GymGameWrapper(GameWrapper):
 		self.last_state = self.get_state_from_observation_stack()
 		self.last_action = None
 		self.last_reward = 0
+		self.last_reward_type = 'none'
+		self.last_action_mask = None
 		#=======================================================================
 		# self.last_lives = -1
 		#=======================================================================
@@ -115,5 +117,5 @@ class GymGameWrapper(GameWrapper):
 			is_terminal = True
 		if is_terminal:
 			self.is_over = True
-		return state, reward, is_terminal, None
+		return state, reward, is_terminal
 	
