@@ -372,10 +372,9 @@ class NetworkManager(object):
 		# Train
 		self._train(replay=False, batch=batch)
 		# Populate replay buffer
-		if self.with_experience_replay:
+		if batch.terminal and self.with_experience_replay:
 			# Check whether to save the whole episode list into the replay buffer
 			episode_type = self.experience_clustering_scheme.get_episode_type(composite_batch, self.agents_set)
-			is_best = self.experience_clustering_scheme.is_best(episode_type)
 			#===================================================================
 			# # Build the best known cumulative return
 			# if is_best and flags.recompute_value_when_replaying:
@@ -383,9 +382,10 @@ class NetworkManager(object):
 			# 		self._compute_discounted_cumulative_reward(composite_batch)
 			#===================================================================
 			# Add batch to experience buffer if it is a good batch or the batch has terminated
-			add_composite_batch_to_buffer = is_best or (not flags.replay_only_best_batches and batch.terminal)
-			if add_composite_batch_to_buffer:
-				for old_batch in composite_batch.get():
-					self._add_to_replay_buffer(batch=old_batch, episode_type=episode_type)
-				# Clear composite batch
-				composite_batch.clear()
+			if flags.replay_only_best_batches:
+				if not self.experience_clustering_scheme.is_best(episode_type):
+					return
+			for old_batch in composite_batch.get():
+				self._add_to_replay_buffer(batch=old_batch, episode_type=episode_type)
+			# Clear composite batch
+			composite_batch.clear()

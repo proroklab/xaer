@@ -10,7 +10,7 @@ def build():
 	options["timesteps_before_starting_training"] = 2**10 # "Number of initialization steps."
 	options["shuffle_sequences"] = True # Whether to shuffle sequences in the batch when training (recommended).
 # Environment
-	options["env_type"] = "CarControllerV1" # "environment types: CarControllerV[1,2,3] or environments from https://gym.openai.com/envs"
+	options["env_type"] = "CarControllerV3" # "environment types: CarControllerV[1,2,3] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
 	options["algorithm"] = "AC" # "algorithms: AC, TD3"
@@ -65,7 +65,7 @@ def build():
 # Prioritized Experience Replay: Schaul, Tom, et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritization_scheme"] = "unclipped_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: 'pruned_gain_estimate, clipped_gain_estimate, clipped_mean_gain_estimate, clipped_best_gain_estimate, unclipped_gain_estimate, unclipped_mean_gain_estimate, unclipped_best_gain_estimate, surprise, cumulative_extrinsic_return, transition_prediction_error'.
 	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
-	options["prioritized_drop_probability"] = 1 # "Probability of removing the batch with the lowest priority instead of the oldest batch."
+	options["prioritized_drop_probability"] = 0.5 # "Probability of removing the batch with the lowest priority instead of the oldest batch."
 	# Isele, David, and Akansel Cosgun. "Selective experience replay for lifelong learning." Thirty-second AAAI conference on artificial intelligence. 2018.
 	options["global_distribution_matching"] = False # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 # Experience Clustering

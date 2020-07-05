@@ -1,7 +1,7 @@
 cython
 psutil
 numba
-tensorflow==1.15.2
+tensorflow==1.15.3
 tensorflow_probability==0.8.0
 scipy
 sklearn
@@ -12,3 +12,4 @@ Pillow
 sortedcontainers
 opencv-python
 gym[atari]
+more_itertools

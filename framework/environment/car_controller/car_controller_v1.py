@@ -250,10 +250,10 @@ class CarControllerV1(GameWrapper):
 			self.is_over = True
 			stats = {
 				"avg_speed": self.avg_speed_per_steps/self.step,
-				"completed": 1 if self.is_terminal_position(car_position) else 0
+				"reach_goal": 1 if self.is_terminal_position(car_position) else 0
 			}
 			if self.max_obstacle_count > 0:
-				stats["hit"] = 1 if dead else 0
+				stats["avoid_collision"] = 0 if dead else 1
 			self.episode_statistics = stats
 		return state, reward, terminal
 	

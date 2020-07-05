@@ -41,11 +41,10 @@ class CarControllerV3(CarControllerV1):
 			stats = {
 				"avg_speed": self.avg_speed_per_steps/self.step,
 			}
-			for rule in ['move_forward','avoid_collision','follow_lane','respect_speed_limit','reach_goal']:
-				if reward > 0:
-					stats[rule] = 0 if reward_type!=rule else 1
-				else:
-					stats[rule] = 1 if reward_type!=rule else 0
+			for rule in ['move_forward','avoid_collision','follow_lane','respect_speed_limit']:
+				stats[rule] = 1 if reward_type!=rule else 0
+			for rule in ['reach_goal']:
+				stats[rule] = 0 if reward_type!=rule else 1
 			self.episode_statistics = stats
 		return state, reward, terminal
 	
