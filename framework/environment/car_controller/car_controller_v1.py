@@ -69,7 +69,7 @@ class CarControllerV1(GameWrapper):
 		self.path = self.build_random_path()
 		# car position
 		self.car_point = (0,0) # car point and orientation are always expressed with respect to the initial point and orientation of the road fragment
-		self.car_progress = self.find_closest_position(point=self.car_point)
+		self.car_progress = 0 # self.find_closest_position(point=self.car_point)
 		self.car_orientation = self.get_angle_from_position(self.car_progress)
 		# speed limit
 		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
@@ -90,21 +90,21 @@ class CarControllerV1(GameWrapper):
 	def get_new_obstacles(self):
 		if self.max_obstacle_count <= 0:
 			return []
-		obstacles = []
-		presence_mask = np.random.randint(2, size=self.max_obstacle_count)
-		for i in range(self.max_obstacle_count):
-			if presence_mask[i] == 1: # obstacle is present
-				radius = self.min_obstacle_radius + (self.max_obstacle_radius-self.min_obstacle_radius)*np.random.random() # in [min_obstacle_radius,max_obstacle_radius]
-				# add track/2 to obstacle_radius because car_point is the centre of the front of the car
-				radius += self.track/2
-				# get a point on the road
-				x,y = self.get_point_from_position(self.spline_number*np.random.random())
-				# the obstacle must be on the road but not necessarily it has to have its centre on the road
-				x += radius*(2*np.random.random()-1)
-				y += radius*(2*np.random.random()-1)
-				centre = (x,y)
-				obstacles.append((centre,radius))
-		return obstacles
+		def build_random_obstacle():
+			radius = self.min_obstacle_radius + (self.max_obstacle_radius-self.min_obstacle_radius)*np.random.random() # in [min_obstacle_radius,max_obstacle_radius]
+			# add track/2 to obstacle_radius because car_point is the centre of the front of the car
+			radius += self.track/2
+			# get a point on the road
+			x,y = self.get_point_from_position(self.spline_number*np.random.random())
+			# the obstacle must be on the road but it does not necessarily to have its centre on the road
+			x += radius*(2*np.random.random()-1)
+			y += radius*(2*np.random.random()-1)
+			centre = (x,y)
+			return (centre,radius)
+		return [
+			build_random_obstacle()
+			for _ in range(np.random.randint(self.max_obstacle_count))
+		]
 		
 	def get_closest_obstacle(self, point, obstacles):
 		if len(obstacles) == 0:
@@ -145,21 +145,18 @@ class CarControllerV1(GameWrapper):
 		self.lengths = [] # length of each spline
 		self.origins = [(0,0)] # origin of each spline
 		self.orientations = [0] # orientation angle of each spline
-		self.positions = [] # we generate all points for both polynomials, then we shall draw only a portion of them
+		xy = []
 		for i in range(self.spline_number):
 			U, V = generate_random_polynomial()
 			self.Us.append(U)
 			self.Vs.append(V)
 			self.orientations.append(angle(1, U, V))
 			self.origins.append(self.get_point_from_position(i+1))
+			# get spline length
+			self.lengths.append(get_poly_length(spline=(U,V), integration_range=(0,1)))
+			# get control points
 			control_points = np.linspace(start=i, stop=i+1, num=self.control_points_per_spline)
-			self.positions.extend(control_points) 
-			# approximate spline length
-			length = 0
-			for c in range(self.control_points_per_spline-1):
-				length += euclidean_distance(self.get_point_from_position(control_points[c]),self.get_point_from_position(control_points[c+1]))
-			self.lengths.append(length)
-		xy = [self.get_point_from_position(pos) for pos in self.positions]
+			xy += map(self.get_point_from_position, control_points)
 		return list(zip(*xy))
 
 	def is_terminal_position(self, position):

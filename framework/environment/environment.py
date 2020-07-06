@@ -62,15 +62,14 @@ class Environment(object):
 			return observation_dict
 		game = game_wrapper(config_dict)
 		game.reset()
-		observation_dict = get_observation_dict(game)
-		put_timed_queue(output_queue, observation_dict, qid=config_dict['id']) # step = 0
-		while not game.is_over:
+		put_timed_queue(output_queue, get_observation_dict(game), qid=config_dict['id']) # step == 0
+		while True:
 			action = get_timed_queue(input_queue, qid=config_dict['id'])
-			if action is None:   # If you send `None`, the thread will exit.
-				return
-			game.process(action)
-			observation_dict = get_observation_dict(game)
-			put_timed_queue(output_queue, observation_dict, qid=config_dict['id']) # step > 0
+			if action is None or game.is_over:   # If you send `None`, the thread will reset.
+				game.reset()
+			else:
+				game.process(action)
+			put_timed_queue(output_queue, get_observation_dict(game), qid=config_dict['id']) # step > 0
 
 	def __init__(self, id, game_wrapper, config_dict={}):
 		self.id = id
@@ -78,40 +77,21 @@ class Environment(object):
 		self.__config_dict['id'] = self.id
 		self.__game_wrapper = game_wrapper
 		self.__game_thread = None
-
 		# Statistics
 		self.__episode_statistics = Statistics(flags.episode_count_for_evaluation)
-		
 		tmp_game = game_wrapper(config_dict)
 		self.__state_shape = tmp_game.get_state_shape()
 		self.__action_shape = tmp_game.get_action_shape()
 		self.__has_masked_actions = tmp_game.has_masked_actions()
+		# Game Process
+		self.__game_thread = None
+		self.__start_thread()
 
-	def get_state_shape(self):
-		return self.__state_shape
-
-	def get_action_shape(self):
-		return self.__action_shape
-
-	def stop(self):
+	def __start_thread(self):
 		if self.__game_thread is not None:
-			if DEBUG:
-				print('Closing', self.id)
-			self.__input_queue.put(None)
-			time.sleep(0.1)
-			self.__input_queue.close()
-			self.__output_queue.close()
-
-			self.__game_thread.kill()
-			self.__game_thread = None
-			if DEBUG:
-				print(self.id, 'closed')
-
-	def reset(self, data_id=None, get_screen=False):
-		self.stop()
-		self.__config_dict['get_screen'] = get_screen
+			self.__close_thread()
 		if DEBUG:
-			print('Starting', self.id)
+			print('Starting thread', self.id)
 		self.__input_queue = Queue()
 		self.__output_queue = Queue()
 		self.__game_thread = Process(
@@ -120,6 +100,37 @@ class Environment(object):
 		)
 		# self.__game_thread.daemon = True
 		self.__game_thread.start()
+
+	def __close_thread(self):
+		if DEBUG:
+			print('Closing thread', self.id)
+		time.sleep(0.1)
+		self.__input_queue.close()
+		self.__output_queue.close()
+		self.__game_thread.kill()
+		if DEBUG:
+			print('Thread', self.id, 'closed')
+		self.__game_thread = None
+
+	def get_state_shape(self):
+		return self.__state_shape
+
+	def get_action_shape(self):
+		return self.__action_shape
+
+	def stop(self):
+		if DEBUG:
+			print('Stopping game', self.id)
+		self.__close_thread()
+
+	def reset(self, data_id=None, get_screen=False):
+		if self.__game_thread is None: # start a new thread
+			self.__start_thread()
+		else: # reuse the current thread
+			self.__input_queue.put(None)
+		self.__config_dict['get_screen'] = get_screen
+		if DEBUG:
+			print('Resetting game', self.id)
 		self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)
 		self.step = 0
 		return self.last_observation
@@ -132,6 +143,7 @@ class Environment(object):
 			if is_terminal:
 				self.__episode_statistics.add(self.last_observation['statistics'])
 		else:
+			self.__game_thread = None
 			is_terminal = True
 		# complete step
 		self.step += 1

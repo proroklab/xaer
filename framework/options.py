@@ -10,7 +10,7 @@ def build():
 	options["timesteps_before_starting_training"] = 2**10 # "Number of initialization steps."
 	options["shuffle_sequences"] = True # Whether to shuffle sequences in the batch when training (recommended).
 # Environment
-	options["env_type"] = "CarControllerV3" # "environment types: CarControllerV[1,2,3] or environments from https://gym.openai.com/envs"
+	options["env_type"] = "CarControllerV1" # "environment types: CarControllerV[1,2,3] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
 	options["algorithm"] = "AC" # "algorithms: AC, TD3"

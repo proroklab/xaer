@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 		
 def rotate(x,y,theta):
 	return (x*np.cos(theta)-y*np.sin(theta), x*np.sin(theta)+y*np.cos(theta))
@@ -51,7 +52,12 @@ def derivative(p, points):
 def angle(p, U, V):
 	Ud = derivative(p,U)
 	Vd = derivative(p,V)
-	return (np.arctan(Vd/Ud)) if abs(Ud) > abs(Vd/1000) else (np.pi/2)
+	return np.arctan(Vd/Ud) if abs(Ud) > abs(Vd/1000) else (np.pi/2)
+
+def get_poly_length(spline, integration_range): # quad is precise [Clenshaw-Curtis], romberg is generally faster
+	U,V = spline
+	start, end = integration_range
+	return scipy.integrate.romberg(lambda p:np.sqrt(poly(p,U)**2+poly(p,V)**2), start, end, tol=1e-02, rtol=1e-02)
 	
 def norm(angle):
     if angle >= np.pi:

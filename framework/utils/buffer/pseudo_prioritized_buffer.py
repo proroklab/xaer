@@ -59,9 +59,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			idx = len(type_batch)
 			type_batch.append(batch)
 		# Set insertion time
-		self._insertion_time_tree[sample_type][idx] = (time.time(), idx) # O(log)
+		if self._prioritized_drop_probability < 1:
+			self._insertion_time_tree[sample_type][idx] = (time.time(), idx) # O(log)
 		# Set drop priority
-		if self._global_distribution_matching:
+		if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
 		self.update_priority(idx, priority, type_id)
@@ -76,6 +77,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		idx = np.clip(idx, 0,len(type_batch)-1)
 		# Remove from buffer
 		if remove:
+			self._insertion_time_tree[sample_type][idx] = None # O(log)
 			self._drop_priority_tree[sample_type][idx] = None # O(log)
 			self._sample_priority_tree[sample_type][idx] = None # O(log)
 		return type_batch[idx], idx, type_id
@@ -87,6 +89,6 @@ class PseudoPrioritizedBuffer(Buffer):
 		sample_type = self.get_type(type_id)
 		normalized_priority = self.normalize_priority(priority)
 		# Update priority
-		if not self._global_distribution_matching:
+		if self._prioritized_drop_probability > 0 and not self._global_distribution_matching:
 			self._drop_priority_tree[sample_type][idx] = (normalized_priority, idx) # O(log)
 		self._sample_priority_tree[sample_type][idx] = normalized_priority # O(log)
