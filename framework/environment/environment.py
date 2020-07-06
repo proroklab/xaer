@@ -35,14 +35,13 @@ class Environment(object):
 
 	@staticmethod
 	def create_environment(env_type, env_id=0, training=True, group_id=0):
-		env_name = f'{group_id}.{env_id}'
 		if env_type.startswith('CarController'):
 			import environment.car_controller as car_controller
-			return Environment(env_name, eval(f'car_controller.{env_type}'))
+			return Environment(f'{group_id}.{env_id}', eval(f'car_controller.{env_type}'))
 		else:
 			from environment.openai_gym.openai_gym_wrapper import GymGameWrapper
 			Environment.state_scaler = GymGameWrapper.state_scaler
-			return Environment(env_name, GymGameWrapper, {'game': env_type})
+			return Environment(f'{group_id}.{env_id}', GymGameWrapper, {'game': env_type})
 
 	@staticmethod
 	def __game_worker(input_queue, output_queue, game_wrapper, config_dict):
@@ -71,9 +70,9 @@ class Environment(object):
 				game.process(action)
 			put_timed_queue(output_queue, get_observation_dict(game), qid=config_dict['id']) # step > 0
 
-	def __init__(self, id, game_wrapper, config_dict={}):
-		self.id = id
-		self.__config_dict = config_dict
+	def __init__(self, gid, game_wrapper, config_dict=None):
+		self.id = gid
+		self.__config_dict = config_dict if config_dict else {}
 		self.__config_dict['id'] = self.id
 		self.__game_wrapper = game_wrapper
 		self.__game_thread = None
@@ -85,7 +84,6 @@ class Environment(object):
 		self.__has_masked_actions = tmp_game.has_masked_actions()
 		# Game Process
 		self.__game_thread = None
-		self.__start_thread()
 
 	def __start_thread(self):
 		if self.__game_thread is not None:
@@ -124,11 +122,13 @@ class Environment(object):
 		self.__close_thread()
 
 	def reset(self, data_id=None, get_screen=False):
-		if self.__game_thread is None: # start a new thread
+		if self.__game_thread is None or get_screen != self.__config_dict.get('get_screen',False): # start a new thread
+			self.__config_dict['get_screen'] = get_screen
+			if DEBUG:
+				print('Change config', self.__config_dict)
 			self.__start_thread()
 		else: # reuse the current thread
 			self.__input_queue.put(None)
-		self.__config_dict['get_screen'] = get_screen
 		if DEBUG:
 			print('Resetting game', self.id)
 		self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)

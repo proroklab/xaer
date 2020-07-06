@@ -23,7 +23,7 @@ class EnvironmentManager(object):
 		self.environment_id = environment_id
 		self.group_id = group_id
 		# Build environment
-		self.environment = Environment.create_environment(flags.env_type, self.environment_id, self._training, group_id)
+		self.environment = Environment.create_environment(flags.env_type, self.environment_id, self._training, self.group_id)
 		self.extrinsic_reward_manipulator = eval(flags.extrinsic_reward_manipulator)
 		self.terminal = True
 		self._composite_batch = CompositeBatch(maxlen=flags.replay_buffer_size if flags.replay_mean > 0 else 1)
@@ -78,7 +78,7 @@ class EnvironmentManager(object):
 		if flags.show_episodes == 'none':
 			self.save_frame_info = False
 		else:
-			self.save_frame_info = flags.show_episodes != 'random' or np.random.random() <= flags.show_episode_probability
+			self.save_frame_info = (flags.show_episodes != 'random') or (np.random.random() <= flags.show_episode_probability)
 		# Reset environment
 		self.environment.reset(data_id, self.save_frame_info)
 
@@ -88,8 +88,9 @@ class EnvironmentManager(object):
 	def print_frames(self, frames, episode_directory):
 		print_frame = False
 		if flags.show_episodes == 'best':
-			if self.__episode_info['tot_reward'] > self.__max_reward:
-				self.__max_reward = self.__episode_info['tot_reward']
+			tot_extrinsic_reward, tot_intrinsic_reward = self.__episode_info['tot_reward']
+			if tot_extrinsic_reward > self.__max_reward:
+				self.__max_reward = tot_extrinsic_reward
 				print_frame = True
 		elif self.save_frame_info:
 			print_frame = True
