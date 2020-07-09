@@ -5,10 +5,8 @@ from agent.algorithm import *
 from agent.worker.experience_manager.batch import CompositeBatch
 from agent.worker.experience_manager.prioritization_scheme import *
 from agent.worker.experience_manager.clustering_scheme import *
-from utils.buffer import Buffer, PseudoPrioritizedBuffer
 from utils.running_std import RunningMeanStd
 from utils.important_information import ImportantInformation
-from threading import Lock
 import options
 flags = options.get()
 
@@ -23,9 +21,6 @@ class NetworkManager(object):
 	print('Experience Prioritization Scheme:',experience_prioritization_scheme)
 	prioritized_replay_with_update = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('priority_update_after_replay',False)
 	print('Prioritized Replay With Update:',prioritized_replay_with_update)
-	# Experience Clustering
-	experience_clustering_scheme = eval(flags.experience_clustering_scheme)() if flags.experience_clustering_scheme and with_experience_replay else False
-	print('Experience Clustering Scheme:',experience_clustering_scheme)
 	# Intrinsic Rewards
 	prioritized_with_intrinsic_reward = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('intrinsic_reward',False)
 	print('Prioritized With Intrinsic Reward:',prioritized_with_intrinsic_reward)
@@ -46,18 +41,9 @@ class NetworkManager(object):
 	print('Prioritized With Importance Weight Extraction:',prioritized_with_importance_weight_extraction)
 	with_importance_weight_extraction = algorithm.extract_importance_weight or prioritized_with_importance_weight_extraction
 	print('With Importance Weight Extraction:',with_importance_weight_extraction)
-	if with_experience_replay:
-		experience_buffer_lock = Lock() # Use a locking mechanism to access the buffer because buffers are shared among threads
-		if experience_prioritization_scheme:
-			experience_buffer = PseudoPrioritizedBuffer(
-				size=flags.replay_buffer_size, 
-				alpha=flags.prioritized_replay_alpha, 
-				prioritized_drop_probability=flags.prioritized_drop_probability,
-				global_distribution_matching=flags.global_distribution_matching,
-			)
-		else:
-			experience_buffer = Buffer(size=flags.replay_buffer_size)
-		ImportantInformation(experience_buffer, 'experience_buffer')
+	# Experience Clustering
+	experience_cluster = eval(flags.experience_clustering_scheme)(experience_prioritization_scheme) if flags.experience_clustering_scheme and with_experience_replay else False
+	print('Experience Clustering Scheme:',experience_cluster)
 	
 	def __init__(self, group_id, environment_info, global_network=None, training=True):
 		self.training = training
@@ -305,7 +291,7 @@ class NetworkManager(object):
 		# Check whether batch is empty
 		if batch.is_empty(self.agents_set):
 			return False
-		type_id = self.experience_clustering_scheme.get_batch_type(batch, self.agents_set, episode_type)
+		type_id = self.experience_cluster.get_batch_type(batch, self.agents_set, episode_type)
 		# Populate buffer
 		params_dict = {
 			'batch': batch,
@@ -313,15 +299,14 @@ class NetworkManager(object):
 		}
 		if self.experience_prioritization_scheme:
 			params_dict['priority'] = self.experience_prioritization_scheme.get(batch, self.agents_set)
-		with self.experience_buffer_lock:
-			self.experience_buffer.put(**params_dict)
+		self.experience_cluster.add(**params_dict)
 		return True
 
 	def try_to_replay_experience(self):
 		if not self.with_experience_replay:
 			return
 		# Check whether experience buffer has enough elements for replaying
-		if not self.experience_buffer.has_atleast(flags.replay_start):
+		if not self.experience_cluster.has_atleast(flags.replay_start):
 			return
 		if self.prioritized_replay_with_update:
 			batch_to_update = []
@@ -330,14 +315,12 @@ class NetworkManager(object):
 		for _ in range(n):
 			# Sample batch
 			if self.prioritized_replay_with_update:
-				with self.experience_buffer_lock:
-					keyed_sample = self.experience_buffer.keyed_sample()
+				keyed_sample = self.experience_cluster.get()
 				batch_to_update.append(keyed_sample)
 				old_batch, _, _ = keyed_sample
 			else:
-				with self.experience_buffer_lock:
-					old_batch = self.experience_buffer.sample()
-			# Replay value, without keeping experience_buffer_lock the buffer update might be not consistent anymore
+				old_batch = self.experience_cluster.get()[0]
+			# Replay value
 			self._update_batch(
 				batch= old_batch, 
 				with_value= flags.recompute_value_when_replaying, 
@@ -352,9 +335,11 @@ class NetworkManager(object):
 		# Update buffer
 		if self.prioritized_replay_with_update:
 			for batch, bidx, btype in batch_to_update:
-				new_priority = self.experience_prioritization_scheme.get(batch, self.agents_set)
-				with self.experience_buffer_lock:
-					self.experience_buffer.update_priority(idx=bidx, priority=new_priority, type_id=btype)
+				self.experience_cluster.update(
+					idx=bidx, 
+					priority=self.experience_prioritization_scheme.get(batch, self.agents_set), 
+					type_id=btype
+				)
 		
 	def finalize_batch(self, composite_batch, global_step):	
 		self.can_compute_intrinsic_reward = global_step > flags.intrinsic_reward_step
@@ -372,9 +357,10 @@ class NetworkManager(object):
 		# Train
 		self._train(replay=False, batch=batch)
 		# Populate replay buffer
-		if batch.terminal and self.with_experience_replay:
+		if self.with_experience_replay:
 			# Check whether to save the whole episode list into the replay buffer
-			episode_type = self.experience_clustering_scheme.get_episode_type(composite_batch, self.agents_set)
+			episode_type = self.experience_cluster.get_episode_type(composite_batch, self.agents_set)
+			is_best = self.experience_cluster.is_best_episode(episode_type)
 			#===================================================================
 			# # Build the best known cumulative return
 			# if is_best and flags.recompute_value_when_replaying:
@@ -382,10 +368,9 @@ class NetworkManager(object):
 			# 		self._compute_discounted_cumulative_reward(composite_batch)
 			#===================================================================
 			# Add batch to experience buffer if it is a good batch or the batch has terminated
-			if flags.replay_only_best_batches:
-				if not self.experience_clustering_scheme.is_best(episode_type):
-					return
-			for old_batch in composite_batch.get():
-				self._add_to_replay_buffer(batch=old_batch, episode_type=episode_type)
-			# Clear composite batch
-			composite_batch.clear()
+			add_composite_batch_to_buffer = is_best or (not flags.replay_only_best_batches and batch.terminal)
+			if add_composite_batch_to_buffer:
+				for old_batch in composite_batch.get():
+					self._add_to_replay_buffer(batch=old_batch, episode_type=episode_type)
+				# Clear composite batch
+				composite_batch.clear()

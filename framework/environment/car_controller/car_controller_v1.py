@@ -242,12 +242,15 @@ class CarControllerV1(GameWrapper):
 		self.avg_speed_per_steps += self.speed
 		# update step
 		self.step += 1
-		terminal = dead or self.is_terminal_position(car_position) or self.step >= self.max_step
+		completed_track = self.is_terminal_position(car_position)
+		out_of_time = self.step >= self.max_step
+		terminal = dead or completed_track or out_of_time
 		if terminal: # populate statistics
 			self.is_over = True
 			stats = {
 				"avg_speed": self.avg_speed_per_steps/self.step,
-				"reach_goal": 1 if self.is_terminal_position(car_position) else 0
+				"completed_track": 1 if completed_track else 0,
+				"out_of_time": 1 if out_of_time else 0,
 			}
 			if self.max_obstacle_count > 0:
 				stats["avoid_collision"] = 0 if dead else 1
@@ -367,6 +370,7 @@ class CarControllerV1(GameWrapper):
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')
 		data = data.reshape(figure.canvas.get_width_height()[::-1] + (3,))
+		figure.clear()
 		return {'RGB': data} # RGB array
 				
 	def get_statistics(self):

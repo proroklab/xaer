@@ -6,14 +6,15 @@ from utils.buffer.buffer import Buffer
 from utils.segment_tree import SumSegmentTree, MinSegmentTree
 
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_alpha','_prioritized_drop_probability','_epsilon','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree')
+	__slots__ = ('_alpha','_prioritized_drop_probability','_epsilon','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling')
 	
-	def __init__(self, size, alpha=1, prioritized_drop_probability=0.5, global_distribution_matching=False): # O(1)
+	def __init__(self, size, alpha=1, prioritized_drop_probability=0.5, global_distribution_matching=False, prioritised_cluster_sampling=True): # O(1)
 		self._epsilon = 1e-6
 		self._alpha = alpha # how much prioritization is used (0 - no prioritization, 1 - full prioritization)
 		self._it_capacity = 1
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
+		self._prioritised_cluster_sampling = prioritised_cluster_sampling
 		while self._it_capacity < size:
 			self._it_capacity *= 2
 		super().__init__(size)
@@ -66,13 +67,24 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
 		self.update_priority(idx, priority, type_id)
+
+	def sample_cluster(self):
+		if self._prioritised_cluster_sampling:
+			type_priority = list(map(lambda x: x.sum(scaled=False), self._sample_priority_tree))
+			worse_type_priority = min(type_priority)
+			type_cumsum = np.cumsum(list(map(lambda x: x-worse_type_priority, type_priority))) # O(|self.type_keys|)
+			type_mass = random() * type_cumsum[-1] # O(1)
+			sample_type,_ = next(filter(lambda x: x[-1] >= type_mass, enumerate(type_cumsum))) # O(|self.type_keys|)
+			type_id = self.type_keys[sample_type]
+		else:
+			type_id = choice(self.type_keys)
+			sample_type = self.get_type(type_id)
+		return type_id, sample_type
 		
 	def keyed_sample(self, remove=False): # O(log)
-		type_id = choice(self.type_keys)
-		sample_type = self.get_type(type_id)
+		type_id, sample_type = self.sample_cluster()
 		type_sum_tree = self._sample_priority_tree[sample_type]
-		mass = random() * type_sum_tree.sum() # O(1)
-		idx = type_sum_tree.find_prefixsum_idx(mass) # O(log)
+		idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
 		type_batch = self.batches[sample_type]
 		idx = np.clip(idx, 0,len(type_batch)-1)
 		# Remove from buffer

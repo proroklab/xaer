@@ -1,4 +1,7 @@
-from utils.misc import is_tuple
+import numpy as np
+
+def is_tuple(val):
+	return type(val) in [list,tuple]
 
 class SegmentTree(object):
 	__slots__ = ('_capacity','_value')
@@ -29,6 +32,7 @@ class SegmentTree(object):
 		self._capacity = capacity
 		self._value = [neutral_element]*(2 * capacity)
 		self._neutral_element = neutral_element
+		self._inserted_elements = 0
 
 	def _reduce_helper(self, start, end, node, node_start, node_end): # O(log)
 		if (start == node_start and end == node_end) or node_start >= node_end:
@@ -70,6 +74,12 @@ class SegmentTree(object):
 	def __setitem__(self, idx, val): # O(log)
 		# index of the leaf
 		idx += self._capacity
+		if self._value[idx] == self._neutral_element:
+			if val:
+				self._inserted_elements += 1
+		else:
+			if not val:
+				self._inserted_elements -= 1
 		self._value[idx] = val if val else self._neutral_element
 		idx //= 2
 		while idx >= 1:
@@ -90,16 +100,24 @@ class SumSegmentTree(SegmentTree):
 			capacity=capacity,
 			neutral_element=neutral_element
 		)
+		self.min_tree = MinSegmentTree(capacity)
 	
 	@staticmethod
 	def _operation(a, b):
 		return a+b
 
-	def sum(self, start=0, end=None): # O(log)
-		"""Returns arr[start] + ... + arr[end]"""
-		return super(SumSegmentTree, self).reduce(start, end)
+	def __setitem__(self, idx, val): # O(log)
+		super().__setitem__(idx, val)
+		self.min_tree[idx] = val
 
-	def find_prefixsum_idx(self, prefixsum): # O(log)
+	def sum(self, start=0, end=None, scaled=True): # O(log)
+		"""Returns arr[start] + ... + arr[end]"""
+		tot = super(SumSegmentTree, self).reduce(start, end)
+		if scaled:
+			tot -= self.min_tree.min()*self._inserted_elements
+		return tot
+
+	def find_prefixsum_idx(self, prefixsum_fn, scaled_prefix=True): # O(log)
 		"""Find the highest index `i` in the array such that
 			sum(arr[0] + arr[1] + ... + arr[i - i]) <= prefixsum
 		if array values are probabilities, this function
@@ -115,13 +133,22 @@ class SumSegmentTree(SegmentTree):
 			highest index satisfying the prefixsum constraint
 		"""
 		# assert 0 <= prefixsum <= self.sum() + 1e-5 # O(1)
+		mass = super(SumSegmentTree, self).reduce(start=0, end=None) # O(1)
+		if scaled_prefix: # Use it in case of negative elements in the sumtree, they would break the tree invariant
+			minimum = min(self._neutral_element,self.min_tree.min()) # O(1)
+			summed_elements = self._capacity
+			mass -= minimum*summed_elements
+		prefixsum = prefixsum_fn(mass)
 		idx = 1
 		while idx < self._capacity:  # while non-leaf
-			if self._value[2 * idx] > prefixsum:
-				idx = 2 * idx
-			else:
-				prefixsum -= self._value[2 * idx]
-				idx = 2 * idx + 1
+			idx *= 2
+			summed_elements /= 2
+			value = self._value[idx]
+			if scaled_prefix:
+				value -= minimum*summed_elements
+			if value <= prefixsum:
+				prefixsum -= value
+				idx += 1
 		return idx - self._capacity
 	
 class MinSegmentTree(SegmentTree):
@@ -153,3 +180,13 @@ class MaxSegmentTree(SegmentTree):
 	def max(self, start=0, end=None): # O(log)
 		"""Returns min(arr[start], ...,  arr[end])"""
 		return super(MaxSegmentTree, self).reduce(start, end)
+
+# test = SumSegmentTree(4)
+# test[2] = -10
+# test[3] = -5
+# test[0] = 1
+# test[1] = 2
+# print(test.sum())
+# i = test.find_prefixsum_idx(23)
+# print(i,test[i] )
+

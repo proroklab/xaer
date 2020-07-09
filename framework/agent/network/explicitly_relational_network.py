@@ -35,7 +35,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 	def __init__(self, id, policy_heads, scope_dict, training=True, value_count=1, state_scaler=1):
 		super().__init__(id, policy_heads, scope_dict, training, value_count, state_scaler)
 		self.object_pairs = 16
-		self.edge_size_per_object_pair = 2
+		self.edge_size_per_object_pair = 4
 		self.relational_layer_operators_set = [OR,NOR,AND,NAND,XOR,XNOR]
 
 	def _entity_extraction_layer(self, features, scope="", name="", share_trainables=True):

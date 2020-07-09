@@ -10,11 +10,11 @@ def build():
 	options["timesteps_before_starting_training"] = 2**10 # "Number of initialization steps."
 	options["shuffle_sequences"] = True # Whether to shuffle sequences in the batch when training (recommended).
 # Environment
-	options["env_type"] = "CarControllerV1" # "environment types: CarControllerV[1,2,3] or environments from https://gym.openai.com/envs"
+	options["env_type"] = "CarControllerV3" # "environment types: CarControllerV[1,2,3] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
 	options["algorithm"] = "AC" # "algorithms: AC, TD3"
-	options["network_configuration"] = "ExplicitlyArgumentative" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala, ExplicitlyRelational, ExplicitlyArgumentative"
+	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala, ExplicitlyRelational, ExplicitlyArgumentative"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = "Adam" # "gradient optimizer: PowerSign, AddSign, ElasticAverage, LazyAdam, Nadam, Adadelta, AdagradDA, Adagrad, Adam, Ftrl, GradientDescent, Momentum, ProximalAdagrad, ProximalGradientDescent, RMSProp" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.
@@ -22,7 +22,7 @@ def build():
 	# Use mean losses if max_batch_size is too big, in order to avoid NaN
 	options["loss_type"] = "mean" # "type of loss reduction: sum, mean"
 	options["policy_loss"] = "PPO" # "policy loss function: Vanilla, PPO, DISC"
-	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO"
+	options["value_loss"] = "Vanilla" # "value loss function: Vanilla, PVO" -> PVO is good when rewards are sparse and unbalanced in magnitude, or when network is deep
 # Transition Prediction
 	options["with_transition_predictor"] = False # Setting this option to True, you add an extra head to the default set of heads: actor, critic. This new head will be trained to predict r_t and the embedding of s_(t+1) given the embedding of s_t and a_t.
 # PPO's and PVO's Loss clip range
@@ -53,7 +53,7 @@ def build():
 	options["episodic_intrinsic_reward"] = False # "Bootstrap 0 for intrinsic value if state is terminal."
 # Experience Replay
 	# Replay mean > 0 increases off-policyness
-	options["replay_mean"] = 1 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for A3C is 0, for ACER default is 4
+	options["replay_mean"] = 1 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for vanilla A3C default is 0, for ACER default is 4
 	options["replay_step"] = 2**10 # "Start replaying experience when global step is greater than replay_step."
 	options["replay_buffer_size"] = 2**9 # "Maximum number of batches stored in the experience buffer."
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
@@ -65,11 +65,12 @@ def build():
 # Prioritized Experience Replay: Schaul, Tom, et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
 	options["prioritization_scheme"] = "unclipped_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: 'pruned_gain_estimate, clipped_gain_estimate, clipped_mean_gain_estimate, clipped_best_gain_estimate, unclipped_gain_estimate, unclipped_mean_gain_estimate, unclipped_best_gain_estimate, surprise, cumulative_extrinsic_return, transition_prediction_error'.
 	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
-	options["prioritized_drop_probability"] = 0.5 # "Probability of removing the batch with the lowest priority instead of the oldest batch."
+	options["prioritized_drop_probability"] = 0.5 # "Probability of removing the batch with the lowest priority instead of the oldest batch." -> The closer to 1 the higher the value (this facilitates value over-estimation).
 	# Isele, David, and Akansel Cosgun. "Selective experience replay for lifelong learning." Thirty-second AAAI conference on artificial intelligence. 2018.
 	options["global_distribution_matching"] = False # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 # Experience Clustering
-	options["experience_clustering_scheme"] = "reward_with_type" # 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'
+	options["experience_clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # The scheme used to group experience into clusters. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'.
+	options["prioritised_cluster_sampling"] = True # Whether clustering sampling is uniform (False) or prioritised (True).
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
 	options["intrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the intrinsic rewards."
@@ -103,7 +104,7 @@ def build():
 	options["log_directory"] = "./log" # "events directory"
 	options["print_loss"] = True # "Whether to print losses inside statistics" # print_loss = True might slow down the algorithm
 	options["print_policy_info"] = True # "Whether to print debug information about the actor inside statistics" # print_policy_info = True might slow down the algorithm
-	options["show_episodes"] = 'random' # "What type of episodes to save: random, best, all, none"
+	options["show_episodes"] = 'none' # "What type of episodes to save: random, best, all, none"
 	options["show_episode_probability"] = 5e-4 # "Probability of showing an episode when show_episodes == random"
 	# save_episode_screen = True might slow down the algorithm -> use in combination with show_episodes = 'random' for best perfomance
 	options["save_episode_screen"] = True # "Whether to save episode screens"

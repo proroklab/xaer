@@ -13,22 +13,24 @@ flags = options.get()
 DEBUG = False
 
 def get_timed_queue(q, timeout=None, qid=None):
-	try:
-		return q.get(timeout=timeout)
-	except:
-		if DEBUG:
-			print("restarting", qid)
-		time.sleep(0.1)
-		return get_timed_queue(q,timeout,qid)
+	return q.get(timeout=timeout)
+	# try:
+	# 	return q.get(timeout=timeout)
+	# except:
+	# 	if DEBUG:
+	# 		print("restarting", qid)
+	# 	time.sleep(0.1)
+	# 	return get_timed_queue(q,timeout,qid)
 
 def put_timed_queue(q, v, timeout=None, qid=None):
-	try:
-		q.put(v, timeout=timeout)
-	except:
-		if DEBUG:
-			print("restarting", qid)
-		time.sleep(0.1)
-		put_timed_queue(q,v,timeout,qid)
+	q.put(v, timeout=timeout)
+	# try:
+	# 	q.put(v, timeout=timeout)
+	# except:
+	# 	if DEBUG:
+	# 		print("restarting", qid)
+	# 	time.sleep(0.1)
+	# 	put_timed_queue(q,v,timeout,qid)
 
 class Environment(object):
 	state_scaler = 1
@@ -96,16 +98,20 @@ class Environment(object):
 			target=self.__game_worker, 
 			args=(self.__input_queue, self.__output_queue, self.__game_wrapper, self.__config_dict)
 		)
-		# self.__game_thread.daemon = True
+		self.__game_thread.daemon = True
 		self.__game_thread.start()
 
 	def __close_thread(self):
+		if self.__game_thread is None:
+			return
 		if DEBUG:
 			print('Closing thread', self.id)
-		time.sleep(0.1)
+		self.__game_thread.kill()
+		while self.__game_thread.is_alive():
+			time.sleep(1e-2)
+		self.__game_thread.close()
 		self.__input_queue.close()
 		self.__output_queue.close()
-		self.__game_thread.kill()
 		if DEBUG:
 			print('Thread', self.id, 'closed')
 		self.__game_thread = None
@@ -128,7 +134,7 @@ class Environment(object):
 				print('Change config', self.__config_dict)
 			self.__start_thread()
 		else: # reuse the current thread
-			self.__input_queue.put(None)
+			put_timed_queue(self.__input_queue, None, qid=self.id)
 		if DEBUG:
 			print('Resetting game', self.id)
 		self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)

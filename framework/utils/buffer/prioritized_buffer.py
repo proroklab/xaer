@@ -5,10 +5,11 @@ from sortedcontainers import SortedDict
 from utils.buffer.buffer import Buffer
 
 class PrioritizedBuffer(Buffer):
-	__slots__ = ('alpha','prefixsum','priorities')
+	__slots__ = ('alpha','prefixsum','priorities','_prioritised_cluster_sampling')
 	
-	def __init__(self, size, alpha=1):
+	def __init__(self, size, alpha=1, prioritised_cluster_sampling=True):
 		self.alpha = alpha # how much prioritization is used (0 - no prioritization, 1 - full prioritization)
+		self._prioritised_cluster_sampling = prioritised_cluster_sampling
 		super().__init__(size)
 		
 	def set(self, buffer):
@@ -60,10 +61,22 @@ class PrioritizedBuffer(Buffer):
 		unique_batch_priority = self.build_unique(priority,priority_count)
 		self.batches[type].update({unique_batch_priority: batch}) # O(log)
 		self.prefixsum[type] = None # compute prefixsum only if needed, when sampling
+
+	def sample_cluster(self):
+		if self._prioritised_cluster_sampling:
+			type_priority = list(map(lambda x: x.sum(scaled=False), self._sample_priority_tree))
+			worse_type_priority = min(type_priority)
+			type_cumsum = np.cumsum(list(map(lambda x: x-worse_type_priority, type_priority))) # O(|self.type_keys|)
+			type_mass = random() * type_cumsum[-1] # O(1)
+			sample_type,_ = next(filter(lambda x: x[-1] >= type_mass, enumerate(type_cumsum))) # O(|self.type_keys|)
+			type_id = self.type_keys[sample_type]
+		else:
+			type_id = choice(self.type_keys)
+			sample_type = self.get_type(type_id)
+		return type_id, sample_type
 		
 	def keyed_sample(self, remove=False): # O(n) after a new put, O(log) otherwise
-		type_id = choice(self.type_keys)
-		type = self.get_type(type_id)
+		type_id, type = self.sample_cluster()
 		if self.prefixsum[type] is None: # compute prefixsum
 			self.prefixsum[type] = np.cumsum([self.get_priority_from_unique(k) for k in self.batches[type].keys()]) # O(n)
 		mass = random() * self.prefixsum[type][-1]

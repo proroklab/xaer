@@ -36,6 +36,7 @@ flags = options.get()
 def train():
 	result_queue = Queue()
 	p = Process(target=lambda q: q.put(Application().train()), args=(result_queue,))
+	# p.daemon = True # daemonic processes are not allowed to have children
 	p.start()
 	p.join()
 	if not result_queue.empty():
