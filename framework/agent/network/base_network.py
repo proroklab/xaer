@@ -80,6 +80,7 @@ class Base_Network(Network):
 					share_trainables=share_trainables
 				)
 				print( "	[{}]Concat layer output shape: {}".format(self.id, embedded_input.get_shape()) )
+			# embedded_input = tf.keras.layers.LayerNormalization(name='EmbeddingNorm')(embedded_input)
 			return embedded_input
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 

@@ -13,7 +13,9 @@ import options
 flags = options.get()
 
 def merge_splitted_advantages(advantage):
-	return flags.extrinsic_coefficient*advantage[0] + flags.intrinsic_coefficient*advantage[1]
+	if flags.split_values:
+		return flags.extrinsic_coefficient*advantage[0] + flags.intrinsic_coefficient*advantage[1]
+	return advantage
 
 class AC_Algorithm(RL_Algorithm):
 	extract_importance_weight = flags.advantage_estimator.lower() in ["vtrace","gae_v"]

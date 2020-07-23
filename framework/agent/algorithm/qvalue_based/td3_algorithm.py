@@ -21,7 +21,7 @@ class TD3_Algorithm(RL_Algorithm):
 		# 	for head in self.policy_heads
 		# ]
 		self.target_policy_noise = 0.2
-		self.gamma = flags.gamma
+		self.gamma = flags.extrinsic_gamma
 		self.tau = 0.005
 		self.policy_delay = 2
 		self.target_noise_clip=0.5

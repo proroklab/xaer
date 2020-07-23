@@ -27,7 +27,7 @@ def gae_v(gamma, last_value, reversed_reward, reversed_value, reversed_importanc
 		return reversed_cumulative_return, reversed_cumulative_advantage
 	return generalized_advantage_estimator_with_vtrace(
 		gamma=gamma, 
-		lambd=flags.lambd, 
+		lambd=flags.advantage_lambda, 
 		last_value=last_value, 
 		reversed_reward=reversed_reward, 
 		reversed_value=reversed_value,
@@ -56,7 +56,7 @@ def vtrace(gamma, last_value, reversed_reward, reversed_value, reversed_importan
 		return reversed_cumulative_return, reversed_cumulative_advantage
 	return v_trace(
 		gamma=gamma, 
-		lambd=flags.lambd, 
+		lambd=flags.advantage_lambda, 
 		last_value=last_value, 
 		reversed_reward=reversed_reward, 
 		reversed_value=reversed_value,
@@ -83,7 +83,7 @@ def gae(gamma, last_value, reversed_reward, reversed_value, **args):
 		return reversed_cumulative_return, reversed_cumulative_advantage
 	return generalized_advantage_estimator(
 		gamma=gamma, 
-		lambd=flags.lambd, 
+		lambd=flags.advantage_lambda, 
 		last_value=last_value, 
 		reversed_reward=reversed_reward, 
 		reversed_value=reversed_value

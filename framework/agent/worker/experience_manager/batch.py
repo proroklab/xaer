@@ -152,7 +152,7 @@ class ExperienceBatch():
 		reversed_reward, reversed_value, reversed_importance_weight = self.get_all_actions(actions=['manipulated_rewards','values','importance_weights'], agents=agents, reverse=True)
 		# print(len(reversed_reward), len(reversed_value), len(reversed_importance_weight))
 		if flags.split_values: # There are 2 value heads: one for intrinsinc and one for extrinsic rewards
-			gamma = np.array([gamma, flags.intrinsic_reward_gamma])
+			gamma = np.array([gamma, flags.intrinsic_gamma])
 			if terminal: # episodic reward
 				if flags.episodic_extrinsic_reward:
 					last_value[0] = 0.

@@ -81,6 +81,26 @@ def euclidean_distance(a,b):
 def point_is_in_segment(point,segment, epsilon=1e-8):
 	a,b = segment
 	return np.absolute(euclidean_distance(a,point) + euclidean_distance(b,point) - euclidean_distance(a,b)) <= epsilon
+
+def segments_intersect(AB, CD):
+	# Return true if line segments AB and CD intersect
+	A, B = AB
+	C, D = CD
+
+	# If two segments start/end at same point, consider as *not* intersecting
+	for point1 in AB:
+		for point2 in CD:
+			if point1 == point2:
+				return False
+
+	# Explanation here: https://bryceboe.com/2006/10/23/line-segment-intersection-algorithm/
+	def ccw(A, B, C):
+		Ax, Ay = A
+		Bx, By = B
+		Cx, Cy = C
+		return (Cy - Ay) * (Bx - Ax) > (By - Ay) * (Cx - Ax)
+	return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
 	
 def segment_collide_circle(segment, circle):
 	C, radius = circle
@@ -98,3 +118,27 @@ def segment_collide_circle(segment, circle):
 	# compute the coordinates of the point E on line and closest to C
 	E = (t*Dx+Ax,t*Dy+Ay)
 	return euclidean_distance(E,C) <= radius # test whether E is in segment and the line intersects the circle or is tangent to circle
+
+def colour_to_hex(colour_name):
+	if colour_name == "Grey":
+		return "#616A6B"
+	elif colour_name == "Olive":
+		return "#52BE80"
+	elif colour_name == "Brown":
+		return "#6E2C00"
+	elif colour_name == "Orange":
+		return "#D35400"
+	elif colour_name == "Purple":
+		return "#6C3483"
+	elif colour_name == "Red":
+		return "#C0392B"
+	elif colour_name == "Gold":
+		return "#B7950B"
+	elif colour_name == "Green":
+		return "#196F3D"
+	elif colour_name == "Blue":
+		return "#2E86C1"
+	else:
+		return "#000000"
+
+

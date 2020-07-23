@@ -46,11 +46,13 @@ def build():
 	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
 	options["scale_intrinsic_reward"] = False # "Whether to scale the intrinsic reward with its standard deviation."
 	options["intrinsic_rewards_mini_batch_fraction"] = 0 # "Keep only the best intrinsic reward in a mini-batch of size 'batch_size*fraction', and set other intrinsic rewards to 0."
-	options["intrinsic_reward_gamma"] = 0.99 # "Discount factor for intrinsic rewards" # default is 0.95, for openAI is 0.99
-	options["extrinsic_coefficient"] = 2. # "Scale factor for the extrinsic part of the advantage."
+	options["extrinsic_coefficient"] = 1. # "Scale factor for the extrinsic part of the advantage."
 	options["intrinsic_coefficient"] = 1. # "Scale factor for the intrinsic part of the advantage."
 	options["episodic_extrinsic_reward"] = True # "Bootstrap 0 for extrinsic value if state is terminal."
-	options["episodic_intrinsic_reward"] = False # "Bootstrap 0 for intrinsic value if state is terminal."
+	options["episodic_intrinsic_reward"] = True # "Bootstrap 0 for intrinsic value if state is terminal."
+	# Taking gamma < 1 introduces bias into the policy gradient estimate, regardless of the value function accuracy.
+	options["extrinsic_gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95, for openAI is 0.999
+	options["intrinsic_gamma"] = 0.99 # "Discount factor for intrinsic rewards" # default is 0.99
 # Experience Replay
 	# Replay mean > 0 increases off-policyness
 	options["replay_mean"] = 1 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for vanilla A3C default is 0, for ACER default is 4
@@ -81,12 +83,10 @@ def build():
 	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
-	# Taking gamma < 1 introduces bias into the policy gradient estimate, regardless of the value function accuracy.
-	options["gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95, for openAI is 0.99
 # Advantage Estimation
 	options["advantage_estimator"] = "GAE_V" # "Can be one of the following: GAE, GAE_V, VTrace, Vanilla." # GAE_V and VTrace should reduce bias and variance when replay_ratio > 0
 	# Taking lambda < 1 introduces bias only when the value function is inaccurate
-	options["lambd"] = 0.95 # "It is the advantage estimator decay parameter used by GAE, GAE_V and VTrace." # Default for GAE is 0.95, default for VTrace is 1
+	options["advantage_lambda"] = 0.95 # "It is the advantage estimator decay parameter used by GAE, GAE_V and VTrace." # Default for GAE is 0.95, default for VTrace is 1
 # Entropy regularization
 	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss. Works only if intrinsic_reward == False" # default True
 	options["beta"] = 1e-3 # "entropy regularization constant" # default is 0.001, for openAI is 0.01

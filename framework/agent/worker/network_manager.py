@@ -246,7 +246,7 @@ class NetworkManager(object):
 	def _compute_discounted_cumulative_reward(self, batch):
 		batch.compute_discounted_cumulative_reward(
 			agents=self.agents_set, 
-			gamma=flags.gamma, 
+			gamma=flags.extrinsic_gamma, 
 			cumulative_return_builder=self.algorithm.get_reversed_cumulative_return
 		)
 		
