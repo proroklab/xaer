@@ -1,5 +1,8 @@
 import numpy as np
 import scipy
+
+two_pi = 2*np.pi
+pi = np.pi
 		
 def rotate(x,y,theta):
 	return (x*np.cos(theta)-y*np.sin(theta), x*np.sin(theta)+y*np.cos(theta))
@@ -52,7 +55,7 @@ def derivative(p, points):
 def angle(p, U, V):
 	Ud = derivative(p,U)
 	Vd = derivative(p,V)
-	return np.arctan(Vd/Ud) if abs(Ud) > abs(Vd/1000) else (np.pi/2)
+	return (np.arctan(Vd/Ud)) if abs(Ud) > abs(Vd/1000) else (np.pi/2)
 
 def get_poly_length(spline, integration_range): # quad is precise [Clenshaw-Curtis], romberg is generally faster
 	U,V = spline
@@ -60,11 +63,11 @@ def get_poly_length(spline, integration_range): # quad is precise [Clenshaw-Curt
 	return scipy.integrate.romberg(lambda p:np.sqrt(poly(p,U)**2+poly(p,V)**2), start, end, tol=1e-02, rtol=1e-02)
 	
 def norm(angle):
-    if angle >= np.pi:
-        angle -= 2*np.pi
-    elif angle < -np.pi:
-        angle += 2*np.pi
-    return angle
+	if angle >= np.pi:
+		angle -= two_pi
+	elif angle < -np.pi:
+		angle += two_pi
+	return angle
 
 def convert_degree_to_radiant(degree):
 	return (degree/180)*np.pi
@@ -81,6 +84,76 @@ def euclidean_distance(a,b):
 def point_is_in_segment(point,segment, epsilon=1e-8):
 	a,b = segment
 	return np.absolute(euclidean_distance(a,point) + euclidean_distance(b,point) - euclidean_distance(a,b)) <= epsilon
+
+# calculate and return the distance b 
+# needs to move to reach a
+def get_orientation_of_a_relative_to_b(a, b):
+	phi = abs(b-a) % two_pi
+	sign = 1
+	# used to calculate sign
+	if not ((a-b >= 0 and a-b <= pi) or (
+			a-b <= -pi and a-b >= -two_pi)):
+		sign = -1
+	if phi > pi:
+		result = two_pi-phi
+	else:
+		result = phi
+
+	return result*sign
+
+def point_to_line_dist(point, line):
+	"""Calculate the distance between a point and a line segment.
+
+	To calculate the closest distance to a line segment, we first need to check
+	if the point projects onto the line segment.  If it does, then we calculate
+	the orthogonal distance from the point to the line.
+	If the point does not project to the line segment, we calculate the 
+	distance to both endpoints and take the shortest distance.
+
+	:param point: Numpy array of form [x,y], describing the point.
+	:type point: numpy.core.multiarray.ndarray
+	:param line: list of endpoint arrays of form [P1, P2]
+	:type line: list of numpy.core.multiarray.ndarray
+	:return: The minimum distance to a point.
+	:rtype: float
+	"""
+	# unit vector
+	point = np.array(point)
+	line = tuple(map(np.array,line))
+	unit_line = line[1] - line[0]
+	norm_unit_line = unit_line / np.linalg.norm(unit_line)
+
+	# compute the perpendicular distance to the theoretical infinite line
+	segment_dist = (
+		np.linalg.norm(np.cross(line[1] - line[0], line[0] - point)) /
+		np.linalg.norm(unit_line)
+	)
+
+	diff = (
+		(norm_unit_line[0] * (point[0] - line[0][0])) + 
+		(norm_unit_line[1] * (point[1] - line[0][1]))
+	)
+
+	x_seg = (norm_unit_line[0] * diff) + line[0][0]
+	y_seg = (norm_unit_line[1] * diff) + line[0][1]
+
+	endpoint_dist = min(
+		np.linalg.norm(line[0] - point),
+		np.linalg.norm(line[1] - point)
+	)
+
+	# decide if the intersection point falls on the line segment
+	lp1_x = line[0][0]  # line point 1 x
+	lp1_y = line[0][1]  # line point 1 y
+	lp2_x = line[1][0]  # line point 2 x
+	lp2_y = line[1][1]  # line point 2 y
+	is_betw_x = lp1_x <= x_seg <= lp2_x or lp2_x <= x_seg <= lp1_x
+	is_betw_y = lp1_y <= y_seg <= lp2_y or lp2_y <= y_seg <= lp1_y
+	if is_betw_x and is_betw_y:
+		return segment_dist
+	else:
+		# if not, then return the minimum distance to the segment endpoints
+		return endpoint_dist
 
 def segments_intersect(AB, CD):
 	# Return true if line segments AB and CD intersect
@@ -101,6 +174,17 @@ def segments_intersect(AB, CD):
 		return (Cy - Ay) * (Bx - Ax) > (By - Ay) * (Cx - Ax)
 	return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
+def point_inside_sector(point, centre, sector_start, sector_end, radius):
+	def clockwise(v1, v2):
+		return -v1[0]*v2[1] + v1[1]*v2[0] > 0
+	def within_radius(v, radius):
+		return v[0] * v[0] + v[1] * v[1] <= radius * radius
+
+	relative_point = (point[0] - centre[0], point[1] - centre[1])
+
+	return (not clockwise(sector_start, relative_point)) and \
+			clockwise(sector_end, relative_point) and \
+			within_radius(relative_point, radius)
 	
 def segment_collide_circle(segment, circle):
 	C, radius = circle

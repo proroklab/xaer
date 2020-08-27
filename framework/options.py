@@ -10,7 +10,7 @@ def build():
 	options["timesteps_before_starting_training"] = 2**10 # "Number of initialization steps."
 	options["shuffle_sequences"] = True # Whether to shuffle sequences in the batch when training (recommended).
 # Environment
-	options["env_type"] = "CarControllerV3" # "environment types: CarControllerV[1,2,3] or environments from https://gym.openai.com/envs"
+	options["env_type"] = "CarControllerV4" # "environment types: CarControllerV[1,2,3,4] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
 	options["algorithm"] = "AC" # "algorithms: AC, TD3"
@@ -72,7 +72,7 @@ def build():
 	options["global_distribution_matching"] = False # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 # Experience Clustering
 	options["experience_clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # The scheme used to group experience into clusters. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'.
-	options["prioritised_cluster_sampling"] = True # Whether clustering sampling is uniform (False) or prioritised (True).
+	options["prioritised_cluster_sampling"] = False # Whether clustering sampling is uniform (False) or prioritised (True). # Useful when the network configuration does not have a task-oriented inductive bias. The ExplicitlyArgumentative has a task-oriented inductive bias, in other terms, it learns much faster a task and thus with prioritised_cluster_sampling=True it would overfit when the experience buffer is too big.
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
 	options["intrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the intrinsic rewards."

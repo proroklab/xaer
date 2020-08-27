@@ -64,14 +64,15 @@ class CarControllerV3(CarControllerV1):
 				return (-1., True, 'avoid_collision') # terminate episode
 			if euclidean_distance(obstacle_point, car_projection_point) <= obstacle_radius: # could collide obstacle
 				max_distance_to_path += obstacle_radius
+		space_gained = car_speed*self.seconds_per_step
 	# "Follow the lane" rule
 		distance = euclidean_distance(car_point, car_projection_point)
 		if distance > max_distance_to_path:
-			return (-1., True, 'follow_lane') # terminate episode
+			return (-space_gained, False, 'follow_lane') # terminate episode
 	# "Respect the speed limit" rule
 		if car_speed > self.speed_upper_limit:
-			return (-1., True, 'respect_speed_limit') # terminate episode
+			return (-space_gained, False, 'respect_speed_limit') # terminate episode
 	# "Default" rule
 		# if self.is_terminal_position(car_position): # avoid this reward if goal is not visible
 		# 	return (1., True, 'reach_goal') # terminate episode
-		return (car_speed*self.seconds_per_step, False, 'none') # do NOT terminate episode
+		return (space_gained, False, 'none') # do NOT terminate episode
