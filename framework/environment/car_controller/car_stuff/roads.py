@@ -32,6 +32,7 @@ class Road:
 		self.orientation = np.arctan2(end.pos[1] - start.pos[1], end.pos[0] - start.pos[0]) # get slope
 		self.start = start
 		self.end = end
+		self.edge = (start.pos, end.pos)
 		self.colour = colour
 		self.is_connected = False
 		if connect:
@@ -80,19 +81,12 @@ class RoadNetwork:
 		if road not in self.roads:
 			self.roads.append(road)
 
-	def get_visible_junctions_by_point(self, source_point, source_orientation, horizon_distance, arc_angle=np.pi/2):
-		visible_junctions = []
-		for junction in self.junctions:
-			half_angle = arc_angle / 2
-			vector_start = (source_point[0] + horizon_distance * np.cos(source_orientation - half_angle),
-							source_point[1] + horizon_distance * np.sin(source_orientation - half_angle))
-			vector_end   = (source_point[1] + horizon_distance * np.cos(source_orientation + half_angle),
-							source_point[1] + horizon_distance * np.sin(source_orientation + half_angle))
-
-			if point_inside_sector(junction.pos, source_point, vector_start, vector_end, horizon_distance):
-				visible_junctions.append(junction)
-
-		return visible_junctions
+	def get_visible_junctions_by_point(self, source_point, horizon_distance):
+		return [
+			junction
+			for junction in self.junctions
+			if euclidean_distance(source_point, junction.pos) <= horizon_distance
+		]
 
 	def get_closest_junction_by_point(self, source_point):
 		return min(
@@ -109,7 +103,7 @@ class RoadNetwork:
 		return min(
 			(
 				(
-					point_to_line_dist(source_point,(road.start.pos,road.end.pos)),
+					point_to_line_dist(source_point,road.edge),
 					road
 				)
 				for road in self.roads
@@ -145,15 +139,15 @@ class RoadNetwork:
 			"debug_tris": None, # "If a filename is specified here, the initial triangular graph will be saved as a graph for inspection."
 			"debug_span": None, # "If a filename is specified here, the spanning tree will be saved as a graph for inspection."
 		})
-		junction_dict = dict(zip(random_planar_graph['nodes'], map(Junction, random_planar_graph['nodes'])))
-		self.junctions = tuple(junction_dict.values())
+		self.junction_dict = dict(zip(random_planar_graph['nodes'], map(Junction, random_planar_graph['nodes'])))
+		self.junctions = tuple(self.junction_dict.values())
 		spanning_tree_set = set(random_planar_graph['spanning_tree'])
 		feasible_colours = self.feasible_road_colours(agent_colour)
 		# print('edges', random_planar_graph['edges'])
 		for edge in random_planar_graph['edges']:
 			p1,p2 = edge
-			j1 = junction_dict[p1]
-			j2 = junction_dict[p2]
+			j1 = self.junction_dict[p1]
+			j2 = self.junction_dict[p2]
 			colour = random.choice(feasible_colours if edge in spanning_tree_set else self.all_road_colours)
 			road = Road(j1, j2, colour=colour, connect=True)
 			self.roads.append(road)

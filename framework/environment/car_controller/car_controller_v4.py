@@ -38,7 +38,6 @@ class CarControllerV4(GameWrapper):
 	max_dimension = 64
 	map_size = (max_dimension, max_dimension)
 	max_road_length = max_dimension*2/3
-	view_degree = np.pi/2
 
 	def get_action_shape(self):
 		return [(2,)] # steering angle, continuous control without softmax
@@ -47,10 +46,11 @@ class CarControllerV4(GameWrapper):
 		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
 		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		return [
-			( # junction view
-				self.junction_number,
-				Junction.max_roads_connected, # max number of roads per junction
-				1+1, # heading vector + colour
+			(1, 2, 2), # current road view: relative coordinates of road.start.pos and road.end.pos
+			( # closest junctions view
+				2, # number of junctions close to current road
+				Junction.max_roads_connected, 
+				1+1, # relative heading vector + road colour
 			),
 			(
 				self.get_concatenation_size(),
@@ -59,7 +59,7 @@ class CarControllerV4(GameWrapper):
 
 	def get_state(self, car_point, car_orientation):
 		return [
-			self.get_junction_view(car_point, car_orientation), 
+			*self.get_view(car_point, car_orientation), 
 			self.get_concatenation()
 		]
 
@@ -81,42 +81,59 @@ class CarControllerV4(GameWrapper):
 			space_traveled = car_speed*self.seconds_per_step # space traveled
 			return (space_traveled if is_positive else -space_traveled, False, label) # terminate episode
 		
-		distance_from_junction, _ = self.road_network.get_closest_junction_by_point(car_point)
+		road_start, road_end = self.closest_road.edge
+		j1 = self.road_network.junction_dict[road_start]
+		j2 = self.road_network.junction_dict[road_end]
+		distance_from_junction = min(euclidean_distance(j1.pos, car_point), euclidean_distance(j2.pos, car_point))
 		# print(distance_from_junction, self.junction_around)
 		if distance_from_junction > self.junction_around:
-			distance_from_road, car_road = self.road_network.get_closest_road_by_point(car_point)
 			# "Valid colour" rule
-			valid_colour = car_road.colour in self.car_feasible_colours
-			# print(distance_from_road, self.max_distance_to_path, valid_colour)
+			valid_colour = self.closest_road.colour in self.car_feasible_colours
+			# print(self.distance_to_closest_road, self.max_distance_to_path, valid_colour)
 			if not valid_colour:
 				return terminal_reward(is_positive=False, label='valid_colour')
 			# "Stay on the road" rule
-			if distance_from_road > 2*self.max_distance_to_path: 
+			if self.distance_to_closest_road > 2*self.max_distance_to_path: 
 				return terminal_reward(is_positive=False, label='stay_on_the_road')
 			# "Follow the lane" rule # this has an higher priority than the 'respect_speed_limit' rule
-			if distance_from_road > self.max_distance_to_path:
+			if self.distance_to_closest_road > self.max_distance_to_path:
 				return step_reward(is_positive=False, label='follow_lane')
 		# "Respect the speed limit" rule
 		if car_speed > self.speed_upper_limit:
 			return step_reward(is_positive=False, label='respect_speed_limit')
 		return step_reward(is_positive=True, label='move_forward')
 
-	def get_junction_view(self, source_point, source_orientation): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
-		junction_view_shape = self.get_state_shape()[0]
-		junction_view = np.zeros(junction_view_shape, dtype=np.float16)-1
+	@staticmethod
+	def normalize_point(p):
+		return (p[0]/CarControllerV4.map_size[0], p[1]/CarControllerV4.map_size[1])
 
-		junction_list = self.road_network.get_visible_junctions_by_point(source_point, source_orientation, self.horizon_distance, self.view_degree)
-		# fill the junction view
-		for i,junction in enumerate(junction_list):
-			for j,road in enumerate(junction.roads_connected):
-				# normalise relative orientation
-				relative_orientation = road.get_orientation_relative_to(source_orientation) % two_pi
-				# update the junction view
-				junction_view[i][j] = (
-					relative_orientation/two_pi, # in [0,1]
-					RoadNetwork.all_road_colours.index(road.colour)/len(RoadNetwork.all_road_colours) # in [0,1]
+	def get_view(self, source_point, source_orientation): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
+		# get road view
+		source_x, source_y = source_point
+		road_start, road_end = self.closest_road.edge
+		j1 = self.road_network.junction_dict[road_start]
+		j2 = self.road_network.junction_dict[road_end]
+		# Get road view
+		road_view = [ # 4x2
+			j1.pos,
+			j2.pos,
+		]
+		road_view = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_view)
+		road_view = map(self.normalize_point, road_view) # in [-1,1]
+		road_view = list(road_view)
+		road_view = np.array([road_view], dtype=np.float16)
+		# Get junction view
+		junction_view = np.array([ # 2 x Junction.max_roads_connected x (1+1)
+			[
+				(
+					(road.get_orientation_relative_to(source_orientation) % two_pi)/two_pi, # in [0,1]
+					RoadNetwork.all_road_colours.index(road.colour)/len(RoadNetwork.all_road_colours), # in [0,1]
 				)
-		return junction_view
+				for road in j.roads_connected
+			] + [(-1,-1)]*(Junction.max_roads_connected-len(j.roads_connected))
+			for j in (j1,j2)
+		], dtype=np.float16)
+		return road_view, junction_view
 
 	def __init__(self, config_dict):
 		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)
@@ -138,6 +155,7 @@ class CarControllerV4(GameWrapper):
 		# car position
 		self.car_point = self.road_network.set(self.junction_number, self.car_colour)
 		self.car_orientation = (2*np.random.random()-1)*np.pi # in [-pi,pi]
+		self.distance_to_closest_road, self.closest_road = self.road_network.get_closest_road_by_point(self.car_point)
 		# speed limit
 		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
 		# steering angle & speed
@@ -201,6 +219,8 @@ class CarControllerV4(GameWrapper):
 			speed=self.speed, 
 			add_noise=True
 		)
+		# the following two lines of code are correct because the graph is planar
+		self.distance_to_closest_road, self.closest_road = self.road_network.get_closest_road_by_point(self.car_point)
 		# compute perceived reward
 		reward, dead, reward_type = self.get_reward(
 			car_speed=self.speed, 
