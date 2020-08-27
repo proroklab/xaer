@@ -13,3 +13,6 @@ sortedcontainers
 opencv-python
 gym[atari]
 more_itertools
+
+triangle
+pyhull
