@@ -139,7 +139,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		qf1_target = target_net.value_layer(name='qf1_target', input=noisy_qf, scope=target_net.scope_name)
 		qf2_target = target_net.value_layer(name='qf2_target', input=noisy_qf, scope=target_net.scope_name)
 		target_net.value_layer(
-			name='qf1_target', # reusing qf1 net
+			name='qf1_target_pi', # reusing qf1 net
 			input=concat_action(target_net, target_embedded_input, target_policy_out), 
 			scope=target_net.scope_name
 		)
