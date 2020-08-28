@@ -110,15 +110,16 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		qf1 = main_net.value_layer(name='qf1', input=old_qf, scope=main_net.scope_name)
 		qf2 = main_net.value_layer(name='qf2', input=old_qf, scope=main_net.scope_name)
 		# Q value when following the current policy
-		qf1_pi = main_net.value_layer(
-			name='qf1', # reusing qf1 net
+		self.state_value_batch = qf1_pi = main_net.value_layer(
+			name='qf1_pi', # reusing qf1 net
 			input=concat_action(main_net, embedded_input, policy_out), 
 			scope=main_net.scope_name
 		)
+		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
 		####################################
 		# [Target]
 		# Create target networks
-		# batch_dict['state'] = self.new_state_batch
+		batch_dict['state'] = self.new_state_batch
 		target_embedded_input = target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetActorCritic')
 		target_policy_out = target_net.policy_layer(
 			input=target_embedded_input, 
@@ -143,8 +144,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			scope=target_net.scope_name
 		)
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
-		self.state_value_batch = min_qf_target = tf.minimum(qf1_target, qf2_target)
-		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
+		min_qf_target = tf.minimum(qf1_target, qf2_target)
 		# Targets for Q value regression
 		q_backup = tf.stop_gradient(
 			self.reward_batch +
