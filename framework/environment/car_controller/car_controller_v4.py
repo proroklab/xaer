@@ -81,10 +81,7 @@ class CarControllerV4(GameWrapper):
 			space_traveled = car_speed*self.seconds_per_step # space traveled
 			return (space_traveled if is_positive else -space_traveled, False, label) # terminate episode
 		
-		road_start, road_end = self.closest_road.edge
-		j1 = self.road_network.junction_dict[road_start]
-		j2 = self.road_network.junction_dict[road_end]
-		distance_from_junction = min(euclidean_distance(j1.pos, car_point), euclidean_distance(j2.pos, car_point))
+		distance_from_junction = min(euclidean_distance(self.closest_junctions[0].pos, car_point), euclidean_distance(self.closest_junctions[1].pos, car_point))
 		# print(distance_from_junction, self.junction_around)
 		if distance_from_junction > self.junction_around:
 			# "Valid colour" rule
@@ -110,9 +107,7 @@ class CarControllerV4(GameWrapper):
 	def get_view(self, source_point, source_orientation): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		# get road view
 		source_x, source_y = source_point
-		road_start, road_end = self.closest_road.edge
-		j1 = self.road_network.junction_dict[road_start]
-		j2 = self.road_network.junction_dict[road_end]
+		j1, j2 = self.closest_junctions
 		# Get road view
 		road_view = [ # 4x2
 			j1.pos,
@@ -155,7 +150,7 @@ class CarControllerV4(GameWrapper):
 		# car position
 		self.car_point = self.road_network.set(self.junction_number, self.car_colour)
 		self.car_orientation = (2*np.random.random()-1)*np.pi # in [-pi,pi]
-		self.distance_to_closest_road, self.closest_road = self.road_network.get_closest_road_by_point(self.car_point)
+		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		# speed limit
 		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
 		# steering angle & speed
@@ -219,8 +214,7 @@ class CarControllerV4(GameWrapper):
 			speed=self.speed, 
 			add_noise=True
 		)
-		# the following two lines of code are correct because the graph is planar
-		self.distance_to_closest_road, self.closest_road = self.road_network.get_closest_road_by_point(self.car_point)
+		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point, self.closest_junctions)
 		# compute perceived reward
 		reward, dead, reward_type = self.get_reward(
 			car_speed=self.speed, 

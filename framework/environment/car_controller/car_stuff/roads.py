@@ -88,6 +88,25 @@ class RoadNetwork:
 			if euclidean_distance(source_point, junction.pos) <= horizon_distance
 		]
 
+	def get_closest_road_and_junctions(self, point, closest_junctions=None):
+		# the following lines of code are correct because the graph is planar
+		if not closest_junctions:
+			distance_to_closest_road, closest_road = self.get_closest_road_by_point(point)
+		else:
+			distance_to_closest_road, closest_road = min(
+				(
+					(
+						point_to_line_dist(point, r.edge),
+						r
+					)
+					for j in closest_junctions
+					for r in j.roads_connected
+				), key=lambda x:x[0]
+			)
+		road_start, road_end = closest_road.edge
+		closest_junctions = [self.junction_dict[road_start],self.junction_dict[road_end]]
+		return distance_to_closest_road, closest_road, closest_junctions
+
 	def get_closest_junction_by_point(self, source_point):
 		return min(
 			(

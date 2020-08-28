@@ -8,7 +8,6 @@ def build():
 	options = {}
 	options["max_timestep"] = 2**30 # "Max training time steps."
 	options["timesteps_before_starting_training"] = 2**10 # "Number of initialization steps."
-	options["shuffle_sequences"] = True # Whether to shuffle sequences in the batch when training (recommended).
 # Environment
 	options["env_type"] = "CarControllerV4" # "environment types: CarControllerV[1,2,3,4] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
@@ -65,7 +64,7 @@ def build():
 	options["recompute_value_when_replaying"] = True # "Whether to recompute value when replaying, using always up to date values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul, Tom, et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
-	options["prioritization_scheme"] = "unclipped_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: 'pruned_gain_estimate, clipped_gain_estimate, clipped_mean_gain_estimate, clipped_best_gain_estimate, unclipped_gain_estimate, unclipped_mean_gain_estimate, unclipped_best_gain_estimate, surprise, cumulative_extrinsic_return, transition_prediction_error'.
+	options["prioritization_scheme"] = "unclipped_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: None, 'pruned_gain_estimate, clipped_gain_estimate, clipped_mean_gain_estimate, clipped_best_gain_estimate, unclipped_gain_estimate, unclipped_mean_gain_estimate, unclipped_best_gain_estimate, surprise, cumulative_extrinsic_return, transition_prediction_error'.
 	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
 	options["prioritized_drop_probability"] = 0.5 # "Probability of removing the batch with the lowest priority instead of the oldest batch." -> The closer to 1 the higher the value (this facilitates value over-estimation).
 	# Isele, David, and Akansel Cosgun. "Selective experience replay for lifelong learning." Thirty-second AAAI conference on artificial intelligence. 2018.
