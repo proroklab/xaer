@@ -10,7 +10,8 @@ flags = options.get()
 
 class none():
 	def __init__(self, experience_prioritization_scheme):
-		if experience_prioritization_scheme:
+		self.experience_prioritization_scheme = experience_prioritization_scheme
+		if self.experience_prioritization_scheme:
 			self.experience_buffer = PseudoPrioritizedBuffer(
 				size=flags.replay_buffer_size, 
 				alpha=flags.prioritized_replay_alpha, 
@@ -24,19 +25,28 @@ class none():
 		self.experience_buffer_lock = Lock() # Use a locking mechanism to access the buffer because buffers are shared among threads
 
 	def add(self, batch, priority, type_id):
-		with self.experience_buffer_lock:
-			self.experience_buffer.put(batch, priority, type_id)
+		if self.experience_prioritization_scheme:
+			with self.experience_buffer_lock:
+				self.experience_buffer.put(batch, priority, type_id)
+		else:
+			with self.experience_buffer_lock:
+				self.experience_buffer.put(batch, type_id)
 
 	def has_atleast(self, n):
 		return self.experience_buffer.has_atleast(n)
 
 	def get(self):
-		with self.experience_buffer_lock:
-			return self.experience_buffer.keyed_sample()
+		if self.experience_prioritization_scheme:
+			with self.experience_buffer_lock:
+				return self.experience_buffer.keyed_sample()
+		else:
+			with self.experience_buffer_lock:
+				return (self.experience_buffer.sample(), None, None)
 
 	def update(self, idx, priority, type_id):
-		with self.experience_buffer_lock:
-			self.experience_buffer.update_priority(idx=idx, priority=priority, type_id=type_id)
+		if self.experience_prioritization_scheme:
+			with self.experience_buffer_lock:
+				self.experience_buffer.update_priority(idx=idx, priority=priority, type_id=type_id)
 
 	@staticmethod
 	def is_best_episode(episode_type):

@@ -15,7 +15,7 @@ class ExperienceBatch():
 		'actions', 'action_masks', 'policys', 'values', 'importance_weights',
 		'extracted_relations',
 		'rewards', 'manipulated_rewards', 'reward_types',
-		'cumulative_returns', 'advantages'
+		'cumulative_returns', 'advantages', 'td_errors',
 	)
 	# Use slots to save memory, because this type of object may be spawned very frequently
 	__slots__ = (

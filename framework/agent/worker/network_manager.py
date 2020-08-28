@@ -14,10 +14,11 @@ class NetworkManager(object):
 	algorithm = eval('{}_Algorithm'.format(flags.algorithm))
 	print('Algorithm:',flags.algorithm)
 	# Experience Replay
-	with_experience_replay = flags.replay_mean > 0
+	with_experience_replay = flags.replay_mean > 0 or algorithm.is_on_policy
+	replay_mean = flags.replay_mean if flags.replay_mean > 0 else 1
 	print('With Experience Replay:',with_experience_replay)
 	# Experience Prioritisation
-	experience_prioritization_scheme = eval(flags.prioritization_scheme)() if flags.prioritization_scheme and with_experience_replay else False
+	experience_prioritization_scheme = eval(flags.prioritization_scheme)(algorithm) if flags.prioritization_scheme and with_experience_replay else False
 	print('Experience Prioritization Scheme:',experience_prioritization_scheme)
 	prioritized_replay_with_update = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('priority_update_after_replay',False)
 	print('Prioritized Replay With Update:',prioritized_replay_with_update)
@@ -41,6 +42,12 @@ class NetworkManager(object):
 	print('Prioritized With Importance Weight Extraction:',prioritized_with_importance_weight_extraction)
 	with_importance_weight_extraction = algorithm.extract_importance_weight or prioritized_with_importance_weight_extraction
 	print('With Importance Weight Extraction:',with_importance_weight_extraction)
+	# TD-Error Extraction
+	prioritized_with_td_error = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('td_error',False)
+	print('Prioritized With TD-Error Extraction:',prioritized_with_td_error)
+	with_td_error_extraction = algorithm.has_td_error and prioritized_with_td_error
+	print('With TD-Error Extraction:',with_td_error_extraction)
+	
 	# Experience Clustering
 	experience_cluster = eval(flags.experience_clustering_scheme)(experience_prioritization_scheme) if flags.experience_clustering_scheme and with_experience_replay else False
 	print('Experience Clustering Scheme:',experience_cluster)
@@ -136,7 +143,7 @@ class NetworkManager(object):
 		agents = [0]*len(actions)
 		return actions, hot_actions, policies, values, new_internal_states, agents
 	
-	def _update_batch(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True, with_importance_weight_extraction=True, with_transition_predictor=True, with_relation_extraction=False):
+	def _update_batch(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True, with_importance_weight_extraction=True, with_transition_predictor=True, with_relation_extraction=False, with_td_error_extraction=False):
 		fetch_label_list = []
 		agent_info_dict = {agent_id:{} for agent_id in range(self.model_size)}
 		if with_importance_weight_extraction:
@@ -149,6 +156,18 @@ class NetworkManager(object):
 					'states': batch.states[agent_id],
 					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
 					'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
+				})
+		if with_td_error_extraction:
+			fetch_label_list += ['td_errors', 'new_internal_states']
+			for agent_id in range(self.model_size):
+				agent_info_dict[agent_id].update({
+					'actions': batch.actions[agent_id],
+					'action_masks': batch.action_masks[agent_id],
+					'policies': batch.policys[agent_id],
+					'states': batch.states[agent_id],
+					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
+					'sizes': [ len(batch.states[agent_id]) ], # playing critic on one single batch
+					'rewards': batch.rewards[agent_id],
 				})
 		if with_relation_extraction:
 			fetch_label_list += ['extracted_relations']
@@ -164,7 +183,7 @@ class NetworkManager(object):
 					'actions': batch.actions[agent_id],
 					'policies': batch.policys[agent_id],
 					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
-					'sizes': [ len(batch.states[agent_id]) ] # playing critic on one single batch
+					'sizes': [ len(batch.states[agent_id]) ], # playing critic on one single batch
 				})
 		if len(fetch_label_list) > 0:
 			for agent_id in range(self.model_size):
@@ -244,6 +263,8 @@ class NetworkManager(object):
 					manipulated_rewards[i][1] = manipulated_intrinsic_rewards[i]
 					
 	def _compute_discounted_cumulative_reward(self, batch):
+		if not self.algorithm.build_cumulative_return:
+			return
 		batch.compute_discounted_cumulative_reward(
 			agents=self.agents_set, 
 			gamma=flags.extrinsic_gamma, 
@@ -293,13 +314,11 @@ class NetworkManager(object):
 			return False
 		type_id = self.experience_cluster.get_batch_type(batch, self.agents_set, episode_type)
 		# Populate buffer
-		params_dict = {
-			'batch': batch,
-			'type_id': type_id
-		}
-		if self.experience_prioritization_scheme:
-			params_dict['priority'] = self.experience_prioritization_scheme.get(batch, self.agents_set)
-		self.experience_cluster.add(**params_dict)
+		self.experience_cluster.add(
+			batch=batch,
+			priority=self.experience_prioritization_scheme.get(batch, self.agents_set) if self.experience_prioritization_scheme else None,
+			type_id=type_id,
+		)
 		return True
 
 	def try_to_replay_experience(self):
@@ -311,7 +330,7 @@ class NetworkManager(object):
 		if self.prioritized_replay_with_update:
 			batch_to_update = []
 		# Sample n batches from experience buffer
-		n = np.random.poisson(flags.replay_mean)
+		n = np.random.poisson(self.replay_mean)
 		for _ in range(n):
 			# Sample batch
 			if self.prioritized_replay_with_update:
@@ -329,6 +348,7 @@ class NetworkManager(object):
 				with_importance_weight_extraction= self.with_importance_weight_extraction, 
 				with_transition_predictor= self.prioritized_with_transition_predictor,
 				with_relation_extraction= self.with_relation_extraction,
+				with_td_error_extraction= self.with_td_error_extraction,
 			)
 			# Train
 			self._train(replay=True, batch=old_batch)
@@ -353,9 +373,11 @@ class NetworkManager(object):
 			with_importance_weight_extraction= self.with_importance_weight_extraction, 
 			with_transition_predictor= self.with_transition_predictor,
 			with_relation_extraction= self.with_relation_extraction,
+			with_td_error_extraction= self.with_td_error_extraction,
 		)
 		# Train
-		self._train(replay=False, batch=batch)
+		if self.algorithm.is_on_policy:
+			self._train(replay=False, batch=batch)
 		# Populate replay buffer
 		if self.with_experience_replay:
 			# Check whether to save the whole episode list into the replay buffer

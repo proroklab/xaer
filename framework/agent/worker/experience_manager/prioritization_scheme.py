@@ -2,29 +2,47 @@
 import numpy as np
 from agent.algorithm.advantage_based.ac_algorithm import merge_splitted_advantages
 
-class pruned_gain_estimate():
-	requirement = {
-		'priority_update_after_replay': True,
-		'importance_weight': True,
-		'advantage': True
-	}
+class unclipped_gain_estimate():
+	def __init__(self, algorithm):
+		self.requirement = {
+			'priority_update_after_replay': True,
+			'importance_weight': algorithm.has_importance_weight,
+			'advantage': algorithm.has_advantage,
+			'td_error': algorithm.has_td_error,
+		}
+		self.aggregation_fn = np.sum
 
-	@staticmethod
-	def get(batch, agents):
+	def get_weighted_advantage(self, batch, agents):
+		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
+		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
+		gain = merged_advantages*np.array(importance_weights)
+		return self.aggregation_fn(gain)
+
+	def get_advantage(self, batch, agents):
+		advantages = batch.get_all_actions(actions='advantages', agents=agents)
+		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
+		return self.aggregation_fn(merged_advantages)
+
+	def get_td_error(self, batch, agents):
+		return self.aggregation_fn(batch.get_cumulative_action('td_errors', agents))
+
+	def get(self, batch, agents):
+		if self.requirement['importance_weight'] and self.requirement['advantage']:
+			return self.get_weighted_advantage(batch, agents)
+		if self.requirement['advantage']:
+			return self.get_advantage(batch, agents)
+		if self.requirement['td_error']:
+			return self.get_td_error(batch, agents)
+
+class pruned_gain_estimate(unclipped_gain_estimate):
+	def get_weighted_advantage(self, batch, agents):
 		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
 		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
 		gains = merged_advantages*np.where(importance_weights > 1, importance_weights, 0)
 		return np.sum(gains)
 
-class clipped_gain_estimate():
-	requirement = {
-		'priority_update_after_replay': True,
-		'importance_weight': True,
-		'advantage': True
-	}
-
-	@staticmethod
-	def get(batch, agents):
+class clipped_gain_estimate(unclipped_gain_estimate):
+	def get_weighted_advantage(self, batch, agents):
 		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
 		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
 		# gains = []
@@ -40,91 +58,61 @@ class clipped_gain_estimate():
 		gains = merged_advantages*np.minimum(1.,importance_weights)
 		return np.sum(gains)
 
-class clipped_mean_gain_estimate():
-	requirement = {
-		'priority_update_after_replay': True,
-		'importance_weight': True,
-		'advantage': True
-	}
+class clipped_mean_gain_estimate(clipped_gain_estimate):
+	def __init__(self, algorithm):
+		self.requirement = {
+			'priority_update_after_replay': True,
+			'importance_weight': algorithm.has_importance_weight,
+			'advantage': algorithm.has_advantage,
+			'td_error': algorithm.has_td_error,
+		}
+		self.aggregation_fn = np.mean
 
-	@staticmethod
-	def get(batch, agents):
-		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
-		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
-		gains = merged_advantages*np.minimum(1.,importance_weights)
-		return np.mean(gains)
+class clipped_best_gain_estimate(clipped_gain_estimate):
+	def __init__(self, algorithm):
+		self.requirement = {
+			'priority_update_after_replay': True,
+			'importance_weight': algorithm.has_importance_weight,
+			'advantage': algorithm.has_advantage,
+			'td_error': algorithm.has_td_error,
+		}
+		self.aggregation_fn = lambda x: np.mean(x)+np.std(x)
 
-class clipped_best_gain_estimate():
-	requirement = {
-		'priority_update_after_replay': True,
-		'importance_weight': True,
-		'advantage': True
-	}
+class unclipped_mean_gain_estimate(unclipped_gain_estimate):
+	def __init__(self, algorithm):
+		self.requirement = {
+			'priority_update_after_replay': True,
+			'importance_weight': algorithm.has_importance_weight,
+			'advantage': algorithm.has_advantage,
+			'td_error': algorithm.has_td_error,
+		}
+		self.aggregation_fn = np.mean
 
-	@staticmethod
-	def get(batch, agents):
-		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
-		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
-		gains = merged_advantages*np.minimum(1.,importance_weights)
-		return np.mean(gains)+np.std(gains)
-
-class unclipped_gain_estimate():
-	requirement = {
-		'priority_update_after_replay': True,
-		'importance_weight': True,
-		'advantage': True
-	}
-
-	@staticmethod
-	def get(batch, agents):
-		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
-		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
-		gain = merged_advantages*np.array(importance_weights)
-		return np.sum(gain)
-
-class unclipped_mean_gain_estimate():
-	requirement = {
-		'priority_update_after_replay': True,
-		'importance_weight': True,
-		'advantage': True
-	}
-
-	@staticmethod
-	def get(batch, agents):
-		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
-		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
-		gain = merged_advantages*np.array(importance_weights)
-		return np.mean(gain)
-
-class unclipped_best_gain_estimate():
-	requirement = {
-		'priority_update_after_replay': True,
-		'importance_weight': True,
-		'advantage': True
-	}
-
-	@staticmethod
-	def get(batch, agents):
-		advantages, importance_weights = batch.get_all_actions(actions=['advantages','importance_weights'], agents=agents)
-		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
-		gain = merged_advantages*np.array(importance_weights)
-		return np.mean(gain)+np.std(gain)
+class unclipped_best_gain_estimate(unclipped_gain_estimate):
+	def __init__(self, algorithm):
+		self.requirement = {
+			'priority_update_after_replay': True,
+			'importance_weight': algorithm.has_importance_weight,
+			'advantage': algorithm.has_advantage,
+			'td_error': algorithm.has_td_error,
+		}
+		self.aggregation_fn = lambda x: np.mean(x)+np.std(x)
 
 class surprise():
-	requirement = {
-		'priority_update_after_replay': True,
-		'intrinsic_reward': True,
-	}
+	def __init__(self, algorithm):
+		self.requirement = {
+			'priority_update_after_replay': True,
+			'intrinsic_reward': True,
+		}
 
-	@staticmethod
-	def get(batch, agents):
+	def get(self, batch, agents):
 		return batch.get_cumulative_reward(agents)[-1]
 
 class cumulative_extrinsic_return():
-	requirement = {
-		'priority_update_after_replay': False,
-	}
+	def __init__(self, algorithm):
+		self.requirement = {
+			'priority_update_after_replay': False,
+		}
 
-	@staticmethod
-	def get(batch, agents):
+	def get(self, batch, agents):
 		return batch.get_cumulative_reward(agents)[0]

@@ -18,6 +18,9 @@ def merge_splitted_advantages(advantage):
 	return advantage
 
 class AC_Algorithm(RL_Algorithm):
+	has_advantage = True
+	build_cumulative_return = True
+	has_importance_weight = True
 	extract_importance_weight = flags.advantage_estimator.lower() in ["vtrace","gae_v"]
 	get_reversed_cumulative_return = eval(flags.advantage_estimator.lower())
 
@@ -35,6 +38,7 @@ class AC_Algorithm(RL_Algorithm):
 			'state_mean': self.state_mean_batch,
 			'state_std': self.state_std_batch,
 			'sizes': self.size_batch,
+			'rewards': self.reward_batch,
 		}
 		self.fetch_map = {
 			'actions': self.action_batch, 
@@ -45,6 +49,7 @@ class AC_Algorithm(RL_Algorithm):
 			'importance_weights': self.importance_weight_batch,
 			'extracted_relations': self.relations_sets if self.network['ActorCritic'].produce_explicit_relations else None,
 			'intrinsic_rewards': self.intrinsic_reward_batch if self.with_intrinsic_reward else None,
+			'td_errors': None,
 		}
 
 	def get_main_network_partitions(self):

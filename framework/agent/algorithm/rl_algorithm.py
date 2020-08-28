@@ -13,7 +13,12 @@ import options
 flags = options.get()
 
 class RL_Algorithm(object):
+	build_cumulative_return = False
+	has_importance_weight = False
 	extract_importance_weight = False
+	has_td_error = False
+	has_advantage = False
+	is_on_policy = True
 
 	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
 		self.parameters_type = eval('tf.{}'.format(flags.parameters_type))
