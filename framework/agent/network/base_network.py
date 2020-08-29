@@ -41,7 +41,7 @@ class Base_Network(Network):
 			state_batch, 
 			concat_batch, 
 			environment_model, 
-			scope=self.parent_scope_name
+			scope=self.format_scope_name([self.parent_scope_name,name,name])
 		)
 		print( "	[{}]State Embedding shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [RNN]
@@ -49,7 +49,7 @@ class Base_Network(Network):
 			embedded_input, internal_state_tuple = self._rnn_layer(
 				input=embedded_input, 
 				size_batch=size_batch, 
-				scope=self.scope_name
+				scope=self.format_scope_name([self.scope_name,name,name])
 			)
 			self.internal_initial_state, self.internal_default_state, self.internal_final_state = internal_state_tuple
 			print( "	[{}]RNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )

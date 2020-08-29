@@ -14,6 +14,10 @@ class Network():
 		# Initialize keys collections
 		self.shared_keys = []
 		self.update_keys = []
+
+	@staticmethod
+	def format_scope_name(parts):
+		return os.path.join(*map(lambda x: str(x).strip('/'), parts)).strip('/')
 	
 	def _update_keys(self, scope_name, share_trainables):
 		if share_trainables:
@@ -21,7 +25,7 @@ class Network():
 		self.update_keys = list(unique_everseen(self.update_keys + tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope=scope_name)))
 
 	def _scopefy(self, inputs, output_fn, layer_type, scope, name, share_trainables, reuse=True):
-		with tf.variable_scope(os.path.join(str(scope).strip('/'),str(layer_type).strip('/'),str(name).strip('/')).strip('/')) as variable_scope:
+		with tf.variable_scope(self.format_scope_name([scope,layer_type,name])) as variable_scope:
 			scope_name = variable_scope.name
 			if reuse:
 				reusing = True

@@ -49,7 +49,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		}
 		self.fetch_map = {
 			'actions': self.action_batch, 
-			'hot_actions': self.noisy_action_batch, 
+			'hot_actions': self.action_batch, 
 			'policies': self.policy_out, 
 			'values': self.state_value_batch, 
 			'new_internal_states': self._get_internal_state() if flags.network_has_internal_state else None,
@@ -108,48 +108,64 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		####################################
 		# [Model]
 		# Create the policy
-		embedded_input = main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='ActorCritic')
 		self.policy_out = policy_out = main_net.policy_layer(
-			input=embedded_input, 
+			input=main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainPolicy'), 
 			scope=main_net.scope_name
 		)
 		self.action_batch = self.sample_actions(policy_out, mean=True)
-		self.noisy_action_batch = self.sample_actions(policy_out)
 		def concat_action_list(embedding, action_list):
-			action_list = list(map(tf.keras.layers.Flatten(), action_list))
+			action_list = [
+				tf.keras.layers.Flatten()(action_list[h])
+				for h,_ in enumerate(self.policy_heads)
+			]
 			action = tf.concat(action_list, -1)
 			result = tf.concat([embedding, action], axis=-1)
 			return result
 		# Use two Q-functions to improve performance by reducing overestimation bias
-		old_qf = concat_action_list(embedded_input, self.old_action_batch)
+		old_qf = concat_action_list(
+			main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainCritic'), 
+			self.old_action_batch
+		)
 		qf1 = main_net.value_layer(name='qf1', input=old_qf, scope=main_net.scope_name)
 		qf2 = main_net.value_layer(name='qf2', input=old_qf, scope=main_net.scope_name)
 		# Q value when following the current policy
 		self.state_value_batch = qf1_pi = main_net.value_layer(
 			name='qf1', # reusing qf1 net
-			input=concat_action_list(embedded_input, self.action_batch), 
+			input=concat_action_list(
+				main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainCritic2'), 
+				self.action_batch
+			), 
 			scope=main_net.scope_name
 		)
+		# if self.value_count==2:
+		# 	qf1_pi = qf1_pi[..., 0]
 		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
 		####################################
 		# [Target]
 		# Create target networks
 		batch_dict['state'] = self.new_state_batch
-		target_embedded_input = target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetActorCritic')
 		target_policy_out = target_net.policy_layer(
-			input=target_embedded_input, 
+			input=target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetPolicy'), 
 			scope=target_net.scope_name
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
 		target_action = self.sample_actions(target_policy_out, mean=True)
-		noisy_target_action = self.sample_actions(target_policy_out)
+		target_noise = tf.random_normal(tf.shape(target_action), stddev=self.target_policy_noise)
+		target_noise = tf.clip_by_value(target_noise, -self.target_noise_clip, self.target_noise_clip) # Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
+		noisy_target_action = tf.clip_by_value(target_action + target_noise, -1, 1)
 		# Q values when following the target policy
-		noisy_qf = concat_action_list(target_embedded_input, noisy_target_action)
+		noisy_qf = concat_action_list(
+			target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetCritic'), 
+			noisy_target_action
+		)
 		qf1_target = target_net.value_layer(name='qf1_target', input=noisy_qf, scope=target_net.scope_name)
 		qf2_target = target_net.value_layer(name='qf2_target', input=noisy_qf, scope=target_net.scope_name)
 		target_net.value_layer(
 			name='qf1_target', # reusing qf1 net
-			input=concat_action_list(target_embedded_input, target_action), 
+			input=concat_action_list(
+				target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetCritic2'), 
+				target_action
+			), 
 			scope=target_net.scope_name
 		)
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
@@ -176,7 +192,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		def get_critic_loss(global_step): # Compute Q-Function loss
 			return tf.reduce_mean(td_errors[0] ** 2) + tf.reduce_mean(td_errors[1] ** 2)
 		def get_actor_loss(global_step):
-			return -tf.reduce_mean(qf1_pi) # Policy loss: maximise q value
+			return -tf.reduce_mean((q_backup-qf1_pi)** 2) # Policy loss: maximise q value
 		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step), get_critic_loss(global_step))
 		####################################
 		# [Params]
