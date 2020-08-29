@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 import tensorflow.compat.v1 as tf
+
 from more_itertools import unique_everseen
 import os
 
 class Network():
+	scope_cache = {}
+
 	def __init__(self, id, training):
 		self.training = training
 		self.id = id
@@ -17,27 +20,24 @@ class Network():
 			self.shared_keys = list(unique_everseen(self.shared_keys + tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope_name)))
 		self.update_keys = list(unique_everseen(self.update_keys + tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope=scope_name)))
 
-	def _scopefy(self, output_fn, layer_type, scope, name, share_trainables, reuse=False):
-		with tf.variable_scope(os.path.join(str(scope),str(layer_type),str(name)).strip('/'), reuse=reuse) as variable_scope:
-			print( "	[{}]{} scope: {}".format(self.id, "Building" if not reuse else "Reusing", variable_scope.name) )
-			output = output_fn()
-			self._update_keys(variable_scope.name, share_trainables)
+	def _scopefy(self, inputs, output_fn, layer_type, scope, name, share_trainables, reuse=True):
+		with tf.variable_scope(os.path.join(str(scope).strip('/'),str(layer_type).strip('/'),str(name).strip('/')).strip('/')) as variable_scope:
+			scope_name = variable_scope.name
+			if reuse:
+				reusing = True
+				layer = self.scope_cache.get(scope_name, None)
+				if layer is None:
+					reusing = False
+					layer = self.scope_cache[scope_name] = output_fn()
+			else:
+				reusing = False
+				print( "	[{}]Building scope: {}".format(self.id, scope_name) )
+				layer = output_fn()
+			output = layer(*inputs)
+			if not reusing:
+				self._update_keys(scope_name, share_trainables)
+				print( "	[{}]Building scope: {}".format(self.id, scope_name) )
+			else:
+				print( "	[{}]Reusing scope: {}".format(self.id, scope_name) )
 			# print( "	[{}]{} layer shape: {}".format(self.id, layer_type, output.get_shape()) )
 			return output
-		
-	def _batch_normalization_layer(self, input, scope, name="", share_trainables=True, renorm=False, center=True, scale=True):
-		def layer_fn():
-			batch_norm = tf.layers.BatchNormalization(renorm=renorm, center=center, scale=scale) # renorm when minibaches are too small
-			norm_input = batch_norm.apply(input, training=self.training)
-			return batch_norm, norm_input
-		return self._scopefy(output_fn=layer_fn, layer_type='BatchNorm', scope=scope, name=name, share_trainables=share_trainables)
-			
-	def _feature_entropy_layer(self, input, scope, name="", share_trainables=True): # feature entropy measures how much the input is uncommon
-		batch_norm, _ = self._batch_normalization_layer(input=input, scope=scope, name=layer_type)
-		def layer_fn():
-			fentropy = Normal(batch_norm.moving_mean, tf.sqrt(batch_norm.moving_variance)).cross_entropy(input)
-			fentropy = tf.keras.layers.Flatten()(fentropy)
-			if len(fentropy.get_shape()) > 1:
-				fentropy = tf.reduce_mean(fentropy, axis=-1)
-			return fentropy
-		return self._scopefy(output_fn=layer_fn, layer_type='Fentropy', scope=scope, name=name, share_trainables=share_trainables)			

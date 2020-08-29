@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import tensorflow.compat.v1 as tf
 import tensorflow.keras.layers as ktf
+
 import numpy as np
 import utils.tensorflow_utils as tf_utils
 from agent.network.network import Network
@@ -42,23 +43,31 @@ class IntrinsicReward_Network(Network):
 		def layer_fn():
 			# Here we use leaky_relu instead of relu as activation function
 			# Target network
-			target = ktf.Conv2D(name='RND_Target_Conv1', filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=input)
-			target = ktf.Conv2D(name='RND_Target_Conv2', filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=target)
-			target = ktf.Conv2D(name='RND_Target_Conv3', filters=64, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=target)
-			target = ktf.Flatten().apply(inputs=target)
-			target = ktf.Dense(name='RND_Target_Dense1', units=512, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=target)
+			target_layer = tf.keras.Sequential(name=layer_type, layers=[
+				ktf.Conv2D(name='RND_Target_Conv1', filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+				ktf.Conv2D(name='RND_Target_Conv2', filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+				ktf.Conv2D(name='RND_Target_Conv3', filters=64, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+				ktf.Flatten(),
+				ktf.Dense(name='RND_Target_Dense1', units=512, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+			])
 			# Predictor network
-			prediction = ktf.Conv2D(name='RND_Prediction_Conv1', filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=input)
-			prediction = ktf.Conv2D(name='RND_Prediction_Conv2', filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
-			prediction = ktf.Conv2D(name='RND_Prediction_Conv3', filters=64, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
-			prediction = ktf.Flatten().apply(inputs=prediction)
-			prediction = ktf.Dense(name='RND_Prediction_Dense1', units=512, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
-			prediction = ktf.Dense(name='RND_Prediction_Dense2', units=512, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))).apply(inputs=prediction)
+			prediction_layer = tf.keras.Sequential(name=layer_type, layers=[
+				ktf.Conv2D(name='RND_Prediction_Conv1', filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+				ktf.Conv2D(name='RND_Prediction_Conv2', filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+				ktf.Conv2D(name='RND_Prediction_Conv3', filters=64, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.leaky_relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+				ktf.Flatten(),
+				ktf.Dense(name='RND_Prediction_Dense1', units=512, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+				ktf.Dense(name='RND_Prediction_Dense2', units=512, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2))),
+			])			
 			last_prediction_layer = ktf.Dense(name='RND_Prediction_Dense3', units=512, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
-			prediction = last_prediction_layer.apply(inputs=prediction)
-			prediction_weights = {
-				'kernel': last_prediction_layer.kernel, 
-				'bias': last_prediction_layer.bias
-			}
-			return target, prediction, prediction_weights
-		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
+			def exec_fn(i):
+				target = target_layer(i)
+				prediction = prediction_layer(i)
+				prediction = last_prediction_layer(prediction)
+				prediction_weights = {
+					'kernel': last_prediction_layer.kernel, 
+					'bias': last_prediction_layer.bias
+				}
+				return target, prediction, prediction_weights
+			return exec_fn
+		return self._scopefy(inputs=(input, ), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

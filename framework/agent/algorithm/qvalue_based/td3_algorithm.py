@@ -126,8 +126,8 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		qf2 = main_net.value_layer(name='qf2', input=old_qf, scope=main_net.scope_name)
 		# Q value when following the current policy
 		self.state_value_batch = qf1_pi = main_net.value_layer(
-			name='qf1_pi', # reusing qf1 net
-			input=concat_action_list(embedded_input, policy_out), 
+			name='qf1', # reusing qf1 net
+			input=concat_action_list(embedded_input, self.action_batch), 
 			scope=main_net.scope_name
 		)
 		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
@@ -141,21 +141,23 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			scope=target_net.scope_name
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
+		target_action = self.sample_actions(target_policy_out, mean=True)
 		noisy_target_action = self.sample_actions(target_policy_out)
 		# Q values when following the target policy
 		noisy_qf = concat_action_list(target_embedded_input, noisy_target_action)
 		qf1_target = target_net.value_layer(name='qf1_target', input=noisy_qf, scope=target_net.scope_name)
 		qf2_target = target_net.value_layer(name='qf2_target', input=noisy_qf, scope=target_net.scope_name)
 		target_net.value_layer(
-			name='qf1_target_pi', # reusing qf1 net
-			input=concat_action_list(target_embedded_input, target_policy_out), 
+			name='qf1_target', # reusing qf1 net
+			input=concat_action_list(target_embedded_input, target_action), 
 			scope=target_net.scope_name
 		)
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
 		min_qf_target = tf.minimum(qf1_target, qf2_target)
 		# Targets for Q value regression
+		rewards = self.reward_batch if self.value_count==2 else tf.reduce_sum(self.reward_batch, -1)
 		q_backup = tf.stop_gradient(
-			self.reward_batch +
+			rewards +
 			tf.where(self.terminal_batch, tf.zeros_like(min_qf_target), self.gamma * min_qf_target)
 		)
 		td_errors = [

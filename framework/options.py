@@ -13,7 +13,7 @@ def build():
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
 	options["algorithm"] = "TD3" # "algorithms: AC, TD3"
-	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, HybridTowers, SA, OpenAISmall, OpenAILarge, Impala, ExplicitlyRelational, ExplicitlyArgumentative"
+	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, OpenAISmall, OpenAILarge, ExplicitlyRelational, ExplicitlyArgumentative"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = "Adam" # "gradient optimizer: PowerSign, AddSign, ElasticAverage, LazyAdam, Nadam, Adadelta, AdagradDA, Adagrad, Adam, Ftrl, GradientDescent, Momentum, ProximalAdagrad, ProximalGradientDescent, RMSProp" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.

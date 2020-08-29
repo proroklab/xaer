@@ -131,7 +131,7 @@ class RL_Algorithm(object):
 			print( "	[{}]State{} shape: {}".format(self.id, i, state.get_shape()) )
 		for i,state in enumerate(self.new_state_batch):
 			print( "	[{}]New State{} shape: {}".format(self.id, i, state.get_shape()) )
-		self.reward_batch = self._value_placeholder("reward")
+		self.reward_batch = self._shaped_placeholder(name="reward", shape=[None,2])
 		print( "	[{}]Reward shape: {}".format(self.id, self.reward_batch.get_shape()) )
 		self.cumulative_return_batch = self._value_placeholder("cumulative_return")
 		print( "	[{}]Cumulative Return shape: {}".format(self.id, self.cumulative_return_batch.get_shape()) )
