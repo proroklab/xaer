@@ -38,7 +38,6 @@ class AC_Algorithm(RL_Algorithm):
 			'state_mean': self.state_mean_batch,
 			'state_std': self.state_std_batch,
 			'sizes': self.size_batch,
-			'rewards': self.reward_batch,
 		}
 		self.fetch_map = {
 			'actions': self.action_batch, 

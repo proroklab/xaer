@@ -167,7 +167,10 @@ class NetworkManager(object):
 					'states': batch.states[agent_id],
 					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
 					'sizes': [ len(batch.states[agent_id]) ], # playing critic on one single batch
+					# td-error specific
 					'rewards': batch.rewards[agent_id],
+					'new_states': batch.new_states[agent_id],
+					'terminal': [False]*(len(batch.states[agent_id])-1) + [batch.terminal],
 				})
 		if with_relation_extraction:
 			fetch_label_list += ['extracted_relations']

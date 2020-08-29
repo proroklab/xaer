@@ -170,14 +170,6 @@ class Base_Network(Network):
 			return output_list
 		return self._scopefy(output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def flatten_policy(self, policy):
-		policy = [
-			tf.keras.layers.Flatten()(policy[h])
-			for h in range(len(self.policy_heads))
-		]
-		policy = tf.transpose(policy, [1,0,2])
-		return tf.keras.layers.Flatten()(policy)
-
 	def _transition_prediction_layer(self, state, action, scope="", name="", share_trainables=True):
 		layer_type = 'TransitionPredictor'
 		def layer_fn():

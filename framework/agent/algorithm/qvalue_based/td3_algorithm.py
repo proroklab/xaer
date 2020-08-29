@@ -45,6 +45,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			'state_std': self.state_std_batch,
 			'sizes': self.size_batch,
 			'rewards': self.reward_batch,
+			'terminal': self.terminal_batch,
 		}
 		self.fetch_map = {
 			'actions': self.action_batch, 
@@ -64,6 +65,25 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		target_noise = tf.clip_by_value(target_noise, -noise_clip, noise_clip)
 		# Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
 		return tf.clip_by_value(target_policy_out + target_noise, -1, 1)
+
+	def sample_actions(self, actor_batch, mean=False):
+		action_batch = []
+		for h,actor_head in enumerate(actor_batch):
+			if is_continuous_control(self.policy_heads[h]['depth']):
+				new_policy_batch = tf.transpose(actor_head, [1, 0, 2])
+				if not mean:
+					sample_batch = Normal(new_policy_batch[0], new_policy_batch[1]).sample()
+				else:
+					sample_batch = new_policy_batch[0]
+				action = tf.clip_by_value(sample_batch, -1,1, name='action_clipper')
+				action_batch.append(action) # Sample action batch in forward direction, use old action in backward direction
+			else: # discrete control
+				distribution = Categorical(actor_head)
+				action = distribution.sample(one_hot=False) # Sample action batch in forward direction, use old action in backward direction
+				action_batch.append(action)
+		# Give self esplicative name to output for easily retrieving it in frozen graph
+		# tf.identity(action_batch, name="action")
+		return action_batch
 
 	def build_network(self):
 		main_net = self.network['ActorCritic']
@@ -93,26 +113,21 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			input=embedded_input, 
 			scope=main_net.scope_name
 		)
-		self.action_batch = []
-		for h,policy_head in enumerate(policy_out):
-			if is_continuous_control(self.policy_heads[h]['depth']):
-				mean_action = tf.transpose(policy_head, [1, 0, 2])[0]
-				self.action_batch.append(tf.clip_by_value(mean_action, -1,1, name='mean_action_clipper'))
-			else:
-				self.action_batch.append(policy_head)
-		self.noisy_action_batch = self._get_noisy_action(self.action_batch, self.target_policy_noise, self.target_noise_clip)
-
-		def concat_action(net, embedding, action):
-			action = net.flatten_policy(action)
-			return tf.concat([embedding, action], axis=-1)
+		self.action_batch = self.sample_actions(policy_out, mean=True)
+		self.noisy_action_batch = self.sample_actions(policy_out)
+		def concat_action_list(embedding, action_list):
+			action_list = list(map(tf.keras.layers.Flatten(), action_list))
+			action = tf.concat(action_list, -1)
+			result = tf.concat([embedding, action], axis=-1)
+			return result
 		# Use two Q-functions to improve performance by reducing overestimation bias
-		old_qf = concat_action(main_net, embedded_input, self.old_action_batch)
+		old_qf = concat_action_list(embedded_input, self.old_action_batch)
 		qf1 = main_net.value_layer(name='qf1', input=old_qf, scope=main_net.scope_name)
 		qf2 = main_net.value_layer(name='qf2', input=old_qf, scope=main_net.scope_name)
 		# Q value when following the current policy
 		self.state_value_batch = qf1_pi = main_net.value_layer(
 			name='qf1_pi', # reusing qf1 net
-			input=concat_action(main_net, embedded_input, policy_out), 
+			input=concat_action_list(embedded_input, policy_out), 
 			scope=main_net.scope_name
 		)
 		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
@@ -126,21 +141,14 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			scope=target_net.scope_name
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
-		target_action_batch = []
-		for h,policy_head in enumerate(target_policy_out):
-			if is_continuous_control(self.policy_heads[h]['depth']):
-				mean_action = tf.transpose(policy_head, [1, 0, 2])[0]
-				target_action_batch.append(tf.clip_by_value(mean_action, -1,1, name='mean_action_clipper'))
-			else:
-				target_action_batch.append(policy_head)
-		noisy_target_action = self._get_noisy_action(target_action_batch, self.target_policy_noise, self.target_noise_clip)
+		noisy_target_action = self.sample_actions(target_policy_out)
 		# Q values when following the target policy
-		noisy_qf = concat_action(target_net, target_embedded_input, noisy_target_action)
+		noisy_qf = concat_action_list(target_embedded_input, noisy_target_action)
 		qf1_target = target_net.value_layer(name='qf1_target', input=noisy_qf, scope=target_net.scope_name)
 		qf2_target = target_net.value_layer(name='qf2_target', input=noisy_qf, scope=target_net.scope_name)
 		target_net.value_layer(
 			name='qf1_target_pi', # reusing qf1 net
-			input=concat_action(target_net, target_embedded_input, target_policy_out), 
+			input=concat_action_list(target_embedded_input, target_policy_out), 
 			scope=target_net.scope_name
 		)
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
@@ -148,7 +156,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		# Targets for Q value regression
 		q_backup = tf.stop_gradient(
 			self.reward_batch +
-			tf.cast(self.terminal_batch==False, tf.float32) * self.gamma * min_qf_target
+			tf.where(self.terminal_batch, tf.zeros_like(min_qf_target), self.gamma * min_qf_target)
 		)
 		td_errors = [
 			q_backup - qf1,
@@ -218,8 +226,6 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 
 	def _build_train_feed(self, info_dict):
 		feed_dict = self._get_multihead_feed(target=self.state_batch, source=info_dict['states'])
-		if self.with_intrinsic_reward:
-			feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states']) )
 		# Internal State
 		if flags.network_has_internal_state:
 			feed_dict.update( self._get_internal_state_feed([info_dict['internal_state']]) )
@@ -227,7 +233,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		# New states
 		feed_dict.update( self._get_multihead_feed(target=self.new_state_batch, source=info_dict['new_states']) )
 		# Add replay boolean to feed dictionary
-		feed_dict.update( {self.terminal_batch: [info_dict['terminal']]} )
+		feed_dict.update( {self.terminal_batch: info_dict['terminal']} )
 		# Old Action
 		feed_dict.update( self._get_multihead_feed(target=self.old_action_batch, source=info_dict['actions']) )
 		# Reward
