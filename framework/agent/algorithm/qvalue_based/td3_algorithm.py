@@ -21,11 +21,13 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		# 	OrnsteinUhlenbeckActionNoise(mean=np.zeros(head['size']), sigma=0.1 * np.ones(head['size']))
 		# 	for head in self.policy_heads
 		# ]
+		self.policy_delay = 2
+		self.policy_noise = 0.1
+		self.noise_clip = 1
 		self.target_policy_noise = 0.2
+		self.target_noise_clip = 0.5
 		self.gamma = flags.extrinsic_gamma
 		self.tau = 0.005
-		self.policy_delay = 2
-		self.target_noise_clip=0.5
 		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
 
 	def get_main_network_partitions(self):
@@ -48,9 +50,9 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			'terminal': self.terminal_batch,
 		}
 		self.fetch_map = {
-			'actions': self.action_batch, 
+			'actions': self.noisy_action_batch, 
 			'hot_actions': self.action_batch, 
-			'policies': self.policy_out, 
+			'policies': self.policy_batch, 
 			'values': self.state_value_batch, 
 			'new_internal_states': self._get_internal_state() if flags.network_has_internal_state else None,
 			'importance_weights': None,
@@ -59,12 +61,15 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			'td_errors': self.td_error_batch,
 		}
 
-	def _get_noisy_action(self, target_policy_out, stddev, noise_clip):
-		# Target policy smoothing, by adding clipped noise to target actions
-		target_noise = tf.random_normal(tf.shape(target_policy_out), stddev=stddev)
-		target_noise = tf.clip_by_value(target_noise, -noise_clip, noise_clip)
-		# Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
-		return tf.clip_by_value(target_policy_out + target_noise, -1, 1)
+	def _get_noisy_action(self, action_batch, stddev, noise_clip):
+		new_action_batch = []
+		for a in action_batch:
+			# Target policy smoothing, by adding clipped noise to target actions
+			noise = tf.random_normal(tf.shape(a), stddev=stddev)
+			noise = tf.clip_by_value(noise, -noise_clip, noise_clip)
+			# Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
+			new_action_batch.append(tf.clip_by_value(a + noise, -1, 1))
+		return new_action_batch
 
 	def sample_actions(self, actor_batch, mean=False):
 		action_batch = []
@@ -107,12 +112,6 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			batch_dict['training_state'] = self.training_state
 		####################################
 		# [Model]
-		# Create the policy
-		self.policy_out = policy_out = main_net.policy_layer(
-			input=main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainPolicy'), 
-			scope=main_net.scope_name
-		)
-		self.action_batch = self.sample_actions(policy_out, mean=True)
 		def concat_action_list(embedding, action_list):
 			action_list = [
 				tf.keras.layers.Flatten()(action_list[h])
@@ -121,66 +120,57 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			action = tf.concat(action_list, -1)
 			result = tf.concat([embedding, action], axis=-1)
 			return result
-		# Use two Q-functions to improve performance by reducing overestimation bias
-		old_qf = concat_action_list(
-			main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainCritic'), 
-			self.old_action_batch
-		)
-		qf1 = main_net.value_layer(name='qf1', input=old_qf, scope=main_net.scope_name)
-		qf2 = main_net.value_layer(name='qf2', input=old_qf, scope=main_net.scope_name)
-		# Q value when following the current policy
-		self.state_value_batch = qf1_pi = main_net.value_layer(
-			name='qf1', # reusing qf1 net
-			input=concat_action_list(
-				main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainCritic2'), 
-				self.action_batch
-			), 
+		# Create the policy
+		self.policy_batch = main_net.policy_layer(
+			input=main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainPolicy'), 
 			scope=main_net.scope_name
 		)
-		# if self.value_count==2:
-		# 	qf1_pi = qf1_pi[..., 0]
+		self.action_batch = self.sample_actions(self.policy_batch, mean=True)
+		# self.noisy_action_batch = self.sample_actions(self.policy_batch)
+		self.noisy_action_batch = self._get_noisy_action(self.action_batch, self.policy_noise, self.noise_clip)
+		# Use two Q-functions to improve performance by reducing overestimation bias
+		main_embedding = main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainCritic')
+		main_embedding_and_action = concat_action_list(main_embedding, self.old_action_batch)
+		q_value_1 = main_net.value_layer(name='q_value_1', input=main_embedding_and_action, scope=main_net.scope_name)
+		q_value_2 = main_net.value_layer(name='q_value_2', input=main_embedding_and_action, scope=main_net.scope_name)
+		# Q value when following the current policy
+		q_value_on_policy = main_net.value_layer(
+			name='q_value_1', # reusing q_value_1 net
+			input=concat_action_list(main_embedding, self.action_batch), 
+			scope=main_net.scope_name
+		)
+		self.state_value_batch = q_value_on_policy #= tf.clip_by_value(tf.keras.activations.relu(q_value_on_policy), 0,1)
 		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
 		####################################
 		# [Target]
 		# Create target networks
 		batch_dict['state'] = self.new_state_batch
-		target_policy_out = target_net.policy_layer(
+		target_policy = target_net.policy_layer(
 			input=target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetPolicy'), 
 			scope=target_net.scope_name
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
-		target_action = self.sample_actions(target_policy_out, mean=True)
-		target_noise = tf.random_normal(tf.shape(target_action), stddev=self.target_policy_noise)
-		target_noise = tf.clip_by_value(target_noise, -self.target_noise_clip, self.target_noise_clip) # Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
-		noisy_target_action = tf.clip_by_value(target_action + target_noise, -1, 1)
+		target_action = self.sample_actions(target_policy, mean=True)
+		# noisy_target_action = self.sample_actions(target_policy)
+		noisy_target_action = self._get_noisy_action(target_action, self.target_policy_noise, self.target_noise_clip)
 		# Q values when following the target policy
-		noisy_qf = concat_action_list(
-			target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetCritic'), 
-			noisy_target_action
-		)
-		qf1_target = target_net.value_layer(name='qf1_target', input=noisy_qf, scope=target_net.scope_name)
-		qf2_target = target_net.value_layer(name='qf2_target', input=noisy_qf, scope=target_net.scope_name)
-		target_net.value_layer(
-			name='qf1_target', # reusing qf1 net
-			input=concat_action_list(
-				target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetCritic2'), 
-				target_action
-			), 
+		target_embedding = target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetCritic')
+		target_embedding_and_action = concat_action_list(target_embedding, noisy_target_action)
+		q_target_value_1 = target_net.value_layer(name='q_target_value_1', input=target_embedding_and_action, scope=target_net.scope_name)
+		q_target_value_2 = target_net.value_layer(name='q_target_value_2', input=target_embedding_and_action, scope=target_net.scope_name)
+		target_net.value_layer( # this is used only to perfectly mirror the main network
+			name='q_target_value_1', # reusing q_value_1 net
+			input=concat_action_list(target_embedding, target_action), 
 			scope=target_net.scope_name
 		)
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
-		min_qf_target = tf.minimum(qf1_target, qf2_target)
+		min_q_target_value = tf.minimum(q_target_value_1, q_target_value_2)
 		# Targets for Q value regression
 		rewards = self.reward_batch if self.value_count==2 else tf.reduce_sum(self.reward_batch, -1)
-		q_backup = tf.stop_gradient(
-			rewards +
-			tf.where(self.terminal_batch, tf.zeros_like(min_qf_target), self.gamma * min_qf_target)
-		)
-		td_errors = [
-			q_backup - qf1,
-			q_backup - qf2
-		]
-		self.td_error_batch = tf.transpose(td_errors, [1, 0, 2])		
+		discounted_q_value = tf.where(self.terminal_batch, tf.zeros_like(min_q_target_value), self.gamma * min_q_target_value)
+		discounted_q_value = tf.stop_gradient(discounted_q_value)
+		td_target = rewards + discounted_q_value
+		self.td_error_batch = -tf.abs(td_target - q_value_1)
 		####################################
 		# [Relations sets]
 		self.relations_sets = main_net.relations_sets if main_net.produce_explicit_relations else None
@@ -190,9 +180,10 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		if self.with_intrinsic_reward:
 			self._loss_builder['Reward'] = lambda global_step: (intrinsic_reward_loss,)
 		def get_critic_loss(global_step): # Compute Q-Function loss
-			return tf.reduce_mean(td_errors[0] ** 2) + tf.reduce_mean(td_errors[1] ** 2)
+			return tf.reduce_mean((td_target - q_value_1)**2) + tf.reduce_mean((td_target - q_value_2)**2)
 		def get_actor_loss(global_step):
-			return -tf.reduce_mean((q_backup-qf1_pi)** 2) # Policy loss: maximise q value
+			# clipped_q_value = tf.clip_by_value(q_value_on_policy, tf.stop_gradient(q_value_1*(1-0.2)), tf.stop_gradient(q_value_1*(1+0.2)))
+			return -tf.reduce_mean(q_value_on_policy) # Policy loss: maximise q value
 		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step), get_critic_loss(global_step))
 		####################################
 		# [Params]

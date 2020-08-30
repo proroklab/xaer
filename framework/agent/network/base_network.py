@@ -4,7 +4,7 @@ import tensorflow.compat.v1 as tf
 import numpy as np
 from agent.network.network import Network
 import utils.tensorflow_utils as tf_utils
-from utils.rnn import RNN
+# from utils.rnn import RNN
 import options
 flags = options.get()
 

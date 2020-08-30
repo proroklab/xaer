@@ -221,7 +221,7 @@ class RL_Algorithm(object):
 	def build_optimizer(self, optimization_algoritmh):
 		print("Gradient {} optimized by {}".format(self.id, optimization_algoritmh))
 		# global step
-		global_step = tf.Variable(0, trainable=False)
+		global_step = tf.compat.v1.train.get_or_create_global_step()
 		# learning rate
 		learning_rate = tf_utils.get_annealable_variable(
 			function_name=flags.alpha_annealing_function, 
@@ -231,8 +231,10 @@ class RL_Algorithm(object):
 			decay_rate=flags.alpha_decay_rate
 		) if flags.alpha_decay else flags.alpha
 		# gradient optimizer
+		optimizer = tf_utils.get_optimization_function(optimization_algoritmh)(learning_rate=learning_rate)
+		optimizer.iterations = global_step
 		gradient_optimizer_dict = {
-			p: tf_utils.get_optimization_function(optimization_algoritmh)(learning_rate=learning_rate, use_locking=True)
+			p: optimizer
 			for p in flatten(self.get_network_partitions())
 		}
 		return gradient_optimizer_dict,global_step
@@ -253,11 +255,16 @@ class RL_Algorithm(object):
 
 	def _get_train_op(self, global_step, optimizer, loss, shared_keys, update_keys, global_keys):
 		with tf.control_dependencies(update_keys): # control_dependencies is for batch normalization
-			grads_and_vars = optimizer.compute_gradients(loss=loss, var_list=shared_keys)
-			# grads_and_vars = [(g, v) for g, v in grads_and_vars if g is not None]
-			grad, vars = zip(*grads_and_vars)
-			global_grads_and_vars = tuple(zip(grad, global_keys))
-			return optimizer.apply_gradients(global_grads_and_vars, global_step=global_step)
+			shared_keys, global_keys = zip(*(
+				(k1,k2) 
+				for g,k1,k2 in zip(tf.gradients(loss, shared_keys),shared_keys,global_keys) 
+				if g is not None
+			))
+			grads = optimizer.get_gradients(loss, shared_keys)
+			grads = tf.distribute.get_replica_context().all_reduce('mean', grads)
+			print(f'Gradients: {len(grads)}, Global Keys: {len(global_keys)}')
+			global_grads_and_vars = [(g,k) for g,k in zip(grads, global_keys) if g is not None]
+			return optimizer.apply_gradients(global_grads_and_vars)
 		
 	def bind_sync(self, src_network, name=None):
 		with tf.name_scope(name, "Sync{0}".format(self.id),[]) as name:

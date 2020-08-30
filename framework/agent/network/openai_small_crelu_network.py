@@ -7,7 +7,7 @@ import tensorflow.compat.v1 as tf
 
 from agent.network.openai_small_network import OpenAISmall_Network
 import utils.tensorflow_utils as tf_utils
-from utils.rnn import RNN
+# from utils.rnn import RNN
 
 # N.B. tf.initializers.orthogonal is broken with tensorflow 1.10 and GPU, use OpenAI implementation
 

@@ -14,7 +14,7 @@ class NetworkManager(object):
 	algorithm = eval('{}_Algorithm'.format(flags.algorithm))
 	print('Algorithm:',flags.algorithm)
 	# Experience Replay
-	with_experience_replay = flags.replay_mean > 0 or algorithm.is_on_policy
+	with_experience_replay = flags.replay_mean > 0 or not algorithm.is_on_policy
 	replay_mean = flags.replay_mean if flags.replay_mean > 0 else 1
 	print('With Experience Replay:',with_experience_replay)
 	# Experience Prioritisation

@@ -1,28 +1,32 @@
 # -*- coding: utf-8 -*-
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
+import tensorflow_addons as tfa
 import numpy as np
-from tensorflow.python.client import device_lib
 
-def separate(input, value):
-	input_shape = tf.shape(input)
-	true_labels = tf.ones(input_shape)
-	false_labels = tf.zeros(input_shape)
-	mask = tf.where(tf.greater_equal(input, value), true_labels, false_labels)
-	greater_equal = mask*input
-	lower = input - greater_equal
+def separate(i, value):
+	true_labels = tf.ones_like(i)
+	false_labels = tf.zeros_like(i)
+	mask = tf.where(tf.greater_equal(i, value), true_labels, false_labels)
+	greater_equal = mask*i
+	lower = i - greater_equal
 	return greater_equal, lower
 
 def get_optimization_function(name):
-	opt_name = name+'Optimizer'
-	return eval('tf.train.'+opt_name) if hasattr(tf.train, opt_name) else eval('tf.contrib.opt.'+opt_name)
+	if hasattr(tf.keras.optimizers, name):
+		return eval('tf.keras.optimizers.'+name)
+	# if hasattr(tf.contrib.opt, opt_name):
+	# 	return eval('tf.contrib.opt.'+opt_name)
+	if hasattr(tfa.optimizers, name):
+		return eval('tfa.optimizers.'+name)
+	return None
 	
 def get_annealable_variable(function_name, initial_value, global_step, decay_steps, decay_rate):
-	return eval('tf.train.'+function_name)(learning_rate=initial_value, global_step=global_step, decay_steps=decay_steps, decay_rate=decay_rate)
+	return eval('tf.compat.v1.train.'+function_name)(learning_rate=initial_value, global_step=global_step, decay_steps=decay_steps, decay_rate=decay_rate)
 	
 def get_available_gpus():
 	# recipe from here: https://stackoverflow.com/questions/38559755/how-to-get-current-available-gpus-in-tensorflow?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa
-	local_device_protos = device_lib.list_local_devices()
-	return [x.name for x in local_device_protos if x.device_type == 'GPU']
+	local_device_protos = tf.config.list_physical_devices('GPU')
+	return [x.name for x in local_device_protos]
 
 def gpu_count():
 	return len(get_available_gpus())

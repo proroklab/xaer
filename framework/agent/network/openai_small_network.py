@@ -4,7 +4,7 @@ import tensorflow.compat.v1 as tf
 
 from agent.network.base_network import Base_Network, is_continuous_control
 import utils.tensorflow_utils as tf_utils
-from utils.rnn import RNN
+# from utils.rnn import RNN
 import options
 flags = options.get()
 
