@@ -15,7 +15,7 @@ def build():
 	options["algorithm"] = "TD3" # "algorithms: AC, TD3"
 	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, OpenAISmall, OpenAILarge, ExplicitlyRelational, ExplicitlyArgumentative"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
-	options["optimizer"] = "Adam" # "gradient optimizer: all the Keras optimizers or the TFA optimizers (https://www.tensorflow.org/addons/api_docs/python/tfa/optimizers)" # default is Adam, for vanilla A3C is RMSProp
+	options["optimizer"] = "RectifiedAdam" # "gradient optimizer: all the Keras optimizers or the TFA optimizers (https://www.tensorflow.org/addons/api_docs/python/tfa/optimizers)" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.
 	options["only_non_negative_entropy"] = True # "Cross-entropy and entropy are used for policy loss and if this flag is True, then entropy=max(0,entropy). If cross-entropy measures the average number of bits needed to identify an event, then it cannot be negative."
 	# Use mean losses if max_batch_size is too big, in order to avoid NaN
@@ -79,7 +79,7 @@ def build():
 	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 1 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."
-	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
+	options["batch_size"] = 2**0 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
 # Advantage Estimation

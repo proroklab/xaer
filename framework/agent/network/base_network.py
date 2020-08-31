@@ -25,7 +25,7 @@ class Base_Network(Network):
 		self.policy_heads = policy_heads
 		self.state_scaler = state_scaler
 		
-	def build_embedding(self, batch_dict, use_internal_state=True, name='default'):
+	def build_embedding(self, batch_dict, use_internal_state=True, scope="", name='default'):
 		self.use_internal_state = use_internal_state
 		print( "	[{}]Building partition {} use_internal_state={}".format(self.id, name, use_internal_state) )
 		print( "	[{}]Parameters type: {}".format(self.id, flags.parameters_type) )
@@ -41,7 +41,7 @@ class Base_Network(Network):
 			state_batch, 
 			concat_batch, 
 			environment_model, 
-			scope=self.format_scope_name([self.parent_scope_name,name,name])
+			scope=self.format_scope_name([self.parent_scope_name,scope])
 		)
 		print( "	[{}]State Embedding shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [RNN]
@@ -49,7 +49,7 @@ class Base_Network(Network):
 			embedded_input, internal_state_tuple = self._rnn_layer(
 				input=embedded_input, 
 				size_batch=size_batch, 
-				scope=self.format_scope_name([self.scope_name,name,name])
+				scope=self.format_scope_name([self.scope_name,scope])
 			)
 			self.internal_initial_state, self.internal_default_state, self.internal_final_state = internal_state_tuple
 			print( "	[{}]RNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
@@ -70,7 +70,7 @@ class Base_Network(Network):
 			)
 			for i,substate_batch in enumerate(state_batch)
 		]
-		embedded_input = tf.concat(embedded_input, -2)
+		embedded_input = tf.concat(embedded_input, 1)
 		embedded_input = tf.keras.layers.Flatten()(embedded_input)
 		print( "	[{}]CNN layer output shape: {}".format(self.id, embedded_input.get_shape()) )
 		# [Training state]

@@ -231,11 +231,15 @@ class RL_Algorithm(object):
 			decay_rate=flags.alpha_decay_rate
 		) if flags.alpha_decay else flags.alpha
 		# gradient optimizer
-		optimizer = tf_utils.get_optimization_function(optimization_algoritmh)(learning_rate=learning_rate)
-		optimizer.iterations = global_step
+		optimizers = [
+			tf_utils.get_optimization_function(optimization_algoritmh)(learning_rate=learning_rate)
+			for p_group in self.get_network_partitions()
+		]
+		optimizers[0].iterations = global_step
 		gradient_optimizer_dict = {
-			p: optimizer
-			for p in flatten(self.get_network_partitions())
+			p: optimizers[i]
+			for i,p_group in enumerate(self.get_network_partitions())
+			for p in p_group
 		}
 		return gradient_optimizer_dict,global_step
 	
