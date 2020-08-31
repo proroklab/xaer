@@ -76,8 +76,8 @@ def build():
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
 	options["intrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the intrinsic rewards."
 # Actor-Critic parameters
-	options["value_coefficient"] = 32 # "Value coefficient for tuning Critic learning rate." # default is 0.5
-	options["environment_count"] = 1 # "Number of different parallel environments, used for training."
+	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
+	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 1 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."
 	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
