@@ -12,6 +12,7 @@ from agent.network import is_continuous_control
 import options
 flags = options.get()
 
+# TD3's original paper: https://arxiv.org/pdf/1802.09477.pdf
 class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/stable-baselines
 	has_td_error = True
 	is_on_policy = False
@@ -32,8 +33,8 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 
 	def get_main_network_partitions(self):
 		return [
-			['ActorCritic'],
-			['TargetActorCritic']
+			['Actor','Critic'],
+			['TargetActor','TargetCritic']
 		]
 
 	def build_fetch_maps(self):
@@ -56,7 +57,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			'values': self.state_value_batch, 
 			'new_internal_states': self._get_internal_state() if flags.network_has_internal_state else None,
 			'importance_weights': None,
-			'extracted_relations': self.relations_sets if self.network['ActorCritic'].produce_explicit_relations else None,
+			'extracted_relations': self.relations_sets if self.network['Actor'].produce_explicit_relations else None,
 			'intrinsic_rewards': self.intrinsic_reward_batch if self.with_intrinsic_reward else None,
 			'td_errors': self.td_error_batch,
 		}
@@ -91,8 +92,8 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		return action_batch
 
 	def build_network(self):
-		main_net = self.network['ActorCritic']
-		target_net = self.network['TargetActorCritic']
+		main_actor, main_critic = self.network['Actor'], self.network['Critic']
+		target_actor, target_critic = self.network['TargetActor'], self.network['TargetCritic']
 		batch_dict = {
 			'state': self.state_batch, 
 			'size': self.size_batch,
@@ -121,23 +122,39 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			result = tf.concat([embedding, action], axis=-1)
 			return result
 		# Create the policy
-		self.policy_batch = main_net.policy_layer(
-			input=main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainPolicy'), 
-			scope=main_net.scope_name
+		self.policy_batch = main_actor.policy_layer(
+			input=main_actor.build_embedding(
+				batch_dict, 
+				use_internal_state=flags.network_has_internal_state, 
+				name='MainPolicy'
+			), 
+			scope=main_actor.scope_name
 		)
 		self.action_batch = self.sample_actions(self.policy_batch, mean=True)
 		# self.noisy_action_batch = self.sample_actions(self.policy_batch)
 		self.noisy_action_batch = self._get_noisy_action(self.action_batch, self.policy_noise, self.noise_clip)
 		# Use two Q-functions to improve performance by reducing overestimation bias
-		main_embedding = main_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='MainCritic')
+		main_embedding = main_critic.build_embedding(
+			batch_dict, 
+			use_internal_state=flags.network_has_internal_state, 
+			name='MainCritic'
+		)
 		main_embedding_and_action = concat_action_list(main_embedding, self.old_action_batch)
-		q_value_1 = main_net.value_layer(name='q_value_1', input=main_embedding_and_action, scope=main_net.scope_name)
-		q_value_2 = main_net.value_layer(name='q_value_2', input=main_embedding_and_action, scope=main_net.scope_name)
+		q_value_1 = main_critic.value_layer(
+			name='q_value_1', 
+			input=main_embedding_and_action, 
+			scope=main_critic.scope_name
+		)
+		q_value_2 = main_critic.value_layer(
+			name='q_value_2', 
+			input=main_embedding_and_action, 
+			scope=main_critic.scope_name
+		)
 		# Q value when following the current policy
-		q_value_on_policy = main_net.value_layer(
+		q_value_on_policy = main_critic.value_layer(
 			name='q_value_1', # reusing q_value_1 net
 			input=concat_action_list(main_embedding, self.action_batch), 
-			scope=main_net.scope_name
+			scope=main_critic.scope_name
 		)
 		self.state_value_batch = q_value_on_policy #= tf.clip_by_value(tf.keras.activations.relu(q_value_on_policy), 0,1)
 		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
@@ -145,23 +162,35 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		# [Target]
 		# Create target networks
 		batch_dict['state'] = self.new_state_batch
-		target_policy = target_net.policy_layer(
-			input=target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetPolicy'), 
-			scope=target_net.scope_name
+		target_policy = target_actor.policy_layer(
+			input=target_actor.build_embedding(
+				batch_dict, 
+				use_internal_state=flags.network_has_internal_state, 
+				name='TargetPolicy'
+			), 
+			scope=target_actor.scope_name
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
 		target_action = self.sample_actions(target_policy, mean=True)
 		# noisy_target_action = self.sample_actions(target_policy)
 		noisy_target_action = self._get_noisy_action(target_action, self.target_policy_noise, self.target_noise_clip)
 		# Q values when following the target policy
-		target_embedding = target_net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetCritic')
+		target_embedding = target_critic.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='TargetCritic')
 		target_embedding_and_action = concat_action_list(target_embedding, noisy_target_action)
-		q_target_value_1 = target_net.value_layer(name='q_target_value_1', input=target_embedding_and_action, scope=target_net.scope_name)
-		q_target_value_2 = target_net.value_layer(name='q_target_value_2', input=target_embedding_and_action, scope=target_net.scope_name)
-		target_net.value_layer( # this is used only to perfectly mirror the main network
+		q_target_value_1 = target_critic.value_layer(
+			name='q_target_value_1', 
+			input=target_embedding_and_action, 
+			scope=target_critic.scope_name
+		)
+		q_target_value_2 = target_critic.value_layer(
+			name='q_target_value_2', 
+			input=target_embedding_and_action, 
+			scope=target_critic.scope_name
+		)
+		target_critic.value_layer( # this is used only to perfectly mirror the main network
 			name='q_target_value_1', # reusing q_value_1 net
 			input=concat_action_list(target_embedding, target_action), 
-			scope=target_net.scope_name
+			scope=target_critic.scope_name
 		)
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
 		min_q_target_value = tf.minimum(q_target_value_1, q_target_value_2)
@@ -173,7 +202,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		self.td_error_batch = -tf.abs(td_target - q_value_1)
 		####################################
 		# [Relations sets]
-		self.relations_sets = main_net.relations_sets if main_net.produce_explicit_relations else None
+		self.relations_sets = main_actor.relations_sets if main_actor.produce_explicit_relations else None
 		####################################
 		# [Loss]
 		self._loss_builder = {}
@@ -184,12 +213,13 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		def get_actor_loss(global_step):
 			# clipped_q_value = tf.clip_by_value(q_value_on_policy, tf.stop_gradient(q_value_1*(1-0.2)), tf.stop_gradient(q_value_1*(1+0.2)))
 			return -tf.reduce_mean(q_value_on_policy) # Policy loss: maximise q value
-		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step), get_critic_loss(global_step))
+		self._loss_builder['Actor'] = lambda global_step: (get_actor_loss(global_step),)
+		self._loss_builder['Critic'] = lambda global_step: (get_critic_loss(global_step),)
 		####################################
 		# [Params]
 		# Q Values and policy target params
-		source_params = self.network['ActorCritic'].shared_keys
-		target_params = self.network['TargetActorCritic'].shared_keys
+		source_params = self.network['Actor'].shared_keys + self.network['Critic'].shared_keys
+		target_params = self.network['TargetActor'].shared_keys + self.network['TargetCritic'].shared_keys
 		# Polyak averaging for target variables
 		self.target_ops = [
 			tf.assign(target, (1 - self.tau) * target + self.tau * source)
@@ -199,17 +229,17 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 
 	def _train(self, feed_dict, replay=False):
 		# Build _train fetches
-		train_tuple = (self.train_operations_dict['ActorCritic'],)
+		train_tuple = (self.train_operations_dict['Critic'],)
 		# Do not replay intrinsic reward training otherwise it would start to reward higher the states distant from extrinsic rewards
 		if self.with_intrinsic_reward and not replay:
 			train_tuple += (self.train_operations_dict['Reward'],)
-		if self.train_step == 0:
-			train_tuple += (self.target_ops,)
+		if self.train_step == 0: # update policy and target
+			train_tuple += (self.train_operations_dict['Actor'], self.target_ops,)
 		self.train_step = (self.train_step + 1)%self.policy_delay
 		# Build fetch
 		fetches = [train_tuple] # Minimize loss
 		# Get loss values for logging
-		fetches += [self.loss_dict['ActorCritic']] if flags.print_loss else [()]
+		fetches += [(self.loss_dict['Actor'],self.loss_dict['Critic'])] if flags.print_loss else [()]
 		# Debug info
 		fetches += [()]
 		# Intrinsic reward
@@ -221,7 +251,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		train_info = {}
 		if flags.print_loss:
 			train_info["loss_actor"], train_info["loss_critic"] = loss
-			train_info["loss_total"] = sum(loss)
+			train_info["loss_total"] = train_info["loss_actor"] + train_info["loss_critic"]
 		if self.with_intrinsic_reward:
 			train_info["intrinsic_reward_loss"] = reward_info
 		# Build loss statistics

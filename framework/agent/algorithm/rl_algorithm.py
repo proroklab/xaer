@@ -289,8 +289,11 @@ class RL_Algorithm(object):
 	def setup_local_loss_minimisation(self, gradient_optimizer_dict, global_step, global_agent): # minimize loss and apply gradients to global vars.
 		self.loss_dict = self.build_loss(global_step, list(gradient_optimizer_dict.keys()))
 		self.build_fetch_maps()
-		self.train_operations_dict = {
-			p: self._get_train_op(
+		self.train_operations_dict = {}
+		for p,optimization_fn in gradient_optimizer_dict.items():
+			if p not in self.loss_dict:
+				continue
+			self.train_operations_dict[p] = self._get_train_op(
 				global_step=global_step,
 				optimizer=optimization_fn, 
 				loss=sum(self.loss_dict[p]), 
@@ -298,9 +301,6 @@ class RL_Algorithm(object):
 				global_keys=global_agent.get_shared_keys([p]),
 				update_keys=self.get_update_keys([p])
 			)
-			for p,optimization_fn in gradient_optimizer_dict.items()
-			if p in self.loss_dict
-		}
 		
 	def prepare_train(self, info_dict, replay):
 		''' Prepare training batch, then _train once using the biggest possible batch '''
