@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from agent.algorithm.rl_algorithm import RL_Algorithm
 import tensorflow.compat.v1 as tf
-from utils.distributions import Categorical, Normal
+from tf_agents.utils.common import OUProcess
 from agent.network import is_continuous_control
-from agent.algorithm.qvalue_based.noise import *
+from utils.distributions import Normal
 #===============================================================================
 # from utils.running_std import RunningMeanStd
 #===============================================================================
@@ -16,32 +16,19 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 	is_on_policy = False
 
 	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
-		self.policy_delay = 2
-		self.reset_noise_step_gap = 100
-		self.target_policy_noise = 0.2
-		self.target_noise_clip = 0.5
 		self.gamma = flags.extrinsic_gamma
+		# Actor updates
+		self.policy_delay = 2
 		self.tau = 0.005
-		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
-		self.action_noise = [
-			OrnsteinUhlenbeckActionNoise(mean=np.zeros(head['size']), sigma=0.1 * np.ones(head['size']))
-			for head in self.policy_heads
+		self.train_step = 0
+		# Action noise
+		self.action_noise_generator = [
+			OUProcess(tf.zeros(head[0]))
+			for head in environment_info['action_shape']
 		]
-
-	def fetch_info(self, fetch_label_list, info_dict):
-		result_dict = super().fetch_info(fetch_label_list, info_dict)
-		if 'actions' in result_dict:
-			result_dict['actions'] = [
-				[
-					np.clip(sub_action + noise(), -1,1)
-					for sub_action, noise in zip(action, self.action_noise)
-				]
-				for action in result_dict['actions']
-			]
-		if self.train_step%self.reset_noise_step_gap == 0: # update policy and target
-			for a in self.action_noise:
-				a.reset()
-		return result_dict
+		self.target_action_noise_std = 0.1
+		self.target_action_noise_clip = 0.5
+		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
 
 	def get_main_network_partitions(self):
 		return [
@@ -63,7 +50,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			'terminal': self.terminal_batch,
 		}
 		self.fetch_map = {
-			'actions': self.action_batch, 
+			'actions': self.noisy_action_batch, 
 			'hot_actions': self.action_batch, 
 			'policies': self.policy_batch, 
 			'values': self.state_value_batch, 
@@ -73,35 +60,6 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			'intrinsic_rewards': self.intrinsic_reward_batch if self.with_intrinsic_reward else None,
 			'td_errors': self.td_error_batch,
 		}
-
-	def _get_noisy_action(self, action_batch, stddev, noise_clip):
-		new_action_batch = []
-		for a in action_batch:
-			# Target policy smoothing, by adding clipped noise to target actions
-			noise = tf.random_normal(tf.shape(a), stddev=stddev)
-			noise = tf.clip_by_value(noise, -noise_clip, noise_clip)
-			# Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
-			new_action_batch.append(tf.clip_by_value(a + noise, -1, 1))
-		return new_action_batch
-
-	def sample_actions(self, actor_batch, mean=False):
-		action_batch = []
-		for h,actor_head in enumerate(actor_batch):
-			if is_continuous_control(self.policy_heads[h]['depth']):
-				new_policy_batch = tf.transpose(actor_head, [1, 0, 2])
-				if not mean:
-					sample_batch = Normal(new_policy_batch[0], new_policy_batch[1]).sample()
-				else:
-					sample_batch = new_policy_batch[0]
-				action = tf.clip_by_value(sample_batch, -1,1, name='action_clipper')
-				action_batch.append(action) # Sample action batch in forward direction, use old action in backward direction
-			else: # discrete control
-				distribution = Categorical(actor_head)
-				action = distribution.sample(one_hot=False) # Sample action batch in forward direction, use old action in backward direction
-				action_batch.append(action)
-		# Give self esplicative name to output for easily retrieving it in frozen graph
-		# tf.identity(action_batch, name="action")
-		return action_batch
 
 	def build_network(self):
 		main_actor, main_critic = self.network['Actor'], self.network['Critic']
@@ -133,6 +91,19 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			action = tf.concat(action_list, -1)
 			result = tf.concat([embedding, action], axis=-1)
 			return result
+		def add_noise(action, noise):
+			noisy_action = action + noise
+			noisy_action = tf.where(
+				tf.greater(noisy_action,1), 
+				action - noise, 
+				noisy_action
+			)
+			noisy_action = tf.where(
+				tf.less(noisy_action,-1), 
+				action - noise, 
+				noisy_action
+			)
+			return tf.clip_by_value(noisy_action, -1,1)
 		# Create the policy
 		self.policy_batch = main_actor.policy_layer(
 			input=main_actor.build_embedding(
@@ -142,31 +113,35 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			), 
 			scope=main_actor.format_scope_name([main_actor.scope_name,'MainPolicy'])
 		)
-		self.action_batch = self.sample_actions(self.policy_batch, mean=True)
+		# self.action_batch,_ = self.sample_actions(self.policy_batch)
+		# self.noisy_action_batch = self.action_batch
+		self.action_batch,_ = self.sample_actions(self.policy_batch, mean=True)
+		self.noisy_action_batch = [
+			add_noise(action, noise_generator())
+			for action,noise_generator in zip(self.action_batch,self.action_noise_generator)
+		]
 		# Use two Q-functions to improve performance by reducing overestimation bias
 		main_embedding = main_critic.build_embedding(
 			batch_dict, 
 			use_internal_state=flags.network_has_internal_state, 
 			scope='MainCritic'
 		)
-		main_embedding_and_action = concat_action_list(main_embedding, self.old_action_batch)
 		q_value_1 = main_critic.value_layer(
 			name='q_value_1', 
-			input=main_embedding_and_action, 
+			input=concat_action_list(main_embedding, self.old_action_batch), 
 			scope=main_critic.format_scope_name([main_critic.scope_name,'MainCritic'])
 		)
 		q_value_2 = main_critic.value_layer(
 			name='q_value_2', 
-			input=main_embedding_and_action, 
+			input=concat_action_list(main_embedding, self.old_action_batch), 
 			scope=main_critic.format_scope_name([main_critic.scope_name,'MainCritic'])
 		)
 		# Q value when following the current policy
-		q_value_on_policy = main_critic.value_layer(
+		self.state_value_batch = q_value_on_policy = main_critic.value_layer(
 			name='q_value_1', # reusing q_value_1 net
 			input=concat_action_list(main_embedding, self.action_batch), 
 			scope=main_critic.format_scope_name([main_critic.scope_name,'MainCritic'])
 		)
-		self.state_value_batch = q_value_on_policy #= tf.clip_by_value(tf.keras.activations.relu(q_value_on_policy), 0,1)
 		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
 		####################################
 		# [Target]
@@ -181,24 +156,22 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			scope=target_actor.format_scope_name([target_actor.scope_name,'TargetPolicy'])
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
-		target_action = self.sample_actions(target_policy, mean=True)
-		# noisy_target_action = self.sample_actions(target_policy)
-		noisy_target_action = self._get_noisy_action(target_action, self.target_policy_noise, self.target_noise_clip)
+		target_action,_ = self.sample_actions(target_policy, mean=True)
+		noisy_target_action = add_noise(target_action, tf.clip_by_value(Normal(0., self.target_action_noise_std).sample(), -self.target_action_noise_clip, self.target_action_noise_clip))
 		# Q values when following the target policy
 		target_embedding = target_critic.build_embedding(
 			batch_dict, 
 			use_internal_state=flags.network_has_internal_state, 
 			scope='TargetCritic'
 		)
-		target_embedding_and_action = concat_action_list(target_embedding, noisy_target_action)
 		q_target_value_1 = target_critic.value_layer(
 			name='q_target_value_1', 
-			input=target_embedding_and_action, 
+			input=concat_action_list(target_embedding, noisy_target_action), 
 			scope=target_critic.format_scope_name([target_critic.scope_name,'TargetCritic'])
 		)
 		q_target_value_2 = target_critic.value_layer(
 			name='q_target_value_2', 
-			input=target_embedding_and_action, 
+			input=concat_action_list(target_embedding, noisy_target_action), 
 			scope=target_critic.format_scope_name([target_critic.scope_name,'TargetCritic'])
 		)
 		target_critic.value_layer( # this is used only to perfectly mirror the main network
@@ -209,11 +182,10 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
 		min_q_target_value = tf.minimum(q_target_value_1, q_target_value_2)
 		# Targets for Q value regression
-		rewards = self.reward_batch if self.value_count==2 else tf.reduce_sum(self.reward_batch, -1)
+		rewards = self.reward_batch if self.value_count > 1 else tf.reduce_sum(self.reward_batch, -1)
 		discounted_q_value = tf.where(self.terminal_batch, tf.zeros_like(min_q_target_value), self.gamma * min_q_target_value)
-		discounted_q_value = tf.stop_gradient(discounted_q_value)
-		td_target = rewards + discounted_q_value
-		self.td_error_batch = -tf.abs(td_target - q_value_1)
+		td_target = tf.stop_gradient(rewards + discounted_q_value)
+		self.td_error_batch = tf.abs(td_target - q_value_on_policy)
 		####################################
 		# [Relations sets]
 		self.relations_sets = main_actor.relations_sets if main_actor.produce_explicit_relations else None
@@ -223,9 +195,10 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		if self.with_intrinsic_reward:
 			self._loss_builder['Reward'] = lambda global_step: (intrinsic_reward_loss,)
 		def get_critic_loss(global_step): # Compute Q-Function loss
-			return tf.reduce_mean((td_target - q_value_1)**2) + tf.reduce_mean((td_target - q_value_2)**2)
+			td_error1 = td_target - q_value_1
+			td_error2 = td_target - q_value_2
+			return tf.reduce_mean(td_error1**2) + tf.reduce_mean(td_error2**2)
 		def get_actor_loss(global_step):
-			# clipped_q_value = tf.clip_by_value(q_value_on_policy, tf.stop_gradient(q_value_1*(1-0.2)), tf.stop_gradient(q_value_1*(1+0.2)))
 			return -tf.reduce_mean(q_value_on_policy) # Policy loss: maximise q value
 		self._loss_builder['Actor'] = lambda global_step: (get_actor_loss(global_step),)
 		self._loss_builder['Critic'] = lambda global_step: (get_critic_loss(global_step),)
@@ -244,7 +217,6 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			tf.assign(target, source)
 			for target, source in zip(target_params, source_params)
 		]
-		self.train_step = 0
 
 	def _train(self, feed_dict, replay=False):
 		# Build _train fetches

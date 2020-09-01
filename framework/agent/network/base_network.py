@@ -25,9 +25,9 @@ class Base_Network(Network):
 		self.policy_heads = policy_heads
 		self.state_scaler = state_scaler
 		
-	def build_embedding(self, batch_dict, use_internal_state=True, scope="", name='default'):
+	def build_embedding(self, batch_dict, use_internal_state=True, scope=""):
 		self.use_internal_state = use_internal_state
-		print( "	[{}]Building partition {} use_internal_state={}".format(self.id, name, use_internal_state) )
+		print( "	[{}]Building partition {} use_internal_state={}".format(self.id, scope, use_internal_state) )
 		print( "	[{}]Parameters type: {}".format(self.id, flags.parameters_type) )
 		print( "	[{}]Algorithm: {}".format(self.id, flags.algorithm) )
 		print( "	[{}]Network configuration: {}".format(self.id, flags.network_configuration) )

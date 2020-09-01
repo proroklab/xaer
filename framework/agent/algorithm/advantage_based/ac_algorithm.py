@@ -3,7 +3,6 @@ from agent.algorithm.rl_algorithm import RL_Algorithm
 import tensorflow.compat.v1 as tf
 from agent.algorithm.advantage_based.loss.policy_loss import PolicyLoss
 from agent.algorithm.advantage_based.loss.value_loss import ValueLoss
-from utils.distributions import Categorical, Normal
 from agent.network import is_continuous_control
 from agent.algorithm.advantage_based.advantage_estimator import *
 #===============================================================================
@@ -67,7 +66,7 @@ class AC_Algorithm(RL_Algorithm):
 				'new_state': self.new_state_batch, 
 				'state_mean': self.state_mean_batch,
 				'state_std': self.state_std_batch,
-			})
+			}, scope='IntrinsicReward')
 			self.intrinsic_reward_batch, intrinsic_reward_loss, self.training_state = reward_network_output
 			print( "	[{}]Intrinsic Reward shape: {}".format(self.id, self.intrinsic_reward_batch.get_shape()) )
 			print( "	[{}]Training State Kernel shape: {}".format(self.id, self.training_state['kernel'].get_shape()) )
@@ -75,7 +74,7 @@ class AC_Algorithm(RL_Algorithm):
 			batch_dict['training_state'] = self.training_state
 		####################################
 		# [Actor]
-		embedding = net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, name='ActorCritic')
+		embedding = net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, scope='ActorCritic')
 		self.actor_batch = net.policy_layer(
 			input=embedding, 
 			scope=net.scope_name
@@ -157,25 +156,6 @@ class AC_Algorithm(RL_Algorithm):
 				)
 		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step), get_critic_loss(global_step))
 
-	def sample_actions(self, actor_batch):
-		action_batch = []
-		hot_action_batch = []
-		for h,actor_head in enumerate(actor_batch):
-			if is_continuous_control(self.policy_heads[h]['depth']):
-				new_policy_batch = tf.transpose(actor_head, [1, 0, 2])
-				sample_batch = Normal(new_policy_batch[0], new_policy_batch[1]).sample()
-				action = tf.clip_by_value(sample_batch, -1,1, name='action_clipper')
-				action_batch.append(action) # Sample action batch in forward direction, use old action in backward direction
-				hot_action_batch.append(action)
-			else: # discrete control
-				distribution = Categorical(actor_head)
-				action = distribution.sample(one_hot=False) # Sample action batch in forward direction, use old action in backward direction
-				action_batch.append(action)
-				hot_action_batch.append(distribution.get_sample_one_hot(action))
-		# Give self esplicative name to output for easily retrieving it in frozen graph
-		# tf.identity(action_batch, name="action")
-		return action_batch, hot_action_batch
-	
 	def _train(self, feed_dict, replay=False):
 		# Build _train fetches
 		train_tuple = (self.train_operations_dict['ActorCritic'],)

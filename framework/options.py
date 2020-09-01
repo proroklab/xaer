@@ -70,7 +70,7 @@ def build():
 	# Isele, David, and Akansel Cosgun. "Selective experience replay for lifelong learning." Thirty-second AAAI conference on artificial intelligence. 2018.
 	options["global_distribution_matching"] = False # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 # Experience Clustering
-	options["experience_clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # The scheme used to group experience into clusters. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'.
+	options["experience_clustering_scheme"] = "none" # The scheme used to group experience into clusters. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'.
 	options["prioritised_cluster_sampling"] = False # Whether clustering sampling is uniform (False) or prioritised (True). # Useful when the network configuration does not have a task-oriented inductive bias. The ExplicitlyArgumentative has a task-oriented inductive bias, in other terms, it learns much faster a task and thus with prioritised_cluster_sampling=True it would overfit when the experience buffer is too big.
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
@@ -79,7 +79,7 @@ def build():
 	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
 	options["groups_count"] = 1 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."
-	options["batch_size"] = 2**0 # "Maximum batch size." # default is 8
+	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
 # Advantage Estimation
@@ -103,8 +103,8 @@ def build():
 	options["log_directory"] = "./log" # "events directory"
 	options["print_loss"] = True # "Whether to print losses inside statistics" # print_loss = True might slow down the algorithm
 	options["print_policy_info"] = True # "Whether to print debug information about the actor inside statistics" # print_policy_info = True might slow down the algorithm
-	options["show_episodes"] = 'none' # "What type of episodes to save: random, best, all, none"
-	options["show_episode_probability"] = 5e-4 # "Probability of showing an episode when show_episodes == random"
+	options["show_episodes"] = 'random' # "What type of episodes to save: random, best, all, none"
+	options["show_episode_probability"] = 1e-3 # "Probability of showing an episode when show_episodes == random"
 	# save_episode_screen = True might slow down the algorithm -> use in combination with show_episodes = 'random' for best perfomance
 	options["save_episode_screen"] = True # "Whether to save episode screens"
 	# save_episode_gif = True slows down the algorithm, requires save_episode_screen, True to work

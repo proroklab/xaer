@@ -5,6 +5,7 @@ import itertools as it
 from collections import deque
 from utils.statistics import Statistics
 from utils.misc import flatten
+from utils.distributions import Categorical, Normal
 from agent.network import *
 #===============================================================================
 # from utils.running_std import RunningMeanStd
@@ -62,6 +63,33 @@ class RL_Algorithm(object):
 		# self.loss_distribution_estimator = RunningMeanStd(batch_size=flags.batch_size)
 		# self.actor_loss_is_too_small = False
 		#=======================================================================
+
+	def sample_actions(self, actor_batch, mean=False, std=None):
+		action_batch = []
+		hot_action_batch = []
+		for h,actor_head in enumerate(actor_batch):
+			if is_continuous_control(self.policy_heads[h]['depth']):
+				new_policy_batch = tf.transpose(actor_head, [1, 0, 2])
+				new_mean_batch, new_std_batch = new_policy_batch[0], new_policy_batch[1]
+				distribution = Normal(new_mean_batch, new_std_batch if std is None else std*tf.ones_like(new_mean_batch))
+				if not mean:
+					sample_batch = distribution.sample()
+					action = tf.clip_by_value(sample_batch, -1,1, name='action_clipper')
+				else:
+					action = distribution.mean()
+				action_batch.append(action) # Sample action batch in forward direction, use old action in backward direction
+				hot_action_batch.append(action)
+			else: # discrete control
+				distribution = Categorical(actor_head)
+				if not mean:
+					action = distribution.sample(one_hot=False) # Sample action batch in forward direction, use old action in backward direction
+				else:
+					action = distribution.mean()
+				action_batch.append(action)
+				hot_action_batch.append(distribution.get_sample_one_hot(action))
+		# Give self esplicative name to output for easily retrieving it in frozen graph
+		# tf.identity(action_batch, name="action")
+		return action_batch, hot_action_batch
 
 	def get_main_network_partitions(self):
 		pass

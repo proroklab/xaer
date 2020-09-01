@@ -94,7 +94,8 @@ class Group(object):
 				# Build action dictionary
 				action_dict = {
 					'state': states[i],
-					'action': hot_actions[i],
+					'action': actions[i],
+					'hot_action': hot_actions[i],
 					'value': values[i],
 					'policy': policies[i],
 					'internal_state': internal_states[i],

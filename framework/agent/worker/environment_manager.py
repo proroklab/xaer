@@ -211,7 +211,7 @@ class EnvironmentManager(object):
 		value = np.around(frame['value'], decimals=3)
 		value_info = "reward={}, manipulated_reward={}, value={}\n".format(frame['reward'], frame['manipulated_reward'], value)
 		actor_info = "logits={}, distribution={}\n".format(logits, distribution)
-		action_info = "action={}\n".format(frame['action'])
+		action_info = "action={}, hot_action={}\n".format(frame['action'], frame['hot_action'])
 		extra_info = "extra={}\n".format(frame['extra'])
 		frame_info = { "log": value_info + actor_info + action_info + extra_info }
 		if flags.save_episode_screen and frame['screen'] is not None:
@@ -243,6 +243,7 @@ class EnvironmentManager(object):
 				'screen': self.environment.get_screen(),
 				'extra': self.environment.get_info(),
 				'action': action_dict['action'],
+				'hot_action': action_dict['hot_action'],
 				'policy': action_dict['policy'],
 				'value': action_dict['value'],
 				'reward': reward,
