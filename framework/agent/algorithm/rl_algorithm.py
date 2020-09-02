@@ -325,14 +325,17 @@ class RL_Algorithm(object):
 		for p,optimization_fn in gradient_optimizer_dict.items():
 			if p not in self.loss_dict:
 				continue
-			self.train_operations_dict[p] = self._get_train_op(
-				global_step=global_step,
-				optimizer=optimization_fn, 
-				loss=sum(self.loss_dict[p]), 
-				shared_keys=self.get_shared_keys([p]), 
-				global_keys=global_agent.get_shared_keys([p]),
-				update_keys=self.get_update_keys([p])
-			)
+			self.train_operations_dict[p] = tuple(
+				self._get_train_op(
+					global_step=global_step,
+					optimizer=optimization_fn, 
+					loss=loss, 
+					shared_keys=self.get_shared_keys([p]), 
+					global_keys=global_agent.get_shared_keys([p]),
+					update_keys=self.get_update_keys([p])
+				)
+				for loss in self.loss_dict[p]
+			)				
 		
 	def prepare_train(self, info_dict, replay):
 		''' Prepare training batch, then _train once using the biggest possible batch '''

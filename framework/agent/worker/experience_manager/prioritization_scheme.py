@@ -8,6 +8,7 @@ class unclipped_gain_estimate():
 			'priority_update_after_replay': True,
 			'importance_weight': algorithm.has_importance_weight,
 			'advantage': algorithm.has_advantage,
+			'td_error': algorithm.has_td_error,
 		}
 		self.aggregation_fn = np.sum
 
@@ -18,20 +19,24 @@ class unclipped_gain_estimate():
 		return self.aggregation_fn(gain)
 
 	def get_advantage(self, batch, agents):
-		advantages = batch.get_all_actions(actions='advantages', agents=agents)
+		(advantages,) = batch.get_all_actions(actions=['advantages'], agents=agents)
 		merged_advantages = np.array(list(map(merge_splitted_advantages,advantages)))
 		return self.aggregation_fn(merged_advantages)
 
+	def get_td_error(self, batch, agents):
+		(errors,) = batch.get_all_actions(actions=['td_errors'], agents=agents)
+		return self.aggregation_fn(errors)
+
 	def get_value(self, batch, agents):
-		values = batch.get_cumulative_action('values', agents)
-		if len(values.shape) > 1 and len(values[0]) > 1:
-			values = np.sum(values, -1)
+		(values,) = batch.get_all_actions(actions=['values'], agents=agents)
 		return self.aggregation_fn(values)
 
 	def get(self, batch, agents):
 		if self.requirement['importance_weight'] and self.requirement['advantage']:
 			return self.get_weighted_advantage(batch, agents)
 		if self.requirement['advantage']:
+			return self.get_advantage(batch, agents)
+		if self.requirement['td_error']:
 			return self.get_advantage(batch, agents)
 		return self.get_value(batch, agents)
 

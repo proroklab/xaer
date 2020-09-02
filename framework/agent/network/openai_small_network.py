@@ -65,20 +65,16 @@ class OpenAISmall_Network(Base_Network):
 				tf.keras.layers.Dense(name='Value_V{}_Dense1'.format(i),  units=1, activation=None, kernel_initializer=tf_utils.orthogonal_initializer(0.01))
 				for i in range(self.value_count)
 			]
-			v_output_layer = tf.keras.layers.Flatten()
 			def exec_fn(i):
 				i = i + input_layer(i)
 				if qvalue_estimation:
 					i = [l(i) for l in q_value_layers]
-					i = tf.stack(i)
-					i = tf.transpose(i, [1, 0, 2])
+					i = tf.concat(i,-1)
 					if policy_size > 1 and policy_depth > 1:
 						i = tf.reshape(i, [-1,self.value_count,policy_size,policy_depth])
 				else:
 					i = [l(i) for l in v_value_layers]
-					i = tf.stack(i)
-					i = tf.transpose(i, [1, 0, 2])
-					i = v_output_layer(i)
+					i = tf.concat(i,-1)
 				return i
 			return exec_fn
 		return self._scopefy(inputs=(input, ), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)

@@ -41,7 +41,7 @@ class AC_Algorithm(RL_Algorithm):
 		self.fetch_map = {
 			'actions': self.action_batch, 
 			'hot_actions': self.hot_action_batch, 
-			'policies': self.actor_batch, 
+			'policies': self.policy_batch, 
 			'values': self.state_value_batch, 
 			'new_internal_states': self._get_internal_state() if flags.network_has_internal_state else None,
 			'importance_weights': self.importance_weight_batch,
@@ -75,13 +75,13 @@ class AC_Algorithm(RL_Algorithm):
 		####################################
 		# [Actor]
 		embedding = net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, scope='ActorCritic')
-		self.actor_batch = net.policy_layer(
+		self.policy_batch = net.policy_layer(
 			input=embedding, 
 			scope=net.scope_name
 		)
-		for i,b in enumerate(self.actor_batch): 
+		for i,b in enumerate(self.policy_batch): 
 			print( "	[{}]Actor{} output shape: {}".format(self.id, i, b.get_shape()) )
-		self.action_batch, self.hot_action_batch = self.sample_actions(self.actor_batch)
+		self.action_batch, self.hot_action_batch = self.sample_actions(self.policy_batch)
 		for i,b in enumerate(self.action_batch): 
 			print( "	[{}]Action{} output shape: {}".format(self.id, i, b.get_shape()) )
 		for i,b in enumerate(self.hot_action_batch): 
@@ -109,7 +109,7 @@ class AC_Algorithm(RL_Algorithm):
 					type= flags.policy_loss,
 					beta= self.beta,
 					policy_heads= self.policy_heads, 
-					actor_batch= self.actor_batch,
+					actor_batch= self.policy_batch,
 					old_policy_batch= self.old_policy_batch, 
 					old_action_batch= self.old_action_batch, 
 					is_replayed_batch= self.is_replayed_batch,
@@ -154,14 +154,14 @@ class AC_Algorithm(RL_Algorithm):
 					true_fn=lambda: tf.constant(0., dtype=self.parameters_type),
 					false_fn=lambda: loss
 				)
-		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step), get_critic_loss(global_step))
+		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step)+get_critic_loss(global_step),)
 
 	def _train(self, feed_dict, replay=False):
 		# Build _train fetches
-		train_tuple = (self.train_operations_dict['ActorCritic'],)
+		train_tuple = self.train_operations_dict['ActorCritic']
 		# Do not replay intrinsic reward training otherwise it would start to reward higher the states distant from extrinsic rewards
 		if self.with_intrinsic_reward and not replay:
-			train_tuple += (self.train_operations_dict['Reward'],)
+			train_tuple += self.train_operations_dict['Reward']
 		# Build fetch
 		fetches = [train_tuple] # Minimize loss
 		# Get loss values for logging

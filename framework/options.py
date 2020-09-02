@@ -38,7 +38,7 @@ def build():
 	options["alpha_annealing_function"] = "inverse_time_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
 	options["alpha_decay_steps"] = 10**5 # "decay alpha every x steps" # default is 10**6
 	options["alpha_decay_rate"] = 0.96 # "decay rate" # default is 0.25
-# Intrinsic Rewards: Burda = Yuri = et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
+# Intrinsic Rewards: Burda, Yuri, et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
 	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states, and the agent is trained to maximize it."
 	options["use_learnt_environment_model_as_observation"] = False # "Use the intrinsic reward weights (the learnt model of the environment) as network input."
 	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
@@ -70,7 +70,7 @@ def build():
 	# Isele, David, and Akansel Cosgun. "Selective experience replay for lifelong learning." Thirty-second AAAI conference on artificial intelligence. 2018.
 	options["global_distribution_matching"] = False # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 # Experience Clustering
-	options["experience_clustering_scheme"] = "none" # The scheme used to group experience into clusters. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'.
+	options["experience_clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # The scheme used to group experience into clusters. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'.
 	options["prioritised_cluster_sampling"] = False # Whether clustering sampling is uniform (False) or prioritised (True). # Useful when the network configuration does not have a task-oriented inductive bias. The ExplicitlyArgumentative has a task-oriented inductive bias, in other terms, it learns much faster a task and thus with prioritised_cluster_sampling=True it would overfit when the experience buffer is too big.
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
@@ -103,7 +103,7 @@ def build():
 	options["log_directory"] = "./log" # "events directory"
 	options["print_loss"] = True # "Whether to print losses inside statistics" # print_loss = True might slow down the algorithm
 	options["print_policy_info"] = True # "Whether to print debug information about the actor inside statistics" # print_policy_info = True might slow down the algorithm
-	options["show_episodes"] = 'random' # "What type of episodes to save: random, best, all, none"
+	options["show_episodes"] = 'none' # "What type of episodes to save: random, best, all, none"
 	options["show_episode_probability"] = 1e-3 # "Probability of showing an episode when show_episodes == random"
 	# save_episode_screen = True might slow down the algorithm -> use in combination with show_episodes = 'random' for best perfomance
 	options["save_episode_screen"] = True # "Whether to save episode screens"
