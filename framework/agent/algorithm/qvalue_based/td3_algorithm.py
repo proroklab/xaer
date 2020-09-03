@@ -5,6 +5,7 @@ from tf_agents.utils.common import OUProcess
 from agent.network import is_continuous_control
 from utils.distributions import Normal
 from agent.algorithm.advantage_based.loss.policy_loss import PolicyLoss
+import numpy as np
 #===============================================================================
 # from utils.running_std import RunningMeanStd
 #===============================================================================
@@ -19,7 +20,7 @@ def merge_splitted_advantages(advantage):
 # TD3's original paper: https://arxiv.org/pdf/1802.09477.pdf
 class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/stable-baselines
 	has_td_error = True
-	# is_on_policy = False
+	is_on_policy = False
 
 	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
 		self.gamma = flags.extrinsic_gamma
@@ -147,11 +148,15 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			scope=main_critic.format_scope_name([main_critic.scope_name,'MainCritic'])
 		)
 		# Q value when following the current policy
-		self.state_value_batch = q_value_on_policy = main_critic.value_layer(
+		q_value_on_policy = main_critic.value_layer(
 			name='q_value_1', # reusing q_value_1 net
 			input=concat_action_list(main_embedding, self.action_batch), 
 			scope=main_critic.format_scope_name([main_critic.scope_name,'MainCritic'])
 		)
+		self.state_value_batch = q_value_on_policy # state_value_batch must not depend on old action
+		self.q_value_1 = q_value_1[...,0]
+		self.q_value_2 = q_value_2[...,0]
+		self.q_value_pi = q_value_on_policy[...,0]
 		print( "	[{}]Value output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
 		####################################
 		# [Target]
@@ -185,25 +190,23 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			input=target_embedding_and_action, 
 			scope=target_critic.format_scope_name([target_critic.scope_name,'TargetCritic'])
 		)
-		# print( 'q_value_on_policy', q_value_on_policy.get_shape() )
-		# print( 'q_target_value_1', q_target_value_1.get_shape() )
-		# print( 'q_target_value_2', q_target_value_2.get_shape() )
-		# print( 'q_value_1', q_value_1.get_shape() )
-		# print( 'q_value_2', q_value_2.get_shape() )
-		# print( 'reward', self.reward_batch.get_shape() )
 		if self.value_count < 2:
 			reward = tf.reduce_sum(self.reward_batch, axis=-1, keepdims=True)
 		else:
 			reward = self.reward_batch
+		print( "	[{}]Reward shape: {}".format(self.id, reward.get_shape()) )
 		# Take the min of the two target Q-Values (clipped Double-Q Learning)
 		min_q_target_value = tf.minimum(q_target_value_1, q_target_value_2)
+		print( "	[{}]Min. QTarget Value shape: {}".format(self.id, min_q_target_value.get_shape()) )
 		# Targets for Q value regression
 		discounted_q_value = tf.where(
 			self.terminal_batch, 
 			tf.zeros_like(min_q_target_value), 
 			self.gamma * min_q_target_value
 		)
+		print( "	[{}]Discounted QValue Value shape: {}".format(self.id, discounted_q_value.get_shape()) )
 		td_target = tf.stop_gradient(reward + discounted_q_value)
+		print( "	[{}]TD-Target shape: {}".format(self.id, td_target.get_shape()) )
 		self.td_error_batch = td_target - q_value_on_policy
 		####################################
 		# [Relations sets]
@@ -214,15 +217,17 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		if self.with_intrinsic_reward:
 			self._loss_builder['Reward'] = lambda global_step: (intrinsic_reward_loss,)
 		def get_critic_loss(global_step): # Compute Q-Function loss
-			return tf.reduce_mean(
-				self.td_errors_loss_fn(td_target, q_value_1, reduction='none') + 
-				self.td_errors_loss_fn(td_target, q_value_2, reduction='none')
-			)
+			td_error_1 = self.td_errors_loss_fn(td_target, q_value_1, reduction='none')
+			td_error_2 = self.td_errors_loss_fn(td_target, q_value_2, reduction='none')
+			print( "	[{}]TD-Error 1 shape: {}".format(self.id, td_error_1.get_shape()) )
+			print( "	[{}]TD-Error 2 shape: {}".format(self.id, td_error_2.get_shape()) )
+			return tf.reduce_mean(td_error_1 + td_error_2)
 		def get_actor_loss(global_step):
 			if self.value_count > 1:
-				q_values = tf.map_fn(fn=merge_splitted_advantages, elems=q_value_on_policy)
+				q_values = tf.expand_dims(tf.map_fn(fn=merge_splitted_advantages, elems=q_value_on_policy), -1)
 			else:
 				q_values = q_value_on_policy
+			print( "	[{}]QValue shape: {}".format(self.id, q_values.get_shape()) )
 			action_key_list = self.network['Actor'].shared_keys
 			dqda = tf.gradients([q_values], action_key_list)
 			actor_losses = []
@@ -270,7 +275,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		# Get loss values for logging
 		fetches += [self.loss_dict['Actor'] + self.loss_dict['Critic']] if flags.print_loss else [()]
 		# Debug info
-		fetches += [()]
+		fetches += [(self.q_value_1, self.q_value_2, self.q_value_pi)] if flags.print_policy_info else [()]
 		# Intrinsic reward
 		fetches += [self.loss_dict['Reward']] if self.with_intrinsic_reward else [()]
 		# Run
@@ -281,6 +286,8 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		if flags.print_loss:
 			train_info["loss_actor"], train_info["loss_critic"] = loss
 			train_info["loss_total"] = train_info["loss_actor"] + train_info["loss_critic"]
+		if flags.print_policy_info:
+			train_info["q_value_1"],train_info["q_value_2"],train_info["q_value_pi"] = map(lambda x: np.mean(x), policy_info)
 		if self.with_intrinsic_reward:
 			train_info["intrinsic_reward_loss"] = reward_info
 		# Build loss statistics

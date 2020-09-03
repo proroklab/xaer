@@ -13,7 +13,10 @@ class ValueLoss(object):
 		# Stop gradients
 		if old_prediction != None:
 			self.old_prediction = tf.stop_gradient(old_prediction)
+			print('old_prediction:', self.old_prediction.get_shape())
 		self.target = tf.stop_gradient(target)
+		print('target:', self.target.get_shape())
+		print('prediction:', self.prediction.get_shape())
 		# Get reduce function
 		self.reduce_function = eval('tf.reduce_{}'.format(flags.loss_type))
 		

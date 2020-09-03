@@ -12,7 +12,7 @@ def build():
 	options["env_type"] = "CarControllerV4" # "environment types: CarControllerV[1,2,3,4] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
-	options["algorithm"] = "TD3" # "algorithms: AC, TD3"
+	options["algorithm"] = "AC" # "algorithms: AC, TD3"
 	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, OpenAISmall, OpenAILarge, ExplicitlyRelational, ExplicitlyArgumentative"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = "RectifiedAdam" # "gradient optimizer: all the Keras optimizers or the TFA optimizers (https://www.tensorflow.org/addons/api_docs/python/tfa/optimizers)" # default is Adam, for vanilla A3C is RMSProp
@@ -41,7 +41,7 @@ def build():
 # Intrinsic Rewards: Burda, Yuri, et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
 	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states, and the agent is trained to maximize it."
 	options["use_learnt_environment_model_as_observation"] = False # "Use the intrinsic reward weights (the learnt model of the environment) as network input."
-	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
+	options["split_values"] = False # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
 	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
 	options["scale_intrinsic_reward"] = False # "Whether to scale the intrinsic reward with its standard deviation."
 	options["intrinsic_rewards_mini_batch_fraction"] = 0 # "Keep only the best intrinsic reward in a mini-batch of size 'batch_size*fraction', and set other intrinsic rewards to 0."
@@ -50,13 +50,13 @@ def build():
 	options["episodic_extrinsic_reward"] = True # "Bootstrap 0 for extrinsic value if state is terminal."
 	options["episodic_intrinsic_reward"] = True # "Bootstrap 0 for intrinsic value if state is terminal."
 	# Taking gamma < 1 introduces bias into the policy gradient estimate, regardless of the value function accuracy.
-	options["extrinsic_gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95, for openAI is 0.999
+	options["extrinsic_gamma"] = 0.995 # "Discount factor for extrinsic rewards" # default is 0.95, for openAI is 0.999
 	options["intrinsic_gamma"] = 0.99 # "Discount factor for intrinsic rewards" # default is 0.99
 # Experience Replay
 	# Replay mean > 0 increases off-policyness
 	options["replay_mean"] = 1 # "Mean number of experience replays per batch. Lambda parameter of a Poisson distribution. When replay_mean is 0, then experience replay is not active." # for vanilla A3C default is 0, for ACER default is 4
 	options["replay_step"] = 2**10 # "Start replaying experience when global step is greater than replay_step."
-	options["replay_buffer_size"] = 2**9 # "Maximum number of batches stored in the experience buffer."
+	options["replay_buffer_size"] = 2**15 # "Maximum number of batches stored in the experience buffer."
 	options["replay_start"] = 1 # "Buffer minimum size before starting replay. Should be greater than 0 and lower than replay_buffer_size."
 	options["replay_only_best_batches"] = False # "Whether to replay only those batches leading to a positive extrinsic reward (the best ones)."
 	options["constraining_replay"] = False # "Use constraining replay loss for the Actor, in order to minimize the quadratic distance between the sampled batch actions and the Actor mean actions (softmax output)." -> might be useful only if combined with replay_only_best_batches=True
@@ -78,8 +78,8 @@ def build():
 # Actor-Critic parameters
 	options["value_coefficient"] = 1 # "Value coefficient for tuning Critic learning rate." # default is 0.5
 	options["environment_count"] = 32 # "Number of different parallel environments, used for training."
-	options["groups_count"] = 1 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."
-	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
+	options["groups_count"] = 4 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."
+	options["batch_size"] = 2**4 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
 	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
 # Advantage Estimation

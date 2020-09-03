@@ -99,15 +99,18 @@ class PolicyLoss(object):
 		return tf.exp(self.old_cross_entropy - self.cross_entropy)
 			
 	def vanilla(self):
-		gain = self.advantage * tf.reduce_sum(self.cross_entropy,axis=-1)
+		gain = self.advantage * tf.reduce_sum(self.cross_entropy, axis=-1, keepdims=True)
+		print( "	Gain shape: {}".format(gain.get_shape()) )
 		return self.reduce_batch_function(gain)
 		
 	# Schulman, John, et al. "Proximal policy optimization algorithms." arXiv preprint arXiv:1707.06347 (2017).
 	def ppo(self):
 		clipped_ratio = tf.clip_by_value(self.ratio, self.one-self.clip_range, self.one+self.clip_range)
-		advantage = tf.expand_dims(self.advantage, 1)
-		gain = tf.maximum(-advantage*self.ratio, -advantage*clipped_ratio)
+		print( "	Clipped Ratio shape: {}".format(clipped_ratio.get_shape()) )
+		gain = tf.maximum(-self.advantage*self.ratio, -self.advantage*clipped_ratio)
+		print( "	Gain shape: {}".format(gain.get_shape()) )
 		gain = tf.reduce_sum(gain, -1)
+		print( "	Total Gain shape: {}".format(gain.get_shape()) )
 		return self.reduce_batch_function(gain)
 
 	# Han, Seungyul, and Youngchul Sung. "Dimension-Wise Importance Sampling Weight Clipping for Sample-Efficient Reinforcement Learning." arXiv preprint arXiv:1905.02363 (2019).

@@ -18,7 +18,6 @@ def merge_splitted_advantages(advantage):
 
 class AC_Algorithm(RL_Algorithm):
 	has_advantage = True
-	build_cumulative_return = True
 	has_importance_weight = True
 	extract_importance_weight = flags.advantage_estimator.lower() in ["vtrace","gae_v"]
 	get_reversed_cumulative_return = eval(flags.advantage_estimator.lower())
@@ -70,7 +69,7 @@ class AC_Algorithm(RL_Algorithm):
 			self.intrinsic_reward_batch, intrinsic_reward_loss, self.training_state = reward_network_output
 			print( "	[{}]Intrinsic Reward shape: {}".format(self.id, self.intrinsic_reward_batch.get_shape()) )
 			print( "	[{}]Training State Kernel shape: {}".format(self.id, self.training_state['kernel'].get_shape()) )
-			print( "	[{}]Training State Bias shape: {}".format(self.id, self.training_state['bias'].get_shape()) )		
+			print( "	[{}]Training State Bias shape: {}".format(self.id, self.training_state['bias'].get_shape()) )
 			batch_dict['training_state'] = self.training_state
 		####################################
 		# [Actor]
@@ -103,7 +102,7 @@ class AC_Algorithm(RL_Algorithm):
 			self._loss_builder['Reward'] = lambda global_step: (intrinsic_reward_loss,)
 		def get_actor_loss(global_step):
 			with tf.variable_scope("actor_loss", reuse=False):
-				print( "Preparing Actor loss {}".format(self.id) )
+				print( "	Preparing Actor loss {}".format(self.id) )
 				policy_builder = PolicyLoss(
 					global_step= global_step,
 					type= flags.policy_loss,
@@ -122,7 +121,17 @@ class AC_Algorithm(RL_Algorithm):
 				self.policy_kl_divergence = policy_builder.approximate_kullback_leibler_divergence()
 				self.policy_clipping_frequency = policy_builder.get_clipping_frequency()
 				self.policy_entropy_regularization = policy_builder.get_entropy_regularization()
-				policy_loss = policy_builder.get(tf.map_fn(fn=merge_splitted_advantages, elems=self.advantage_batch) if self.value_count > 1 else self.advantage_batch)
+				policy_loss = policy_builder.get(
+					tf.expand_dims(
+						tf.map_fn(
+							fn=merge_splitted_advantages, 
+							elems=self.advantage_batch
+						),
+						-1
+					) 
+					if self.value_count > 1 else 
+					self.advantage_batch
+				)
 				# [Entropy regularization]
 				if not flags.intrinsic_reward and flags.entropy_regularization:
 					policy_loss += -self.policy_entropy_regularization
@@ -154,11 +163,11 @@ class AC_Algorithm(RL_Algorithm):
 					true_fn=lambda: tf.constant(0., dtype=self.parameters_type),
 					false_fn=lambda: loss
 				)
-		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step)+get_critic_loss(global_step),)
+		self._loss_builder['ActorCritic'] = lambda global_step: (get_actor_loss(global_step)+get_critic_loss(global_step), get_actor_loss(global_step), get_critic_loss(global_step))
 
 	def _train(self, feed_dict, replay=False):
 		# Build _train fetches
-		train_tuple = self.train_operations_dict['ActorCritic']
+		train_tuple = (self.train_operations_dict['ActorCritic'][0],)
 		# Do not replay intrinsic reward training otherwise it would start to reward higher the states distant from extrinsic rewards
 		if self.with_intrinsic_reward and not replay:
 			train_tuple += self.train_operations_dict['Reward']
@@ -176,8 +185,7 @@ class AC_Algorithm(RL_Algorithm):
 		# Build and return loss dict
 		train_info = {}
 		if flags.print_loss:
-			train_info["loss_actor"],train_info["loss_critic"] = loss
-			train_info["loss_total"] = sum(loss)
+			train_info["loss_total"], train_info["loss_actor"], train_info["loss_critic"] = loss
 		if flags.print_policy_info:
 			train_info["actor_kl_divergence"], train_info["actor_clipping_frequency"], train_info["actor_entropy"] = policy_info
 		if self.with_intrinsic_reward:

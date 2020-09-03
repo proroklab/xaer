@@ -143,9 +143,14 @@ class NetworkManager(object):
 		agents = [0]*len(actions)
 		return actions, hot_actions, policies, values, new_internal_states, agents
 	
-	def _update_batch(self, batch, with_value=True, with_bootstrap=True, with_intrinsic_reward=True, with_importance_weight_extraction=True, with_transition_predictor=True, with_relation_extraction=False, with_td_error_extraction=False):
+	def _update_batch(self, batch, with_value=True, with_bootstrap=True):
 		fetch_label_list = []
 		agent_info_dict = {agent_id:{} for agent_id in range(self.model_size)}
+		with_intrinsic_reward = self.with_intrinsic_reward
+		with_importance_weight_extraction = self.with_importance_weight_extraction
+		with_transition_predictor = self.prioritized_with_transition_predictor
+		with_relation_extraction = self.with_relation_extraction
+		with_td_error_extraction = self.with_td_error_extraction
 		if with_importance_weight_extraction:
 			fetch_label_list += ['importance_weights', 'new_internal_states']
 			for agent_id in range(self.model_size):
@@ -161,9 +166,9 @@ class NetworkManager(object):
 			fetch_label_list += ['td_errors', 'new_internal_states']
 			for agent_id in range(self.model_size):
 				agent_info_dict[agent_id].update({
-					'actions': batch.actions[agent_id],
-					'action_masks': batch.action_masks[agent_id],
-					'policies': batch.policys[agent_id],
+					# 'actions': batch.actions[agent_id],
+					# 'action_masks': batch.action_masks[agent_id],
+					# 'policies': batch.policys[agent_id],
 					'states': batch.states[agent_id],
 					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
 					'sizes': [ len(batch.states[agent_id]) ], # playing critic on one single batch
@@ -183,8 +188,8 @@ class NetworkManager(object):
 			for agent_id in range(self.model_size):
 				agent_info_dict[agent_id].update({
 					'states': batch.states[agent_id],
-					'actions': batch.actions[agent_id],
-					'policies': batch.policys[agent_id],
+					# 'actions': batch.actions[agent_id],
+					# 'policies': batch.policys[agent_id],
 					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
 					'sizes': [ len(batch.states[agent_id]) ], # playing critic on one single batch
 				})
@@ -266,8 +271,6 @@ class NetworkManager(object):
 					manipulated_rewards[i][1] = manipulated_intrinsic_rewards[i]
 					
 	def _compute_discounted_cumulative_reward(self, batch):
-		if not self.algorithm.build_cumulative_return:
-			return
 		batch.compute_discounted_cumulative_reward(
 			agents=self.agents_set, 
 			gamma=flags.extrinsic_gamma, 
@@ -345,13 +348,8 @@ class NetworkManager(object):
 			# Replay value
 			self._update_batch(
 				batch= old_batch, 
-				with_value= flags.recompute_value_when_replaying, 
-				with_bootstrap= flags.recompute_value_when_replaying, 
-				with_intrinsic_reward= self.with_intrinsic_reward, 
-				with_importance_weight_extraction= self.with_importance_weight_extraction, 
-				with_transition_predictor= self.prioritized_with_transition_predictor,
-				with_relation_extraction= self.with_relation_extraction,
-				with_td_error_extraction= self.with_td_error_extraction,
+				with_value= flags.recompute_value_when_replaying and self.algorithm.has_advantage, 
+				with_bootstrap= flags.recompute_value_when_replaying and self.algorithm.has_advantage, 
 			)
 			# Train
 			self._train(replay=True, batch=old_batch)
@@ -371,12 +369,7 @@ class NetworkManager(object):
 		self._update_batch(
 			batch= batch, 
 			with_value= False, 
-			with_bootstrap= True, 
-			with_intrinsic_reward= self.with_intrinsic_reward, 
-			with_importance_weight_extraction= self.with_importance_weight_extraction, 
-			with_transition_predictor= self.with_transition_predictor,
-			with_relation_extraction= self.with_relation_extraction,
-			with_td_error_extraction= self.with_td_error_extraction,
+			with_bootstrap= self.algorithm.has_advantage,
 		)
 		# Train
 		if self.algorithm.is_on_policy:

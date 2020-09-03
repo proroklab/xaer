@@ -107,12 +107,13 @@ class OpenAISmall_Network(Base_Network):
 						clipped_mu = tf.clip_by_value(mu, -1,1, name='mu_clipper') # in [-1,1]
 						clipped_sigma = tf.clip_by_value(tf.abs(sigma), 1e-4,1, name='sigma_clipper') # in [1e-4,1] # sigma must be greater than 0
 						# build policy batch
-						policy_batch = tf.stack([clipped_mu, clipped_sigma])
-						policy_batch = tf.transpose(policy_batch, [1, 0, 2])
+						policy_batch = tf.stack([clipped_mu, clipped_sigma], 1)
+						# policy_batch = tf.transpose(policy_batch, [1, 0, 2])
 					else: # discrete control
 						policy_batch = policy_layer[h](i)
 						if policy_size > 1:
 							policy_batch = tf.reshape(policy_batch, [-1,policy_size,policy_depth])
+					print( "	[{}]Policy {} Embedding shape: {}".format(self.id, h, policy_batch.get_shape()) )
 					output_list.append(policy_batch)
 				return output_list
 			return exec_fn
