@@ -6,11 +6,12 @@ import utils.tensorflow_utils as tf_utils
 from agent.network.network import Network
 
 class IntrinsicReward_Network(Network):
-	def __init__(self, id, scope_dict, training=True):
+	def __init__(self, id, name, scope_dict, training=True):
 		super().__init__(id, training)
+		self.name = name
 		self.scope_name = scope_dict['self']
 		
-	def build_embedding(self, batch_dict):
+	def build_embedding(self, batch_dict, scope=None, name=None):
 		# [Input]
 		state_batch = batch_dict['new_state']
 		state_mean_batch = batch_dict['state_mean']
@@ -36,7 +37,7 @@ class IntrinsicReward_Network(Network):
 		intrinsic_reward = tf.reshape(intrinsic_reward, [-1])
 		return intrinsic_reward, loss, training_state
 
-	def _intrinsic_reward_layer(self, input, scope, name="", share_trainables=True):
+	def _intrinsic_reward_layer(self, input, scope=None, name=None, share_trainables=True):
 		layer_type = 'RandomNetworkDistillation'
 		def layer_fn():
 			# Here we use leaky_relu instead of relu as activation function

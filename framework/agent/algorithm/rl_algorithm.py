@@ -15,6 +15,7 @@ flags = options.get()
 
 class RL_Algorithm(object):
 	is_on_policy = True
+	has_actor = True
 	has_importance_weight = False
 	has_td_error = False
 	has_advantage = False
@@ -121,20 +122,21 @@ class RL_Algorithm(object):
 	def initialize_network(self):
 		self.network = {}
 		# Build intrinsic reward network here because we need its internal state for building actor and critic
-		self.network['Reward'] = IntrinsicReward_Network(id=self.id, scope_dict={'self': "IRNet{0}".format(self.id)}, training=self.training)
+		self.network['Reward'] = IntrinsicReward_Network(id=self.id, name='Reward', scope_dict={'self': "IRNet{0}".format(self.id)}, training=self.training)
 		# Build internal partitions
 		for pid,partition_group in enumerate(self.get_internal_network_partitions()):
 			node_id = self.id
 			parent_id = self.parent.id
 			sibling_id = self.sibling.id
 			scope_dict = {
-				'self': "Net{0}_G{1}".format(node_id,pid),
-				'parent': "Net{0}_G{1}".format(parent_id,pid),
-				'sibling': "Net{0}_G{1}".format(sibling_id,pid)
+				'self': "Net{}_G{}".format(node_id,pid),
+				'parent': "Net{}_G{}".format(parent_id,pid),
+				'sibling': "Net{}_G{}".format(sibling_id,pid)
 			}
 			for p in partition_group:
 				self.network[p] = eval('{}_Network'.format(flags.network_configuration))(
 					id=node_id, 
+					name=p,
 					policy_heads=self.policy_heads,
 					scope_dict=scope_dict, 
 					training=self.training,
@@ -250,18 +252,22 @@ class RL_Algorithm(object):
 		print("Gradient {} optimized by {}".format(self.id, optimization_algoritmh))
 		# global step
 		global_step = tf.compat.v1.train.get_or_create_global_step()
-		# learning rate
-		learning_rate = tf_utils.get_annealable_variable(
-			function_name=flags.alpha_annealing_function, 
-			initial_value=flags.alpha, 
-			global_step=global_step, 
-			decay_steps=flags.alpha_decay_steps, 
-			decay_rate=flags.alpha_decay_rate
-		) if flags.alpha_decay else flags.alpha
 		# gradient optimizer
+		learning_rate_list = flags.alpha
+		missing_learning_rates = len(self.get_network_partitions()) - len(learning_rate_list)
+		if missing_learning_rates > 0:
+			learning_rate_list += [learning_rate_list[0]]*missing_learning_rates
 		optimizers = [
-			tf_utils.get_optimization_function(optimization_algoritmh)(learning_rate=learning_rate)
-			for p_group in self.get_network_partitions()
+			tf_utils.get_optimization_function(optimization_algoritmh)(
+				learning_rate=tf_utils.get_annealable_variable(
+					function_name=flags.alpha_annealing_function, 
+					initial_value=lr, 
+					global_step=global_step, 
+					decay_steps=flags.alpha_decay_steps, 
+					decay_rate=flags.alpha_decay_rate
+				) if flags.alpha_decay else lr
+			)
+			for lr,p_group in zip(flags.alpha, self.get_network_partitions())
 		]
 		optimizers[0].iterations = global_step
 		gradient_optimizer_dict = {
@@ -317,6 +323,14 @@ class RL_Algorithm(object):
 			for p in partition_list
 			if p in self._loss_builder
 		}
+
+	def get_regularisation_loss(self, partition_list, regularisation_weight=1e-2, loss_type=tf.nn.l2_loss):
+		return regularisation_weight * tf.add_n([ 
+			loss_type(v) 
+			for p in partition_list
+			for v in self.network[p].shared_keys 
+			if 'bias' not in v.name 
+		])
 		
 	def setup_local_loss_minimisation(self, gradient_optimizer_dict, global_step, global_agent): # minimize loss and apply gradients to global vars.
 		self.loss_dict = self.build_loss(global_step, list(gradient_optimizer_dict.keys()))

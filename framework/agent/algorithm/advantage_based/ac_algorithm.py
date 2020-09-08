@@ -65,7 +65,7 @@ class AC_Algorithm(RL_Algorithm):
 				'new_state': self.new_state_batch, 
 				'state_mean': self.state_mean_batch,
 				'state_std': self.state_std_batch,
-			}, scope='IntrinsicReward')
+			})
 			self.intrinsic_reward_batch, intrinsic_reward_loss, self.training_state = reward_network_output
 			print( "	[{}]Intrinsic Reward shape: {}".format(self.id, self.intrinsic_reward_batch.get_shape()) )
 			print( "	[{}]Training State Kernel shape: {}".format(self.id, self.training_state['kernel'].get_shape()) )
@@ -73,11 +73,11 @@ class AC_Algorithm(RL_Algorithm):
 			batch_dict['training_state'] = self.training_state
 		####################################
 		# [Actor]
-		embedding = net.build_embedding(batch_dict, use_internal_state=flags.network_has_internal_state, scope='ActorCritic')
-		self.policy_batch = net.policy_layer(
-			input=embedding, 
-			scope=net.scope_name
+		embedding = net.build_embedding(
+			batch_dict, 
+			use_internal_state=flags.network_has_internal_state, 
 		)
+		self.policy_batch = net.policy_layer(input=embedding)
 		for i,b in enumerate(self.policy_batch): 
 			print( "	[{}]Actor{} output shape: {}".format(self.id, i, b.get_shape()) )
 		self.action_batch, self.hot_action_batch = self.sample_actions(self.policy_batch)
@@ -87,10 +87,7 @@ class AC_Algorithm(RL_Algorithm):
 			print( "	[{}]HotAction{} output shape: {}".format(self.id, i, b.get_shape()) )
 		####################################
 		# [Critic]
-		self.state_value_batch = net.value_layer(
-			input=embedding, 
-			scope=net.scope_name
-		)
+		self.state_value_batch = net.value_layer(input=embedding)
 		print( "	[{}]Critic output shape: {}".format(self.id, self.state_value_batch.get_shape()) )
 		####################################
 		# [Relations sets]

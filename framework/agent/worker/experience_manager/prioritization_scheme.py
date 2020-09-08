@@ -25,7 +25,7 @@ class unclipped_gain_estimate():
 
 	def get_td_error(self, batch, agents):
 		(errors,) = batch.get_all_actions(actions=['td_errors'], agents=agents)
-		return self.aggregation_fn(errors)
+		return self.aggregation_fn(errors)*10
 
 	def get_value(self, batch, agents):
 		(values,) = batch.get_all_actions(actions=['values'], agents=agents)
@@ -37,7 +37,7 @@ class unclipped_gain_estimate():
 		if self.requirement['advantage']:
 			return self.get_advantage(batch, agents)
 		if self.requirement['td_error']:
-			return self.get_advantage(batch, agents)
+			return self.get_td_error(batch, agents)
 		return self.get_value(batch, agents)
 
 class pruned_gain_estimate(unclipped_gain_estimate):
@@ -70,6 +70,7 @@ class clipped_mean_gain_estimate(clipped_gain_estimate):
 			'priority_update_after_replay': True,
 			'importance_weight': algorithm.has_importance_weight,
 			'advantage': algorithm.has_advantage,
+			# 'td_error': algorithm.has_td_error,
 			'td_error': algorithm.has_td_error,
 		}
 		self.aggregation_fn = np.mean
@@ -80,6 +81,7 @@ class clipped_best_gain_estimate(clipped_gain_estimate):
 			'priority_update_after_replay': True,
 			'importance_weight': algorithm.has_importance_weight,
 			'advantage': algorithm.has_advantage,
+			# 'td_error': algorithm.has_td_error,
 			'td_error': algorithm.has_td_error,
 		}
 		self.aggregation_fn = lambda x: np.mean(x)+np.std(x)
@@ -90,6 +92,7 @@ class unclipped_mean_gain_estimate(unclipped_gain_estimate):
 			'priority_update_after_replay': True,
 			'importance_weight': algorithm.has_importance_weight,
 			'advantage': algorithm.has_advantage,
+			# 'td_error': algorithm.has_td_error,
 			'td_error': algorithm.has_td_error,
 		}
 		self.aggregation_fn = np.mean
@@ -100,6 +103,7 @@ class unclipped_best_gain_estimate(unclipped_gain_estimate):
 			'priority_update_after_replay': True,
 			'importance_weight': algorithm.has_importance_weight,
 			'advantage': algorithm.has_advantage,
+			# 'td_error': algorithm.has_td_error,
 			'td_error': algorithm.has_td_error,
 		}
 		self.aggregation_fn = lambda x: np.mean(x)+np.std(x)

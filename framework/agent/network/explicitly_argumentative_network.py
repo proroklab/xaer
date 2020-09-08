@@ -9,12 +9,9 @@ import options
 flags = options.get()
 
 class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
+	argument_links = 8
 
-	def __init__(self, id, policy_heads, scope_dict, training=True, value_count=1, state_scaler=1):
-		super().__init__(id, policy_heads, scope_dict, training, value_count, state_scaler)
-		self.argument_links = 8
-	
-	def _relational_layer(self, state, concat, scope="", name="", share_trainables=True):
+	def _relational_layer(self, state, concat, scope=None, name=None, share_trainables=True):
 		layer_type = 'Relational'
 		def layer_fn():
 			argumentative_layer = ExplicitlyArgumentativeLayer(

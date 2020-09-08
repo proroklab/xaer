@@ -34,9 +34,16 @@ class NetworkManager(object):
 	print('With Transition Predictor:',with_transition_predictor)
 	# Relation Extraction
 	prioritized_with_relation_extraction = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('relation_extraction',False)
-	print('Prioritized With Relation Extraction:',prioritized_with_transition_predictor)
+	print('Prioritized With Relation Extraction:', prioritized_with_transition_predictor)
 	with_relation_extraction = prioritized_with_relation_extraction
 	print('With Relation Extraction:',with_relation_extraction)
+	# Value Extraction
+	prioritized_with_with_value = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('value',False)
+	print('Prioritized With Value:',prioritized_with_with_value)
+	with_value_extraction = prioritized_with_with_value or algorithm.has_advantage
+	print('With Value Extraction:',with_value_extraction)
+	with_bootstrap = algorithm.has_advantage
+	print('With Bootstrap:',with_bootstrap)
 	# Importance Weight Extraction
 	prioritized_with_importance_weight_extraction = experience_prioritization_scheme and experience_prioritization_scheme.requirement.get('importance_weight',False)
 	print('Prioritized With Importance Weight Extraction:',prioritized_with_importance_weight_extraction)
@@ -112,8 +119,8 @@ class NetworkManager(object):
 					
 	def build_gradient_optimizer(self):
 		return [
-			m.build_optimizer(flags.optimizer)
-			for m in self.model_list
+			m.build_optimizer(o)
+			for o,m in zip(flags.optimizer+[flags.optimizer[0]]*(len(self.model_list)-len(flags.optimizer)),self.model_list)
 		]
 	
 	def setup_local_loss_minimisation(self, global_network):
@@ -143,7 +150,7 @@ class NetworkManager(object):
 		agents = [0]*len(actions)
 		return actions, hot_actions, policies, values, new_internal_states, agents
 	
-	def _update_batch(self, batch, with_value=True, with_bootstrap=True):
+	def _update_batch(self, batch, with_value=True):
 		fetch_label_list = []
 		agent_info_dict = {agent_id:{} for agent_id in range(self.model_size)}
 		with_intrinsic_reward = self.with_intrinsic_reward
@@ -151,6 +158,7 @@ class NetworkManager(object):
 		with_transition_predictor = self.prioritized_with_transition_predictor
 		with_relation_extraction = self.with_relation_extraction
 		with_td_error_extraction = self.with_td_error_extraction
+		with_bootstrap = self.with_bootstrap
 		if with_importance_weight_extraction:
 			fetch_label_list += ['importance_weights', 'new_internal_states']
 			for agent_id in range(self.model_size):
@@ -166,13 +174,13 @@ class NetworkManager(object):
 			fetch_label_list += ['td_errors', 'new_internal_states']
 			for agent_id in range(self.model_size):
 				agent_info_dict[agent_id].update({
-					# 'actions': batch.actions[agent_id],
-					# 'action_masks': batch.action_masks[agent_id],
-					# 'policies': batch.policys[agent_id],
 					'states': batch.states[agent_id],
 					'internal_states': [ batch.internal_states[agent_id][0] ], # a single internal state
 					'sizes': [ len(batch.states[agent_id]) ], # playing critic on one single batch
 					# td-error specific
+					'actions': batch.actions[agent_id],
+					'action_masks': batch.action_masks[agent_id],
+					'policies': batch.policys[agent_id],
 					'rewards': batch.rewards[agent_id],
 					'new_states': batch.new_states[agent_id],
 					'terminal': [False]*(len(batch.states[agent_id])-1) + [batch.terminal],
@@ -271,6 +279,8 @@ class NetworkManager(object):
 					manipulated_rewards[i][1] = manipulated_intrinsic_rewards[i]
 					
 	def _compute_discounted_cumulative_reward(self, batch):
+		if not self.algorithm.has_advantage:
+			return
 		batch.compute_discounted_cumulative_reward(
 			agents=self.agents_set, 
 			gamma=flags.extrinsic_gamma, 
@@ -348,8 +358,7 @@ class NetworkManager(object):
 			# Replay value
 			self._update_batch(
 				batch= old_batch, 
-				with_value= flags.recompute_value_when_replaying and self.algorithm.has_advantage, 
-				with_bootstrap= flags.recompute_value_when_replaying and self.algorithm.has_advantage, 
+				with_value= self.with_value_extraction, 
 			)
 			# Train
 			self._train(replay=True, batch=old_batch)
@@ -368,8 +377,7 @@ class NetworkManager(object):
 		# Decide whether to compute intrinsic reward
 		self._update_batch(
 			batch= batch, 
-			with_value= False, 
-			with_bootstrap= self.algorithm.has_advantage,
+			with_value= False, # values have been already extracted
 		)
 		# Train
 		if self.algorithm.is_on_policy:

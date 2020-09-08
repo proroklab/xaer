@@ -12,7 +12,7 @@ flags = options.get()
 
 class OpenAISmall_Network(Base_Network):
 
-	def _concat_layer(self, input, concat, scope="", name="", share_trainables=True):
+	def _concat_layer(self, input, concat, scope=None, name=None, share_trainables=True):
 		layer_type = 'Concat'
 		def layer_fn():
 			input_layer = tf.keras.layers.Flatten()
@@ -27,7 +27,7 @@ class OpenAISmall_Network(Base_Network):
 			return exec_fn
 		return self._scopefy(inputs=(input, concat), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _weights_layer(self, input, weights, scope="", name="", share_trainables=True):
+	def _weights_layer(self, input, weights, scope=None, name=None, share_trainables=True):
 		layer_type = 'Weights'
 		def layer_fn():
 			kernel_layer = tf.keras.layers.Dense(name='TS_Dense0', units=1, activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
@@ -49,7 +49,7 @@ class OpenAISmall_Network(Base_Network):
 			return exec_fn
 		return self._scopefy(inputs=(input, weights), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def value_layer(self, input, scope="", name="", share_trainables=True, qvalue_estimation=False):
+	def value_layer(self, input, scope=None, name=None, share_trainables=True, qvalue_estimation=False):
 		layer_type = 'Value'
 
 		policy_depth = sum(h['depth'] for h in self.policy_heads)
@@ -79,7 +79,7 @@ class OpenAISmall_Network(Base_Network):
 			return exec_fn
 		return self._scopefy(inputs=(input, ), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def policy_layer(self, input, scope="", name="", share_trainables=True):
+	def policy_layer(self, input, scope=None, name=None, share_trainables=True):
 		layer_type = 'Policy'
 		def layer_fn():
 			input_layer = tf.keras.layers.Dense(name='Policy_Dense1',  units=input.get_shape().as_list()[-1], activation=tf.nn.relu, kernel_initializer=tf_utils.orthogonal_initializer(0.1))
@@ -119,7 +119,7 @@ class OpenAISmall_Network(Base_Network):
 			return exec_fn
 		return self._scopefy(inputs=(input, ), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _rnn_layer(self, input, size_batch, scope="", name="", share_trainables=True):
+	def _rnn_layer(self, input, size_batch, scope=None, name=None, share_trainables=True):
 		layer_type = rnn.type
 		def layer_fn():
 			rnn = RNN(type='GRU', direction=1, units=256, batch_size=1, stack_size=1, training=self.training, dtype=flags.parameters_type)

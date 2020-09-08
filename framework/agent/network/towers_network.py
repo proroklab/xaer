@@ -6,7 +6,7 @@ from agent.network.base_network import Base_Network
 class Towers_Network(Base_Network):
 	
 	# relu vs leaky_relu <https://www.reddit.com/r/MachineLearning/comments/4znzvo/what_are_the_advantages_of_relu_over_the/>
-	def _cnn_layer(self, input, scope, name="", share_trainables=True):
+	def _cnn_layer(self, input, scope=None, name=None, share_trainables=True):
 		depth = 2
 		input_shape = input.get_shape().as_list()
 		layer_type = 'CNN'

@@ -58,7 +58,8 @@ class Environment(object):
 				'statistics': game.get_statistics(),
 			}
 			if config_dict.get('get_screen',False):
-				observation_dict['screen'] = game.get_screen()
+				if flags.save_episode_screen:
+					observation_dict['screen'] = game.get_screen()
 				observation_dict['info'] = game.get_info()
 			return observation_dict
 		game = game_wrapper(config_dict)

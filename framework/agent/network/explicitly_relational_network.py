@@ -12,14 +12,11 @@ flags = options.get()
 class ExplicitlyRelational_Network(OpenAISmall_Network):
 	produce_explicit_relations = True
 	kernel_initializer = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.1)
+	object_pairs = 16
+	edge_size_per_object_pair = 4
+	relational_layer_operators_set = [OR,NOR,AND,NAND,XOR,XNOR]
 
-	def __init__(self, id, policy_heads, scope_dict, training=True, value_count=1, state_scaler=1):
-		super().__init__(id, policy_heads, scope_dict, training, value_count, state_scaler)
-		self.object_pairs = 16
-		self.edge_size_per_object_pair = 4
-		self.relational_layer_operators_set = [OR,NOR,AND,NAND,XOR,XNOR]
-
-	def _entity_extraction_layer(self, features, scope="", name="", share_trainables=True):
+	def _entity_extraction_layer(self, features, scope=None, name=None, share_trainables=True):
 		# [B,Height,W,D]
 		x = self._cnn_layer(input=features, share_trainables=share_trainables, name=name)
 		# [B,N,D] N=Height*w
@@ -27,7 +24,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 		entities = tf.reshape(x, [-1, h * w, ext_channels])
 		return entities
 
-	def _concat_layer(self, input, concat, scope="", name="", share_trainables=True):
+	def _concat_layer(self, input, concat, scope=None, name=None, share_trainables=True):
 		channels = input.shape.as_list()[-1]
 		layer_type = 'Concat'
 		def layer_fn():
@@ -53,7 +50,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			return exec_fn
 		return self._scopefy(inputs=(input, concat), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _relational_layer(self, state, concat, scope="", name="", share_trainables=True):
+	def _relational_layer(self, state, concat, scope=None, name=None, share_trainables=True):
 		layer_type = 'Relational'
 		def layer_fn():
 			relational_layer = ExplicitlyRelationalLayer(
@@ -86,7 +83,7 @@ class ExplicitlyRelational_Network(OpenAISmall_Network):
 			return exec_fn
 		return self._scopefy(inputs=(state, concat), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _state_embedding_layer(self, state_batch, concat_batch, environment_model, scope="", name="", share_trainables=True):
+	def _state_embedding_layer(self, state_batch, concat_batch, environment_model, scope=None, name=None, share_trainables=True):
 		layer_type = 'StateEmbedding'
 		def layer_fn():
 			def exec_fn(s, c):

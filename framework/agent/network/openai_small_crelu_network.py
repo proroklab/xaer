@@ -13,7 +13,7 @@ import utils.tensorflow_utils as tf_utils
 
 class OpenAISmallCRELU_Network(OpenAISmall_Network):
 
-	def _cnn_layer(self, input, scope="", name="", share_trainables=True):
+	def _cnn_layer(self, input, scope=None, name=None, share_trainables=True):
 		layer_type = 'CNN'
 		def layer_fn():
 			input_layer = tf.keras.Sequential(name=layer_type, layers=[
@@ -28,7 +28,7 @@ class OpenAISmallCRELU_Network(OpenAISmall_Network):
 			return exec_fn
 		return self._scopefy(inputs=(input, ), output_fn=layer_fn, layer_type=layer_type, scope=scope, name=name, share_trainables=share_trainables)
 
-	def _weights_layer(self, input, weights, scope="", name="", share_trainables=True):
+	def _weights_layer(self, input, weights, scope=None, name=None, share_trainables=True):
 		layer_type = 'Weights'
 		def layer_fn():
 			kernel_layer = tf.keras.layers.Dense(name='TS_Dense0', units=1, activation=tf.nn.crelu, kernel_initializer=tf_utils.orthogonal_initializer(np.sqrt(2)))
