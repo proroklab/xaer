@@ -25,17 +25,17 @@ class ExplicitlyArgumentative_Network(ExplicitlyRelational_Network):
 				entities = [
 					self._entity_extraction_layer(
 						features=substate/self.state_scaler, 
-						name=f'EE_{i}'+name, 
+						name=f'EE_{i}{name}', 
 						share_trainables=share_trainables
 					)
-					for i,substate in enumerate(state)
+					for i,substate in enumerate(s)
 				]
 				entities = tf.concat(entities,1)
 				# Concatenate extra features
-				if len(concat) > 0:
+				if len(c) > 0:
 					entities = self._concat_layer(
 						input=entities, 
-						concat=concat,
+						concat=c,
 						share_trainables=share_trainables
 					)
 				print( "	[{}]Entity Extraction layer {} output shape: {}".format(self.id, name, entities.get_shape()) )

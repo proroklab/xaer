@@ -25,11 +25,13 @@ class unclipped_gain_estimate():
 
 	def get_td_error(self, batch, agents):
 		(errors,) = batch.get_all_actions(actions=['td_errors'], agents=agents)
-		return self.aggregation_fn(errors)*10
+		merged_errors = np.array(list(map(merge_splitted_advantages,errors)))
+		return self.aggregation_fn(merged_errors)*(2**6)
 
 	def get_value(self, batch, agents):
 		(values,) = batch.get_all_actions(actions=['values'], agents=agents)
-		return self.aggregation_fn(values)
+		merged_values = np.array(list(map(merge_splitted_advantages,values)))
+		return self.aggregation_fn(merged_values)
 
 	def get(self, batch, agents):
 		if self.requirement['importance_weight'] and self.requirement['advantage']:

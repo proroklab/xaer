@@ -56,7 +56,10 @@ class NetworkManager(object):
 	print('With TD-Error Extraction:',with_td_error_extraction)
 	
 	# Experience Clustering
-	experience_cluster = eval(flags.experience_clustering_scheme)(experience_prioritization_scheme) if flags.experience_clustering_scheme and with_experience_replay else False
+	if not with_experience_replay:
+		experience_cluster = False
+	else:
+		experience_cluster = eval(flags.experience_clustering_scheme if flags.experience_clustering_scheme else 'none')(experience_prioritization_scheme)
 	print('Experience Clustering Scheme:',experience_cluster)
 	
 	def __init__(self, group_id, environment_info, global_network=None, training=True):

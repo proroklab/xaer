@@ -108,10 +108,10 @@ class EnvironmentManager(object):
 		os.mkdir(episode_directory)
 		# Log
 		if has_log:
-			with open(episode_directory + '/episode.log',"w") as screen_file:
-				for i in range(frames_count):
-					frame_info = frames[i]
-					screen_file.write(frame_info["log"])
+			screen_file = open(episode_directory + '/episode.log', 'w')
+			screen_file.writelines(frame_info["log"] for frame_info in frames)
+			screen_file.close()
+				
 		# Screen
 		if has_screen:
 			screen_filenames = []

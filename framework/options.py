@@ -12,7 +12,7 @@ def build():
 	options["env_type"] = "CarControllerV4" # "environment types: CarControllerV[1,2,3,4] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
-	options["algorithm"] = "TD3" # "algorithms: AC, TD3"
+	options["algorithm"] = "AC" # "algorithms: AC, TD3"
 	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, OpenAISmall, OpenAILarge, ExplicitlyRelational, ExplicitlyArgumentative"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = ["RectifiedAdam"] # "gradient optimizer: all the Keras optimizers or the TFA optimizers (https://www.tensorflow.org/addons/api_docs/python/tfa/optimizers)" # default is Adam, for vanilla A3C is RMSProp
@@ -33,7 +33,7 @@ def build():
 # Importance Sampling Target
 	options["importance_sampling_policy_target"] = 0.001 # "Importance Sampling target constant" -> Works only when policy_loss == DISC
 # Learning rate
-	options["alpha"] = [1e-4, 1e-3] # "initial learning rate" # default is 7.0e-4, for openAI is 2.5e-4
+	options["alpha"] = [1e-3] # "initial learning rate" # default is 7.0e-4, for openAI is 2.5e-4
 	options["alpha_decay"] = False # "whether to decay the learning rate"
 	options["alpha_annealing_function"] = "inverse_time_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
 	options["alpha_decay_steps"] = 10**5 # "decay alpha every x steps" # default is 10**6
@@ -64,13 +64,13 @@ def build():
 	options["recompute_value_when_replaying"] = True # "Whether to recompute value when replaying, using always up to date values instead of old ones.", "Whether to recompute values, advantages and discounted cumulative rewards when replaying, even if not required by the model." # default True
 	# options["loss_stationarity_range"] = 5e-3 # "Used to decide when to interrupt experience replay. If the mean actor loss is whithin this range, then no replay is performed."
 # Prioritized Experience Replay: Schaul, Tom, et al. "Prioritized experience replay." arXiv preprint arXiv:1511.05952 (2015).
-	options["prioritization_scheme"] = "unclipped_mean_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: None, 'pruned_gain_estimate, clipped_gain_estimate, clipped_mean_gain_estimate, clipped_best_gain_estimate, unclipped_gain_estimate, unclipped_mean_gain_estimate, unclipped_best_gain_estimate, surprise, cumulative_extrinsic_return'.
+	options["prioritization_scheme"] = "unclipped_gain_estimate" # The scheme to use for prioritized experience sampling. Use None to disable prioritized sampling. It works only when replay_mean > 0. One of the following: None, 'pruned_gain_estimate', 'clipped_gain_estimate', 'clipped_mean_gain_estimate', 'clipped_best_gain_estimate', 'unclipped_gain_estimate', 'unclipped_mean_gain_estimate', 'unclipped_best_gain_estimate', 'surprise', 'cumulative_extrinsic_return'.
 	options["prioritized_replay_alpha"] = 0.5 # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
 	options["prioritized_drop_probability"] = 0.5 # "Probability of removing the batch with the lowest priority instead of the oldest batch." -> The closer to 1 the higher the value (this facilitates value over-estimation).
 	# Isele, David, and Akansel Cosgun. "Selective experience replay for lifelong learning." Thirty-second AAAI conference on artificial intelligence. 2018.
 	options["global_distribution_matching"] = False # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 # Experience Clustering
-	options["experience_clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # The scheme used to group experience into clusters. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward', 'none'.
+	options["experience_clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # The scheme used to group experience into clusters. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: None, 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward'.
 	options["prioritised_cluster_sampling"] = False # Whether clustering sampling is uniform (False) or prioritised (True). # Useful when the network configuration does not have a task-oriented inductive bias. The ExplicitlyArgumentative has a task-oriented inductive bias, in other terms, it learns much faster a task and thus with prioritised_cluster_sampling=True it would overfit when the experience buffer is too big.
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
@@ -81,7 +81,7 @@ def build():
 	options["groups_count"] = 4 # "Number n of groups. The environments are divided equally in n groups. Usually we have a thread per group. Used to better parallelize the training on the same machine."
 	options["batch_size"] = 2**5 # "Maximum batch size." # default is 8
 	# A big enough big_batch_size can significantly speed up the algorithm when training on GPU
-	options["big_batch_size"] = 2**5 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
+	options["big_batch_size"] = 2**6 # "Number n > 0 of batches that compose a big-batch used for training. The bigger is n the more is the memory consumption."
 # Advantage Estimation
 	options["advantage_estimator"] = "GAE_V" # "Can be one of the following: GAE, GAE_V, VTrace, Vanilla." # GAE_V and VTrace should reduce bias and variance when replay_ratio > 0
 	# Taking lambda < 1 introduces bias only when the value function is inaccurate
@@ -90,7 +90,7 @@ def build():
 	options["entropy_regularization"] = True # "Whether to add entropy regularization to policy loss. Works only if intrinsic_reward == False" # default True
 	options["beta"] = 1e-3 # "entropy regularization constant" # default is 0.001, for openAI is 0.01
 # Log
-	options["save_interval_step"] = 2**22 # "Save a checkpoint every n steps."
+	options["save_interval_step"] = 2**27 # "Save a checkpoint every n steps."
 	# rebuild_network_after_checkpoint_is_saved may help saving RAM, but may be slow proportionally to save_interval_step.
 	options["rebuild_network_after_checkpoint_is_saved"] = False # "Rebuild the whole network after checkpoint is saved. This may help saving RAM, but it's slow."
 	options["max_checkpoint_to_keep"] = 3 # "Keep the last n checkpoints, delete the others"
@@ -103,8 +103,8 @@ def build():
 	options["log_directory"] = "./log" # "events directory"
 	options["print_loss"] = True # "Whether to print losses inside statistics" # print_loss = True might slow down the algorithm
 	options["print_policy_info"] = True # "Whether to print debug information about the actor inside statistics" # print_policy_info = True might slow down the algorithm
-	options["show_episodes"] = 'none' # "What type of episodes to save: random, best, all, none"
-	options["show_episode_probability"] = 1e-3 # "Probability of showing an episode when show_episodes == random"
+	options["show_episodes"] = 'random' # "What type of episodes to save: random, best, all, none"
+	options["show_episode_probability"] = 5e-4 # "Probability of showing an episode when show_episodes == random"
 	# save_episode_screen = True might slow down the algorithm -> use in combination with show_episodes = 'random' for best perfomance
 	options["save_episode_screen"] = False # "Whether to save episode screens"
 	# save_episode_gif = True slows down the algorithm, requires save_episode_screen, True to work
@@ -114,7 +114,7 @@ def build():
 	options["delete_screens_after_making_gif"] = True # "Whether to delete the screens after the GIF has been made."
 	options["monitor_memory_usage"] = False # "Whether to monitor memory usage"
 # Plot
-	options["compute_plot_when_saving"] = True # "Whether to compute the plot when saving checkpoints"
+	options["compute_plot_when_saving"] = False # "Whether to compute the plot when saving checkpoints"
 	options["max_plot_size"] = 10 # "Maximum number of points in the plot. The smaller it is, the less RAM is required. If the log file has more than max_plot_size points, then max_plot_size means of slices are used instead."
 	
 def get():

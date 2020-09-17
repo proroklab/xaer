@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import time
-from multiprocessing import Process, Queue
+# from multiprocessing import Process, Queue
+from multiprocess import Process, SimpleQueue as Queue
 # from multiprocessing import Queue
 # from threading import Thread as Process
 import numpy as np
@@ -11,26 +12,6 @@ import options
 flags = options.get()
 
 DEBUG = False
-
-def get_timed_queue(q, timeout=None, qid=None):
-	return q.get(timeout=timeout)
-	# try:
-	# 	return q.get(timeout=timeout)
-	# except:
-	# 	if DEBUG:
-	# 		print("restarting", qid)
-	# 	time.sleep(0.1)
-	# 	return get_timed_queue(q,timeout,qid)
-
-def put_timed_queue(q, v, timeout=None, qid=None):
-	q.put(v, timeout=timeout)
-	# try:
-	# 	q.put(v, timeout=timeout)
-	# except:
-	# 	if DEBUG:
-	# 		print("restarting", qid)
-	# 	time.sleep(0.1)
-	# 	put_timed_queue(q,v,timeout,qid)
 
 class Environment(object):
 	state_scaler = 1
@@ -64,14 +45,14 @@ class Environment(object):
 			return observation_dict
 		game = game_wrapper(config_dict)
 		game.reset()
-		put_timed_queue(output_queue, get_observation_dict(game), qid=config_dict['id']) # step == 0
+		output_queue.put(get_observation_dict(game))
 		while True:
-			action = get_timed_queue(input_queue, qid=config_dict['id'])
+			action = input_queue.get()
 			if action is None or game.is_over:   # If you send `None`, the thread will reset.
 				game.reset()
 			else:
 				game.process(action)
-			put_timed_queue(output_queue, get_observation_dict(game), qid=config_dict['id']) # step > 0
+			output_queue.put(get_observation_dict(game))
 
 	def __init__(self, gid, game_wrapper, config_dict=None):
 		self.id = gid
@@ -79,14 +60,14 @@ class Environment(object):
 		self.__config_dict['id'] = self.id
 		self.__game_wrapper = game_wrapper
 		self.__game_thread = None
+		self.__input_queue = None
+		self.__output_queue = None
 		# Statistics
 		self.__episode_statistics = Statistics(flags.episode_count_for_evaluation)
 		tmp_game = game_wrapper(config_dict)
 		self.__state_shape = tmp_game.get_state_shape()
 		self.__action_shape = tmp_game.get_action_shape()
 		self.__has_masked_actions = tmp_game.has_masked_actions()
-		# Game Process
-		self.__game_thread = None
 
 	def __start_thread(self):
 		if self.__game_thread is not None:
@@ -107,15 +88,17 @@ class Environment(object):
 			return
 		if DEBUG:
 			print('Closing thread', self.id)
-		self.__game_thread.kill()
-		while self.__game_thread.is_alive():
-			time.sleep(1e-2)
-		self.__game_thread.close()
 		self.__input_queue.close()
 		self.__output_queue.close()
+		self.__game_thread.close()
+		self.__input_queue.join_thread()
+		self.__output_queue.join_thread()
+		self.__game_thread.join()
+		self.__game_thread = None
+		self.__input_queue = None
+		self.__output_queue = None
 		if DEBUG:
 			print('Thread', self.id, 'closed')
-		self.__game_thread = None
 
 	def get_state_shape(self):
 		return self.__state_shape
@@ -135,22 +118,26 @@ class Environment(object):
 				print('Change config', self.__config_dict)
 			self.__start_thread()
 		else: # reuse the current thread
-			put_timed_queue(self.__input_queue, None, qid=self.id)
+			self.__input_queue.put(None)
 		if DEBUG:
 			print('Resetting game', self.id)
-		self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)
+		self.last_observation = self.__output_queue.get()
 		self.step = 0
 		return self.last_observation
 
 	def process(self, action_vector):
-		put_timed_queue(self.__input_queue, action_vector, qid=self.id)
-		if self.__game_thread.is_alive():
-			self.last_observation = get_timed_queue(self.__output_queue, qid=self.id)
+		self.__input_queue.put(action_vector)
+		if self.__game_thread:
+			try:
+				self.__game_thread.is_alive()
+			except:
+				self.__close_thread()
+		if self.__output_queue and self.__game_thread:
+			self.last_observation = self.__output_queue.get()
 			is_terminal = self.last_observation['is_over']
 			if is_terminal:
 				self.__episode_statistics.add(self.last_observation['statistics'])
 		else:
-			self.__game_thread = None
 			is_terminal = True
 		# complete step
 		self.step += 1

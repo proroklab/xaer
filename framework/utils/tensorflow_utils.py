@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import tensorflow_addons as tfa
 import numpy as np
 
@@ -21,7 +21,7 @@ def get_optimization_function(name):
 	return None
 	
 def get_annealable_variable(function_name, initial_value, global_step, decay_steps, decay_rate):
-	return eval('tf.compat.v1.train.'+function_name)(learning_rate=initial_value, global_step=global_step, decay_steps=decay_steps, decay_rate=decay_rate)
+	return eval('tf.train.'+function_name)(learning_rate=initial_value, global_step=global_step, decay_steps=decay_steps, decay_rate=decay_rate)
 	
 def get_available_gpus():
 	# recipe from here: https://stackoverflow.com/questions/38559755/how-to-get-current-available-gpus-in-tensorflow?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa

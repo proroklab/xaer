@@ -58,21 +58,21 @@ class CarControllerV4(GameWrapper):
 		]
 
 	def get_state(self, car_point, car_orientation):
-		return [
+		return (
 			*self.get_view(car_point, car_orientation), 
 			self.get_concatenation()
-		]
+		)
 
 	def get_concatenation_size(self):
 		return 4
 		
 	def get_concatenation(self):
-		return [
+		return (
 			self.steering_angle/self.max_steering_angle, 
 			self.speed/self.max_speed, 
 			self.speed/self.speed_upper_limit,
 			self.normalised_car_colour,
-		]
+		)
 
 	def get_reward(self, car_speed, car_point, old_car_point): # to finish
 		def terminal_reward(is_positive,label):
@@ -109,14 +109,14 @@ class CarControllerV4(GameWrapper):
 		source_x, source_y = source_point
 		j1, j2 = self.closest_junctions
 		# Get road view
-		road_view = [ # 4x2
+		road_view = ( # 4x2
 			j1.pos,
 			j2.pos,
-		]
+		)
 		road_view = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_view)
 		road_view = map(self.normalize_point, road_view) # in [-1,1]
-		road_view = list(road_view)
-		road_view = np.array([road_view], dtype=np.float16)
+		road_view = tuple(road_view)
+		road_view = np.array((road_view,))
 		# Get junction view
 		junction_view = np.array([ # 2 x Junction.max_roads_connected x (1+1)
 			[
@@ -127,7 +127,7 @@ class CarControllerV4(GameWrapper):
 				for road in j.roads_connected
 			] + [(-1,-1)]*(Junction.max_roads_connected-len(j.roads_connected))
 			for j in (j1,j2)
-		], dtype=np.float16)
+		])
 		return road_view, junction_view
 
 	def __init__(self, config_dict):
@@ -249,7 +249,7 @@ class CarControllerV4(GameWrapper):
 		return state, reward, terminal
 	
 	def get_info(self):
-		return "speed={}, steering_angle={}, orientation={}\n".format(self.speed, self.steering_angle, self.car_orientation)
+		return f"speed={self.speed}, steering_angle={self.steering_angle}, orientation={self.car_orientation}\n"
 		
 	def get_screen(self): # RGB array
 		# First set up the figure and the axis

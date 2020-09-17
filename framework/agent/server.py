@@ -10,7 +10,7 @@ import time
 import sys
 from pickle import Pickler, Unpickler
 import gc
-from multiprocessing import Queue, Process
+import multiprocess
 from collections import deque
 from agent.worker.working_group import Group
 import utils.plots as plt
@@ -23,7 +23,6 @@ from collections import Counter
 import linecache
 import tracemalloc
 from datetime import datetime
-from queue import Queue, Empty
 from resource import getrusage, RUSAGE_SELF
 from time import sleep
 from environment.environment import Environment
@@ -34,8 +33,8 @@ import options
 flags = options.get()
 
 def train():
-	result_queue = Queue()
-	p = Process(target=lambda q: q.put(Application().train()), args=(result_queue,))
+	result_queue = multiprocess.Queue()
+	p = multiprocess.Process(target=lambda q: q.put(Application().train()), args=(result_queue,))
 	# p.daemon = True # daemonic processes are not allowed to have children
 	p.start()
 	p.join()
@@ -193,6 +192,7 @@ class Application(object):
 				self.test()
 		except:
 			traceback.print_exc()
+		del self.train_threads
 		# Restart workers
 		if self.is_alive and not flags.rebuild_network_after_checkpoint_is_saved:
 			self.next_save_steps += flags.save_interval_step
@@ -235,6 +235,7 @@ class Application(object):
 				return
 			# Save checkpoint
 			if self.global_step >= self.next_save_steps:
+				gc.collect()
 				return
 
 	def test(self):

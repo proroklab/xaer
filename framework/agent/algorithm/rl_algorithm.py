@@ -251,7 +251,7 @@ class RL_Algorithm(object):
 	def build_optimizer(self, optimization_algoritmh):
 		print("Gradient {} optimized by {}".format(self.id, optimization_algoritmh))
 		# global step
-		global_step = tf.compat.v1.train.get_or_create_global_step()
+		global_step = tf.train.get_or_create_global_step()
 		# gradient optimizer
 		learning_rate_list = flags.alpha
 		missing_learning_rates = len(self.get_network_partitions()) - len(learning_rate_list)
@@ -265,7 +265,8 @@ class RL_Algorithm(object):
 					global_step=global_step, 
 					decay_steps=flags.alpha_decay_steps, 
 					decay_rate=flags.alpha_decay_rate
-				) if flags.alpha_decay else lr
+				) if flags.alpha_decay else lr,
+				amsgrad=True,
 			)
 			for lr,p_group in zip(flags.alpha, self.get_network_partitions())
 		]

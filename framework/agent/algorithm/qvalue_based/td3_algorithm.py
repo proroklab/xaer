@@ -21,6 +21,7 @@ def merge_splitted_advantages(advantage):
 class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/stable-baselines
 	has_td_error = True
 	is_on_policy = False
+	is_stochastic = False
 
 	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
 		self.gamma = flags.extrinsic_gamma
@@ -33,13 +34,14 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		self.target_update_tau = 0.05
 		self.train_step = 0
 		# Action noise
-		# self.exploration_noise_std = 0.1
-		# self.target_policy_noise = 0.2
-		# self.target_policy_noise_clip = 0.5
-		# self.exploration_noise_generator = [
-		# 	OUProcess(tf.zeros(head[0]), stddev=self.exploration_noise_std)
-		# 	for head in environment_info['action_shape']
-		# ]
+		if not self.is_stochastic:
+			self.exploration_noise_std = 0.1
+			self.target_policy_noise = 0.2
+			self.target_policy_noise_clip = 0.5
+			self.exploration_noise_generator = [
+				OUProcess(tf.zeros(head[0]), stddev=self.exploration_noise_std)
+				for head in environment_info['action_shape']
+			]
 		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
 
 	def get_main_network_partitions(self):
@@ -62,7 +64,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			'terminal': self.terminal_batch,
 		}
 		self.fetch_map = {
-			'actions': self.action_batch, 
+			'actions': self.noisy_action_batch, 
 			'hot_actions': self.action_batch, 
 			'policies': self.policy_batch, 
 			'values': self.state_value_batch, 
@@ -123,14 +125,16 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 				use_internal_state=flags.network_has_internal_state, 
 			), 
 		)
-		# self.action_batch,_ = self.sample_actions(self.policy_batch)
-		# self.noisy_action_batch = self.action_batch
-		self.action_batch,_ = self.sample_actions(self.policy_batch)
-		# self.noisy_action_batch = [
-		# 	add_noise(action, noise_generator())
-		# 	# add_noise(action, Normal(0., 0.1).sample())
-		# 	for action,noise_generator in zip(self.action_batch,self.exploration_noise_generator)
-		# ]
+		if self.is_stochastic:
+			self.action_batch,_ = self.sample_actions(self.policy_batch)
+			self.noisy_action_batch = self.action_batch
+		else:
+			self.action_batch,_ = self.sample_actions(self.policy_batch, mean=True)
+			self.noisy_action_batch = [
+				add_noise(action, noise_generator())
+				# add_noise(action, Normal(0., 0.1).sample())
+				for action,noise_generator in zip(self.action_batch, self.exploration_noise_generator)
+			]
 		# Use two Q-functions to improve performance by reducing overestimation bias
 		main_embedding = main_critic.build_embedding(
 			batch_dict, 
@@ -166,9 +170,11 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			), 
 		)
 		# Target policy smoothing, by adding clipped noise to target actions
-		# target_action,_ = self.sample_actions(target_policy, mean=True)
-		# noisy_target_action = add_noise(target_action, tf.clip_by_value(Normal(0., self.target_policy_noise).sample(), -self.target_policy_noise_clip, self.target_policy_noise_clip))
-		noisy_target_action,_ = self.sample_actions(target_policy)
+		if self.is_stochastic:
+			noisy_target_action,_ = self.sample_actions(target_policy)
+		else:
+			target_action,_ = self.sample_actions(target_policy, mean=True)
+			noisy_target_action = add_noise(target_action, tf.clip_by_value(Normal(0., self.target_policy_noise).sample(), -self.target_policy_noise_clip, self.target_policy_noise_clip))
 		# Q values when following the target policy
 		target_embedding = target_critic.build_embedding(
 			batch_dict, 
@@ -214,51 +220,56 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		if self.with_intrinsic_reward:
 			self._loss_builder['Reward'] = lambda global_step: (intrinsic_reward_loss,)
 		def get_critic_loss(global_step): # Compute Q-Function loss
-			if self.critic_regularisation_weight > 0:
-				return tf.reduce_mean(td_error_1 + td_error_2) + self.get_regularisation_loss(partition_list=['Critic'], regularisation_weight=self.critic_regularisation_weight, loss_type=tf.nn.l2_loss)
-			return tf.reduce_mean(td_error_1 + td_error_2)
+			with tf.variable_scope("critic_loss", reuse=False):
+				if self.critic_regularisation_weight > 0:
+					return tf.reduce_mean(td_error_1 + td_error_2) + self.get_regularisation_loss(partition_list=['Critic'], regularisation_weight=self.critic_regularisation_weight, loss_type=tf.nn.l2_loss)
+				return tf.reduce_mean(td_error_1 + td_error_2)
 		def get_actor_loss(global_step):
-			if self.value_count > 1:
-				q_values = tf.expand_dims(tf.map_fn(fn=merge_splitted_advantages, elems=q_value_on_policy), -1)
-				advantage = tf.expand_dims(tf.map_fn(fn=merge_splitted_advantages, elems=q_value_on_policy - td_target), -1)
-			else:
-				q_values = q_value_on_policy
-				advantage = q_value_on_policy - td_target
-			advantage = tf.stop_gradient(advantage)
-			print( "	[{}]QValue shape: {}".format(self.id, q_values.get_shape()) )
-			action_key_list = self.network['Actor'].shared_keys
-			dqda = tf.gradients([q_values], action_key_list)
-			actor_losses = []
-			for dqda, action in zip(dqda, action_key_list):
-				if dqda is None:
-					continue
-				# element_wise_squared_loss
-				loss = tf.losses.mean_squared_error(tf.stop_gradient(dqda + action), action, reduction='none')
-				loss = tf.reduce_mean(loss)
-				actor_losses.append(loss)
-			qvalue_loss = tf.add_n(actor_losses)
+			with tf.variable_scope("actor_loss", reuse=False):
+				if self.value_count > 1:
+					q_values = tf.expand_dims(tf.map_fn(fn=merge_splitted_advantages, elems=q_value_on_policy), -1)
+					advantage = tf.expand_dims(tf.map_fn(fn=merge_splitted_advantages, elems=q_value_on_policy - td_target), -1)
+				else:
+					q_values = q_value_on_policy
+					advantage = q_value_on_policy - td_target
+				advantage = tf.stop_gradient(advantage)
+				print( "	[{}]QValue shape: {}".format(self.id, q_values.get_shape()) )
+				action_key_list = self.network['Actor'].shared_keys
+				dqda = tf.gradients([q_values], action_key_list)
+				actor_losses = []
+				for dqda, action in zip(dqda, action_key_list):
+					if dqda is None:
+						continue
+					# element_wise_squared_loss
+					loss = tf.losses.mean_squared_error(tf.stop_gradient(dqda + action), action, reduction='none')
+					loss = tf.reduce_mean(loss)
+					actor_losses.append(loss)
+				qvalue_loss = tf.add_n(actor_losses)
+				if not self.is_stochastic:
+					return qvalue_loss
 
-			policy_builder = PolicyLoss(
-				global_step= global_step,
-				type= flags.policy_loss,
-				beta= self.beta,
-				policy_heads= self.policy_heads, 
-				actor_batch= self.policy_batch,
-				old_policy_batch= self.old_policy_batch, 
-				old_action_batch= self.old_action_batch, 
-				is_replayed_batch= self.is_replayed_batch,
-				old_action_mask_batch= self.old_action_mask_batch if self.has_masked_actions else None,
-			)
-			self.importance_weight_batch = policy_builder.get_importance_weight_batch()
-			print( "	[{}]Importance Weight shape: {}".format(self.id, self.importance_weight_batch.get_shape()) )
-			self.policy_kl_divergence = policy_builder.approximate_kullback_leibler_divergence()
-			self.policy_clipping_frequency = policy_builder.get_clipping_frequency()
-			self.policy_entropy_regularization = policy_builder.get_entropy_regularization()
-			policy_loss = policy_builder.get(advantage)
-			# [Entropy regularization]
-			if not flags.intrinsic_reward and flags.entropy_regularization:
-				policy_loss += -self.policy_entropy_regularization
-			return policy_loss + qvalue_loss
+				policy_builder = PolicyLoss(
+					global_step= global_step,
+					type= flags.policy_loss,
+					beta= self.beta,
+					policy_heads= self.policy_heads, 
+					actor_batch= self.policy_batch,
+					old_policy_batch= self.old_policy_batch, 
+					old_action_batch= self.old_action_batch, 
+					is_replayed_batch= self.is_replayed_batch,
+					old_action_mask_batch= self.old_action_mask_batch if self.has_masked_actions else None,
+				)
+				self.importance_weight_batch = policy_builder.get_importance_weight_batch()
+				print( "	[{}]Importance Weight shape: {}".format(self.id, self.importance_weight_batch.get_shape()) )
+				self.policy_kl_divergence = policy_builder.approximate_kullback_leibler_divergence()
+				self.policy_clipping_frequency = policy_builder.get_clipping_frequency()
+				self.policy_entropy_regularization = policy_builder.get_entropy_regularization()
+				policy_loss = policy_builder.get(advantage)
+				# [Entropy regularization]
+				if not flags.intrinsic_reward and flags.entropy_regularization:
+					policy_loss += -self.policy_entropy_regularization
+				return policy_loss + qvalue_loss
+
 		self._loss_builder['Actor'] = lambda global_step: (get_actor_loss(global_step),)
 		self._loss_builder['Critic'] = lambda global_step: (get_critic_loss(global_step),)
 		####################################
@@ -297,7 +308,13 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		# Get loss values for logging
 		fetches += [self.loss_dict['Actor'] + self.loss_dict['Critic']] if flags.print_loss else [()]
 		# Debug info
-		fetches += [(self.q_value_1, self.q_value_2, self.q_value_pi, self.policy_kl_divergence, self.policy_clipping_frequency, self.policy_entropy_regularization)] if flags.print_policy_info else [()]
+		if flags.print_policy_info:
+			policy_info = (self.q_value_1, self.q_value_2, self.q_value_pi)
+			if self.is_stochastic:
+				policy_info += (self.policy_kl_divergence, self.policy_clipping_frequency, self.policy_entropy_regularization)
+			fetches.append(policy_info)
+		else:
+			fetches.append(())
 		# Intrinsic reward
 		fetches += [self.loss_dict['Reward']] if self.with_intrinsic_reward else [()]
 		# Run
@@ -309,7 +326,9 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 			train_info["loss_actor"], train_info["loss_critic"] = loss
 			train_info["loss_total"] = train_info["loss_actor"] + train_info["loss_critic"]
 		if flags.print_policy_info:
-			train_info["q_value_1"],train_info["q_value_2"],train_info["q_value_pi"],train_info["kl_divergence"],train_info["clipping_frequency"],train_info["entropy"] = map(lambda x: np.mean(x), policy_info)
+			train_info["q_value_1"],train_info["q_value_2"],train_info["q_value_pi"] = map(lambda x: np.mean(x), policy_info[:3])
+			if self.is_stochastic:
+				train_info["kl_divergence"],train_info["clipping_frequency"],train_info["entropy"] = policy_info[3:]
 		if self.with_intrinsic_reward:
 			train_info["intrinsic_reward_loss"] = reward_info
 		# Build loss statistics
