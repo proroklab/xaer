@@ -3,7 +3,7 @@
 import tensorflow.compat.v1 as tf
 from agent.server import train
 
-tf.disable_v2_behavior()
+# tf.disable_v2_behavior()
 
 def main(argv):
 	train()

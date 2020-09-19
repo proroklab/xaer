@@ -10,7 +10,7 @@ import time
 import sys
 from pickle import Pickler, Unpickler
 import gc
-import multiprocess
+import multiprocessing
 from collections import deque
 from agent.worker.working_group import Group
 import utils.plots as plt
@@ -33,8 +33,8 @@ import options
 flags = options.get()
 
 def train():
-	result_queue = multiprocess.Queue()
-	p = multiprocess.Process(target=lambda q: q.put(Application().train()), args=(result_queue,))
+	result_queue = multiprocessing.Queue()
+	p = multiprocessing.Process(target=lambda q: q.put(Application().train()), args=(result_queue,))
 	# p.daemon = True # daemonic processes are not allowed to have children
 	p.start()
 	p.join()

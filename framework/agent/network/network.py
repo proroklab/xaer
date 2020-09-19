@@ -21,8 +21,8 @@ class Network():
 	
 	def _update_keys(self, scope_name, share_trainables):
 		if share_trainables:
-			self.shared_keys = list(unique_everseen(self.shared_keys + tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope_name)))
-		self.update_keys = list(unique_everseen(self.update_keys + tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope=scope_name)))
+			self.shared_keys = sorted(unique_everseen(self.shared_keys + tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope_name)), key=lambda x: x.name)
+		self.update_keys = sorted(unique_everseen(self.update_keys + tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope=scope_name)), key=lambda x: x.name)
 
 	def _scopefy(self, inputs, output_fn, layer_type, scope, name, share_trainables, reuse=True):
 		with tf.variable_scope(self.format_scope_name([self.scope_name if not scope else scope, layer_type, '' if not name else name])) as variable_scope:

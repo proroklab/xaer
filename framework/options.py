@@ -12,10 +12,10 @@ def build():
 	options["env_type"] = "CarControllerV4" # "environment types: CarControllerV[1,2,3,4] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
-	options["algorithm"] = "AC" # "algorithms: AC, TD3"
+	options["algorithm"] = "SAC" # "algorithms: AC, TD3, SAC"
 	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, OpenAISmall, OpenAILarge, ExplicitlyRelational, ExplicitlyArgumentative"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
-	options["optimizer"] = ["RectifiedAdam"] # "gradient optimizer: all the Keras optimizers or the TFA optimizers (https://www.tensorflow.org/addons/api_docs/python/tfa/optimizers)" # default is Adam, for vanilla A3C is RMSProp
+	options["optimizer"] = ["Adam"] # "gradient optimizer: all the Keras optimizers or the TFA optimizers (https://www.tensorflow.org/addons/api_docs/python/tfa/optimizers)" # default is Adam, for vanilla A3C is RMSProp
 	# In information theory = the cross entropy between two probability distributions p and q over the same underlying set of events measures the average number of bits needed to identify an event drawn from the set.
 	options["only_non_negative_entropy"] = True # "Cross-entropy and entropy are used for policy loss and if this flag is True, then entropy=max(0,entropy). If cross-entropy measures the average number of bits needed to identify an event, then it cannot be negative."
 	# Use mean losses if max_batch_size is too big, in order to avoid NaN
@@ -33,7 +33,7 @@ def build():
 # Importance Sampling Target
 	options["importance_sampling_policy_target"] = 0.001 # "Importance Sampling target constant" -> Works only when policy_loss == DISC
 # Learning rate
-	options["alpha"] = [1e-3] # "initial learning rate" # default is 7.0e-4, for openAI is 2.5e-4
+	options["alpha"] = [3e-4] # "initial learning rate" # default is 7.0e-4, for openAI is 2.5e-4
 	options["alpha_decay"] = False # "whether to decay the learning rate"
 	options["alpha_annealing_function"] = "inverse_time_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
 	options["alpha_decay_steps"] = 10**5 # "decay alpha every x steps" # default is 10**6
@@ -41,7 +41,7 @@ def build():
 # Intrinsic Rewards: Burda, Yuri, et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
 	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states, and the agent is trained to maximize it."
 	options["use_learnt_environment_model_as_observation"] = False # "Use the intrinsic reward weights (the learnt model of the environment) as network input."
-	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
+	options["split_values"] = False # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
 	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
 	options["scale_intrinsic_reward"] = False # "Whether to scale the intrinsic reward with its standard deviation."
 	options["intrinsic_rewards_mini_batch_fraction"] = 0 # "Keep only the best intrinsic reward in a mini-batch of size 'batch_size*fraction', and set other intrinsic rewards to 0."

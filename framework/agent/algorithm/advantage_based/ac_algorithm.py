@@ -80,7 +80,7 @@ class AC_Algorithm(RL_Algorithm):
 		self.policy_batch = net.policy_layer(input=embedding)
 		for i,b in enumerate(self.policy_batch): 
 			print( "	[{}]Actor{} output shape: {}".format(self.id, i, b.get_shape()) )
-		self.action_batch, self.hot_action_batch = self.sample_actions(self.policy_batch)
+		self.action_batch, self.hot_action_batch, _ = self.sample_actions(self.policy_batch)
 		for i,b in enumerate(self.action_batch): 
 			print( "	[{}]Action{} output shape: {}".format(self.id, i, b.get_shape()) )
 		for i,b in enumerate(self.hot_action_batch): 

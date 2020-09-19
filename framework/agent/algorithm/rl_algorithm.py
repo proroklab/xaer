@@ -68,6 +68,7 @@ class RL_Algorithm(object):
 	def sample_actions(self, actor_batch, mean=False, std=None):
 		action_batch = []
 		hot_action_batch = []
+		log_pi_batch = []
 		for h,actor_head in enumerate(actor_batch):
 			if is_continuous_control(self.policy_heads[h]['depth']):
 				new_policy_batch = tf.transpose(actor_head, [1, 0, 2])
@@ -80,6 +81,7 @@ class RL_Algorithm(object):
 					action = distribution.mean()
 				action_batch.append(action) # Sample action batch in forward direction, use old action in backward direction
 				hot_action_batch.append(action)
+				log_pi_batch.append(-distribution.cross_entropy(action))
 			else: # discrete control
 				distribution = Categorical(actor_head)
 				if not mean:
@@ -88,9 +90,10 @@ class RL_Algorithm(object):
 					action = distribution.mean()
 				action_batch.append(action)
 				hot_action_batch.append(distribution.get_sample_one_hot(action))
+				log_pi_batch.append(-distribution.cross_entropy(action))
 		# Give self esplicative name to output for easily retrieving it in frozen graph
 		# tf.identity(action_batch, name="action")
-		return action_batch, hot_action_batch
+		return action_batch, hot_action_batch, log_pi_batch
 
 	def get_main_network_partitions(self):
 		pass

@@ -317,7 +317,7 @@ class NetworkManager(object):
 				'values':batch.values[i][start:end] if do_slice else batch.values[i],
 				'policies':batch.policys[i][start:end] if do_slice else batch.policys[i],
 				'cumulative_returns':batch.cumulative_returns[i][start:end] if do_slice else batch.cumulative_returns[i],
-				'rewards':batch.rewards[i][start:end] if do_slice else batch.rewards[i],
+				'rewards':batch.manipulated_rewards[i][start:end] if do_slice else batch.manipulated_rewards[i],
 				'internal_state':batch.internal_states[i][start] if is_valid_start else batch.internal_states[i][0],
 				'state_mean':self.state_mean,
 				'state_std':self.state_std,

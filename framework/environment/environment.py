@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import time
-# from multiprocessing import Process, Queue
-from multiprocess import Process, SimpleQueue as Queue
+# from multiprocess import Process, Queue
+from multiprocessing import Process, Queue
 # from multiprocessing import Queue
 # from threading import Thread as Process
 import numpy as np
@@ -28,6 +28,7 @@ class Environment(object):
 
 	@staticmethod
 	def __game_worker(input_queue, output_queue, game_wrapper, config_dict):
+		is_terminal_action = lambda action: isinstance(action, tuple) and action[0] is None
 		def get_observation_dict(game):
 			observation_dict = {
 				'new_state': game.last_state,
@@ -48,7 +49,12 @@ class Environment(object):
 		output_queue.put(get_observation_dict(game))
 		while True:
 			action = input_queue.get()
-			if action is None or game.is_over:   # If you send `None`, the thread will reset.
+			if is_terminal_action(action): # If you send `None`, the thread will reset.
+				if action[-1]:
+					config_dict = action[-1]
+					game = game_wrapper(config_dict)
+				game.reset()
+			elif game.is_over:
 				game.reset()
 			else:
 				game.process(action)
@@ -88,12 +94,15 @@ class Environment(object):
 			return
 		if DEBUG:
 			print('Closing thread', self.id)
-		self.__input_queue.close()
-		self.__output_queue.close()
-		self.__game_thread.close()
-		self.__input_queue.join_thread()
-		self.__output_queue.join_thread()
+		self.__game_thread.kill()
 		self.__game_thread.join()
+		self.__input_queue.close()
+		self.__input_queue.join_thread()
+		self.__output_queue.close()
+		self.__output_queue.join_thread()
+		del self.__game_thread
+		del self.__input_queue
+		del self.__output_queue
 		self.__game_thread = None
 		self.__input_queue = None
 		self.__output_queue = None
@@ -112,13 +121,13 @@ class Environment(object):
 		self.__close_thread()
 
 	def reset(self, data_id=None, get_screen=False):
-		if self.__game_thread is None or get_screen != self.__config_dict.get('get_screen',False): # start a new thread
-			self.__config_dict['get_screen'] = get_screen
+		self.__config_dict['get_screen'] = get_screen
+		if self.__game_thread is None: # start a new thread
 			if DEBUG:
 				print('Change config', self.__config_dict)
 			self.__start_thread()
 		else: # reuse the current thread
-			self.__input_queue.put(None)
+			self.__input_queue.put((None,self.__config_dict))
 		if DEBUG:
 			print('Resetting game', self.id)
 		self.last_observation = self.__output_queue.get()
