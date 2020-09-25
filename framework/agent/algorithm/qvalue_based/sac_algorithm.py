@@ -10,21 +10,28 @@ flags = options.get()
 
 # SAC's original paper: https://arxiv.org/pdf/1801.01290.pdf
 class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a/stable-baselines
-	# target_update_period = 5
-	# actor_update_period = 10
-	# target_update_tau = 0.05
+	# is_on_policy = True
 
-	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
+	def setup(self, environment_info):
+		# Regularisation
+		self.critic_regularisation_weight = 0.01
+		self.actor_regularisation_weight = 0.1
+		# Parameters updates
+		self.target_update_period = 10
+		self.actor_update_period = 1
+		self.target_update_tau = 0.05
+		# Entropy temperature
 		self.initial_log_alpha = 0.
 		self.target_entropy = -sum(
 			head[0]*(head[1] if len(head) > 1 else 1)
 			for head in environment_info['action_shape']
 		) / 2.0
+		self.use_log_alpha_in_alpha_loss = True
+		# Loss weights
 		self.critic_loss_weight = 0.5
+		self.constrain_loss_weight = 0.3
 		self.actor_loss_weight = 1
 		self.alpha_loss_weight = 1
-		self.use_log_alpha_in_alpha_loss = True
-		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
 
 	def get_main_network_partitions(self):
 		return [
@@ -154,7 +161,7 @@ class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a
 		discounted_q_value = tf.where(
 			self.terminal_batch, 
 			tf.zeros_like(min_q_target_value), 
-			self.gamma * min_q_target_value
+			flags.extrinsic_gamma * min_q_target_value
 		)
 		print( "	[{}]Discounted QValue shape: {}".format(self.id, discounted_q_value.get_shape()) )
 		td_target = tf.stop_gradient(reward + discounted_q_value)
@@ -163,8 +170,6 @@ class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a
 		td_error_2 = tf.math.squared_difference(td_target, q_value_2)
 		print( "	[{}]TD-Error 1 shape: {}".format(self.id, td_error_1.get_shape()) )
 		print( "	[{}]TD-Error 2 shape: {}".format(self.id, td_error_2.get_shape()) )
-		self.td_error_batch = td_target - self.state_value_batch
-		print( "	[{}]Advantage shape: {}".format(self.id, self.td_error_batch.get_shape()) )
 		####################################
 		# [Relations sets]
 		self.relations_sets = main_actor.relations_sets if main_actor.produce_explicit_relations else None
@@ -193,6 +198,7 @@ class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a
 				qvalue_loss = (tf.exp(self.log_alpha) * log_pi) - value
 				print( "	[{}]Value loss 1 shape: {}".format(self.id, qvalue_loss.get_shape()) )
 				qvalue_loss = tf.reduce_sum(qvalue_loss, axis=-1)
+				self.td_error_batch = -qvalue_loss
 				print( "	[{}]Value loss 2 shape: {}".format(self.id, qvalue_loss.get_shape()) )
 				qvalue_loss = tf.reduce_mean(qvalue_loss)
 				print( "	[{}]Value loss 3 shape: {}".format(self.id, qvalue_loss.get_shape()) )
@@ -200,14 +206,14 @@ class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a
 				if self.actor_regularisation_weight > 0:
 					qvalue_loss += self.get_regularisation_loss(partition_list=['Actor'], regularisation_weight=self.actor_regularisation_weight, loss_type=tf.nn.l2_loss)
 				if self.constrain_replay:
-					constrain_loss = sum(
+					constrain_loss = self.constrain_loss_weight*sum(
 						tf.reduce_mean(
-							tf.maximum(
-								0., 
-								Normal(action, self.exploration_noise_std).cross_entropy(tf.stop_gradient(old_action))
+							tf.math.squared_difference(
+								tf.transpose(policy, [1, 0, 2])[0], 
+								tf.stop_gradient(old_action)
 							)
 						)
-						for action,old_action in zip(self.action_batch, self.old_action_batch)
+						for policy,old_action in zip(self.policy_batch, self.old_action_batch)
 					)
 					qvalue_loss += tf.cond(
 						pred=self.is_replayed_batch[0], 
@@ -232,7 +238,7 @@ class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a
 		source_params = self.network['Critic'].shared_keys
 		target_params = self.network['TargetCritic'].shared_keys
 		# Polyak averaging for target variables
-		self.target_ops = common.soft_variables_update(source_params, target_params, tau=SAC_Algorithm.target_update_tau)
+		self.target_ops = common.soft_variables_update(source_params, target_params, tau=self.target_update_tau)
 		# Initializing target to match source variables
 		self.target_init_op = common.soft_variables_update(source_params, target_params, tau=1)
 
@@ -242,9 +248,9 @@ class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a
 			self.sync()
 		# Build _train fetches
 		train_tuple = self.train_operations_dict['Critic']+self.train_operations_dict['Alpha'] # update critic
-		if self.train_step%SAC_Algorithm.actor_update_period == 0: # update actor
+		if self.train_step%self.actor_update_period == 0: # update actor
 			train_tuple += self.train_operations_dict['Actor']
-		if self.train_step%SAC_Algorithm.target_update_period == 0: # update targets
+		if self.train_step%self.target_update_period == 0: # update targets
 			train_tuple += (self.target_ops,)
 		# else: # update only the critic
 		# Do not replay intrinsic reward training otherwise it would start to reward higher the states distant from extrinsic rewards
@@ -258,12 +264,9 @@ class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a
 		fetches += [self.loss_dict['Actor']+self.loss_dict['Critic']+self.loss_dict['Alpha']] if flags.print_loss else [()]
 		# Debug info
 		if flags.print_policy_info:
-			policy_info = (self.q_value_1, self.q_value_2, self.q_value_pi_1, self.q_value_pi_2)
-			if self.is_stochastic:
-				policy_info += (self.policy_kl_divergence, self.policy_clipping_frequency, self.policy_entropy_regularization)
-			fetches.append(policy_info)
+			fetches += [(self.q_value_1, self.q_value_2, self.q_value_pi_1, self.q_value_pi_2)]
 		else:
-			fetches.append(())
+			fetches += [()]
 		# Intrinsic reward
 		fetches += [self.loss_dict['Reward']] if self.with_intrinsic_reward else [()]
 		# Run
@@ -276,8 +279,6 @@ class SAC_Algorithm(TD3_Algorithm): # taken from here: https://github.com/hill-a
 			train_info["loss_total"] = train_info["loss_actor"] + train_info["loss_critic"]
 		if flags.print_policy_info:
 			train_info["q_value_1"],train_info["q_value_2"],train_info["q_value_pi_1"],train_info["q_value_pi_2"] = map(lambda x: np.mean(x), policy_info[:4])
-			if self.is_stochastic:
-				train_info["kl_divergence"],train_info["clipping_frequency"],train_info["entropy"] = policy_info[4:]
 		if self.with_intrinsic_reward:
 			train_info["intrinsic_reward_loss"] = reward_info
 		# Build loss statistics

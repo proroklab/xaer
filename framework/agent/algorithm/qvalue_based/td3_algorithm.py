@@ -22,19 +22,21 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 	has_td_error = True
 	is_on_policy = False
 
-	target_update_period = 5
-	actor_update_period = 10
-	target_update_tau = 0.05
-
 	def __init__(self, group_id, model_id, environment_info, beta=None, training=True, parent=None, sibling=None, with_intrinsic_reward=True):
-		self.is_stochastic = False
-		self.gamma = flags.extrinsic_gamma
-		# Critic updates
+		self.train_step = 0
+		self.setup(environment_info)
+		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
+
+	def setup(self, environment_info):
+		# Regularisation
 		self.critic_regularisation_weight = 1e-2
 		self.actor_regularisation_weight = 1e-2
-		# Actor updates
-		self.train_step = 0
+		# Parameters updates
+		self.target_update_period = 5
+		self.actor_update_period = 10
+		self.target_update_tau = 0.05
 		# Action noise
+		self.is_stochastic = False
 		if not self.is_stochastic:
 			self.exploration_noise_std = 0.05
 			self.target_policy_noise = 0.1
@@ -47,7 +49,6 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 				lambda: tf.clip_by_value(Normal(0., self.target_policy_noise).sample(), -self.target_policy_noise_clip, self.target_policy_noise_clip)
 				for head in environment_info['action_shape']
 			]
-		super().__init__(group_id, model_id, environment_info, beta, training, parent, sibling, with_intrinsic_reward)
 
 	def get_main_network_partitions(self):
 		return [
@@ -224,7 +225,7 @@ class TD3_Algorithm(RL_Algorithm): # taken from here: https://github.com/hill-a/
 		discounted_q_value = tf.where(
 			self.terminal_batch, 
 			tf.zeros_like(min_q_target_value), 
-			self.gamma * min_q_target_value
+			flags.extrinsic_gamma * min_q_target_value
 		)
 		print( "	[{}]Discounted QValue shape: {}".format(self.id, discounted_q_value.get_shape()) )
 		td_target = tf.stop_gradient(reward + discounted_q_value)
