@@ -12,7 +12,7 @@ def build():
 	options["env_type"] = "CarControllerV4" # "environment types: CarControllerV[1,2,3,4] or environments from https://gym.openai.com/envs"
 # Gradient optimization parameters
 	options["parameters_type"] = "float32" # "The type used to represent parameters: bfloat16, float32, float64"
-	options["algorithm"] = "SAC" # "algorithms: AC, TD3, SAC"
+	options["algorithm"] = "AC" # "algorithms: AC, TD3, SAC"
 	options["network_configuration"] = "OpenAISmall" # "neural network configurations: Base, Towers, OpenAISmall, OpenAILarge, ExplicitlyRelational, ExplicitlyArgumentative"
 	options["network_has_internal_state"] = False # "Whether the network has an internal state to keep updated (eg. RNNs state)."
 	options["optimizer"] = ["Adam"] # "gradient optimizer: all the Keras optimizers or the TFA optimizers (https://www.tensorflow.org/addons/api_docs/python/tfa/optimizers)" # default is Adam, for vanilla A3C is RMSProp
@@ -33,7 +33,7 @@ def build():
 # Importance Sampling Target
 	options["importance_sampling_policy_target"] = 0.001 # "Importance Sampling target constant" -> Works only when policy_loss == DISC
 # Learning rate
-	options["alpha"] = [3e-4] # "initial learning rate" # default is 7.0e-4, for openAI is 2.5e-4
+	options["alpha"] = [3.5e-4] # "initial learning rate" # default is 7.0e-4, for openAI is 2.5e-4
 	options["alpha_decay"] = False # "whether to decay the learning rate"
 	options["alpha_annealing_function"] = "inverse_time_decay" # "annealing function: exponential_decay, inverse_time_decay, natural_exp_decay" # default is inverse_time_decay
 	options["alpha_decay_steps"] = 10**5 # "decay alpha every x steps" # default is 10**6
@@ -41,7 +41,7 @@ def build():
 # Intrinsic Rewards: Burda, Yuri, et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
 	options["intrinsic_reward"] = False # "An intrinisc reward is given for exploring new states, and the agent is trained to maximize it."
 	options["use_learnt_environment_model_as_observation"] = False # "Use the intrinsic reward weights (the learnt model of the environment) as network input."
-	options["split_values"] = False # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
+	options["split_values"] = True # "Estimate separate values for extrinsic and intrinsic rewards." -> works also if intrinsic_reward=False
 	options["intrinsic_reward_step"] = 2**20 # "Start using the intrinsic reward only when global step is greater than n."
 	options["scale_intrinsic_reward"] = False # "Whether to scale the intrinsic reward with its standard deviation."
 	options["intrinsic_rewards_mini_batch_fraction"] = 0 # "Keep only the best intrinsic reward in a mini-batch of size 'batch_size*fraction', and set other intrinsic rewards to 0."
@@ -50,7 +50,7 @@ def build():
 	options["episodic_extrinsic_reward"] = True # "Bootstrap 0 for extrinsic value if state is terminal."
 	options["episodic_intrinsic_reward"] = True # "Bootstrap 0 for intrinsic value if state is terminal."
 	# Taking gamma < 1 introduces bias into the policy gradient estimate, regardless of the value function accuracy.
-	options["extrinsic_gamma"] = 0.95 # "Discount factor for extrinsic rewards" # default is 0.95, for openAI is 0.999
+	options["extrinsic_gamma"] = 0.99 # "Discount factor for extrinsic rewards" # default is 0.95, for openAI is 0.999
 	options["intrinsic_gamma"] = 0.99 # "Discount factor for intrinsic rewards" # default is 0.99
 # Experience Replay
 	# Replay mean > 0 increases off-policyness
@@ -70,8 +70,8 @@ def build():
 	# Isele, David, and Akansel Cosgun. "Selective experience replay for lifelong learning." Thirty-second AAAI conference on artificial intelligence. 2018.
 	options["global_distribution_matching"] = False # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 # Experience Clustering
-	options["experience_clustering_scheme"] = None # The scheme used to group experience into clusters. Use None to disable it. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: None, 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward'.
-	options["prioritised_cluster_sampling"] = False # Whether clustering sampling is uniform (False) or prioritised (True). # Useful when the network configuration does not have a task-oriented inductive bias. The ExplicitlyArgumentative has a task-oriented inductive bias, in other terms, it learns much faster a task and thus with prioritised_cluster_sampling=True it would overfit when the experience buffer is too big.
+	options["experience_clustering_scheme"] = 'moving_best_extrinsic_reward_with_type' # The scheme used to group experience into clusters. Use None to disable it. Usually, every cluster represent a different type of experience and thus a different task. It can be one of the following: None, 'reward_with_type', 'moving_best_extrinsic_reward_with_type', 'moving_best_extrinsic_reward', 'extrinsic_reward'.
+	options["prioritised_cluster_sampling"] = True # Whether clustering sampling is uniform (False) or prioritised (True). # Useful when the network configuration does not have a task-oriented inductive bias. The ExplicitlyArgumentative has a task-oriented inductive bias, in other terms, it learns much faster a task and thus with prioritised_cluster_sampling=True it would overfit when the experience buffer is too big.
 # Reward manipulators
 	options["extrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the extrinsic rewards."
 	options["intrinsic_reward_manipulator"] = 'lambda x: x' # "Set to 'lambda x: x' for no manipulation. A lambda expression used to manipulate the intrinsic rewards."
