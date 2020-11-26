@@ -172,7 +172,7 @@ class MixInReplay:
         self.replay_proportion = replay_proportion
 
     def __call__(self, sample_batch):
-        print(sample_batch["weights"])
+        # print(sample_batch["weights"])
         # Put in replay buffer if enabled.
         self.replay_buffer.add_batch(sample_batch)
 
