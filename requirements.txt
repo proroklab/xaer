@@ -1,3 +1,4 @@
 ray[rllib]
 gym
 tensorflow
+sklearn

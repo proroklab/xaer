@@ -75,7 +75,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
         batch = batch.copy()
         with self.add_batch_timer:
             weight = self.weights_aggregator(batch["weights"])
-            self.replay_buffers[_ALL_POLICIES].add(batch, weight)
+            batch_type = batch["batch_types"][0]
+            self.replay_buffers[_ALL_POLICIES].add(batch, weight, batch_type)
         self.num_added += batch.count
         return batch
 

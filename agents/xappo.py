@@ -9,6 +9,7 @@ from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 from experience_buffers.replay_buffer import LocalReplayBuffer
 # from experience_buffers.replay_ops import Replay, StoreToReplayBuffer
 from experience_buffers.replay_ops import MixInReplay
+from experience_buffers.clustering_scheme import *
 
 PRIO_WEIGHTS = "weights"
 XAPPO_DEFAULT_CONFIG = DEFAULT_CONFIG
@@ -26,6 +27,9 @@ XAPPO_DEFAULT_CONFIG["weights_aggregator"] = 'np.mean'
 XAPPO_DEFAULT_CONFIG["replay_proportion"] = 1
 # How many steps of the model to sample before learning starts.
 XAPPO_DEFAULT_CONFIG["learning_starts"] = 1000
+XAPPO_DEFAULT_CONFIG["batch_mode"] = "complete_episodes"
+XAPPO_DEFAULT_CONFIG["vtrace"] = False # batch_mode==complete_episodes implies vtrace==False
+XAPPO_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type"
 
 ########################
 # XAPPO's Trajectory Post-Processing
@@ -84,6 +88,7 @@ def xappo_get_policy_class(config):
 	# return XAPPOTFPolicy
 
 def xappo_execution_plan(workers, config):
+	assert config["batch_mode"] == "complete_episodes", "XAPPO requires 'complete_episodes' as batch_mode"
 	local_replay_buffer = LocalReplayBuffer(
 		prioritized_replay=config["prioritized_replay"],
 		buffer_options=config["buffer_options"], 
@@ -91,6 +96,7 @@ def xappo_execution_plan(workers, config):
 		replay_sequence_length=config["replay_sequence_length"], 
 		weights_aggregator=config["weights_aggregator"], 
 	)
+	clustering_scheme = eval(config["clustering_scheme"])()
 	def update_prio(batch):
 		if not batch:
 			return
@@ -102,18 +108,28 @@ def xappo_execution_plan(workers, config):
 				type_id=samples["batch_types"][0],
 			)
 		return batch
+	def assign_types_from_episode(episode):
+		episode_type = clustering_scheme.get_episode_type(episode)
+		for batch in episode:
+			batch_type = clustering_scheme.get_batch_type(batch, episode_type)
+			batch["batch_types"] = np.array([batch_type]*batch.count)
+		return episode
 
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 
 	# Augment with replay and concat to desired train batch size.
 	train_batches = rollouts \
 		.for_each(lambda batch: batch.decompress_if_needed()) \
+		.for_each(lambda batch: batch.split_by_episode()) \
+		.flatten() \
+		.for_each(lambda batch: batch.timeslices(config["rollout_fragment_length"])) \
+		.for_each(assign_types_from_episode) \
+		.flatten() \
 		.for_each(MixInReplay(
 			local_buffer=local_replay_buffer,
 			replay_proportion=config["replay_proportion"])) \
 		.flatten() \
-		.combine(
-			ConcatBatches(min_batch_size=config["train_batch_size"]))
+		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
 
 	# Start the learner thread.
 	learner_thread = make_learner_thread(workers.local_worker(), config)

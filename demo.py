@@ -15,7 +15,7 @@ CONFIG["log_level"] = "WARN"
 CONFIG["replay_proportion"] = 1 # The input batch will be returned and an additional number of batches proportional to this value will be added as well.
 CONFIG["lambda"] = .95 # GAE(lambda) parameter
 CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
-# CONFIG["vtrace"] = False
+CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
 
 ####################################################################################
 ####################################################################################

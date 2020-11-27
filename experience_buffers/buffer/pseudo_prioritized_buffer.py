@@ -64,7 +64,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			idx = len(type_batch)
 			type_batch.append(batch)
 		batch["batch_indexes"] = np.array([idx]*batch.count)
-		batch["batch_types"] = np.array([type_id]*batch.count)
+		# batch["batch_types"] = np.array([type_id]*batch.count)
 		# Set insertion time
 		if self._prioritized_drop_probability < 1:
 			self._insertion_time_tree[sample_type][idx] = (time.time(), idx) # O(log)
@@ -90,6 +90,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		
 	def sample(self, remove=False): # O(log)
 		type_id, sample_type = self.sample_cluster()
+		# print(type_id)
 		type_sum_tree = self._sample_priority_tree[sample_type]
 		idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
 		type_batch = self.batches[sample_type]
