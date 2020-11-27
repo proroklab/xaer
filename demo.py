@@ -16,6 +16,7 @@ CONFIG["replay_proportion"] = 1 # The input batch will be returned and an additi
 CONFIG["lambda"] = .95 # GAE(lambda) parameter
 CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+CONFIG["gae_with_vtrace"] = True
 
 ####################################################################################
 ####################################################################################

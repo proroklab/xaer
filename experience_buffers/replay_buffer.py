@@ -29,12 +29,14 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
     def __init__(self, 
         prioritized_replay=True,
+        priority_weights_key="weights",
         buffer_options=None, 
         learning_starts=1000, 
         replay_sequence_length=1, 
-        weights_aggregator='np.mean',
+        priority_weights_aggregator='np.mean',
     ):
-        self.weights_aggregator = eval(weights_aggregator)
+        self.priority_weights_key = priority_weights_key
+        self.priority_weights_aggregator = eval(priority_weights_aggregator)
         self.buffer_options = {} if not buffer_options else buffer_options
         self.replay_starts = learning_starts
         self.replay_sequence_length = replay_sequence_length
@@ -74,7 +76,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
         # Make a copy so the replay buffer doesn't pin plasma memory.
         batch = batch.copy()
         with self.add_batch_timer:
-            weight = self.weights_aggregator(batch["weights"])
+            weight = self.priority_weights_aggregator(batch[self.priority_weights_key])
             batch_type = batch["batch_types"][0]
             self.replay_buffers[_ALL_POLICIES].add(batch, weight, batch_type)
         self.num_added += batch.count
@@ -89,7 +91,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
     def update_priority(self, batch_index, weights, type_id):
         with self.update_priorities_timer:
-            new_priority = self.weights_aggregator(weights)
+            new_priority = self.priority_weights_aggregator(weights)
             # old_p = self.replay_buffers[_ALL_POLICIES].get_priority(batch_index, type_id)
             self.replay_buffers[_ALL_POLICIES].update_priority(batch_index, new_priority, type_id)
             # new_p = self.replay_buffers[_ALL_POLICIES].get_priority(batch_index, type_id)
