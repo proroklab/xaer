@@ -5,12 +5,12 @@ import json
 import shutil
 import ray
 
-from agents.xappo import XAPPOTrainer, DEFAULT_CONFIG
+from agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG
 from environments import *
 
 SELECT_ENV = "example-v0"
 N_ITER = 30
-CONFIG = DEFAULT_CONFIG.copy()
+CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["replay_proportion"] = 1 # The input batch will be returned and an additional number of batches proportional to this value will be added as well.
 CONFIG["lambda"] = .95 # GAE(lambda) parameter

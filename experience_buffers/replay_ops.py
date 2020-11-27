@@ -145,11 +145,11 @@ class MixInReplay:
     number of replay slots.
     """
 
-    def __init__(self, num_slots, replay_proportion: float):
+    def __init__(self, local_buffer: LocalReplayBuffer, replay_proportion: float):
         """Initialize MixInReplay.
 
         Args:
-            num_slots (int): Number of batches to store in total.
+            replay_buffer (Buffer): The replay buffer.
             replay_proportion (float): The input batch will be returned
                 and an additional number of batches proportional to this value
                 will be added as well.
@@ -165,21 +165,22 @@ class MixInReplay:
             >>> print(next(replay_op))
             [SampleBatch(<input>)]
         """
-        if replay_proportion > 0 and num_slots == 0:
-            raise ValueError(
-                "You must set num_slots > 0 if replay_proportion > 0.")
-        self.replay_buffer = SimpleReplayBuffer(num_slots)
+        self.replay_buffer = local_buffer
         self.replay_proportion = replay_proportion
 
     def __call__(self, sample_batch):
         # print(sample_batch["weights"])
         # Put in replay buffer if enabled.
-        self.replay_buffer.add_batch(sample_batch)
+        sample_batch = self.replay_buffer.add_batch(sample_batch)
+        # print(sample_batch['index'])
 
         # Proportional replay.
         output_batches = [sample_batch]
         f = self.replay_proportion
         while random.random() < f:
             f -= 1
-            output_batches.append(self.replay_buffer.replay())
+            replayed_batch = self.replay_buffer.replay()
+            if not replayed_batch:
+                return output_batches
+            output_batches.append(replayed_batch)
         return output_batches

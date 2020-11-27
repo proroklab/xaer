@@ -2,7 +2,7 @@
 from random import choice, random, randint
 import numpy as np
 import time
-from utils.buffer.buffer import Buffer
+from experience_buffers.buffer.buffer import Buffer
 from utils.segment_tree import SumSegmentTree, MinSegmentTree
 
 class PseudoPrioritizedBuffer(Buffer):
@@ -44,7 +44,11 @@ class PseudoPrioritizedBuffer(Buffer):
 	def normalize_priority(self, priority): # O(1)
 		priority_sign = -1 if priority < 0 else 1
 		priority = np.absolute(priority) + self._epsilon 
-		return priority_sign*np.power(priority, self._alpha)
+		return priority_sign*np.power(priority, self._alpha).astype('float32')
+
+	def get_priority(self, idx, type_id):
+		sample_type = self.get_type(type_id)
+		return self._sample_priority_tree[sample_type][idx]
 		
 	def add(self, batch, priority, type_id=0): # O(log)
 		self._add_type_if_not_exist(type_id)
@@ -59,6 +63,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		else: # add new element to buffer
 			idx = len(type_batch)
 			type_batch.append(batch)
+		batch["batch_indexes"] = np.array([idx]*batch.count)
+		batch["batch_types"] = np.array([type_id]*batch.count)
 		# Set insertion time
 		if self._prioritized_drop_probability < 1:
 			self._insertion_time_tree[sample_type][idx] = (time.time(), idx) # O(log)
@@ -67,6 +73,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
 		self.update_priority(idx, priority, type_id)
+		return idx, type_id
 
 	def sample_cluster(self):
 		if self._prioritised_cluster_sampling:
@@ -81,7 +88,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			sample_type = self.get_type(type_id)
 		return type_id, sample_type
 		
-	def keyed_sample(self, remove=False): # O(log)
+	def sample(self, remove=False): # O(log)
 		type_id, sample_type = self.sample_cluster()
 		type_sum_tree = self._sample_priority_tree[sample_type]
 		idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
@@ -92,10 +99,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._insertion_time_tree[sample_type][idx] = None # O(log)
 			self._drop_priority_tree[sample_type][idx] = None # O(log)
 			self._sample_priority_tree[sample_type][idx] = None # O(log)
-		return type_batch[idx], idx, type_id
-	
-	def sample(self, remove=False): # O(log)
-		return self.keyed_sample(remove)[0]
+		return type_batch[idx]
 	
 	def update_priority(self, idx, priority, type_id=0): # O(log)
 		sample_type = self.get_type(type_id)
