@@ -13,8 +13,8 @@ from experience_buffers.replay_ops import MixInReplay
 from experience_buffers.clustering_scheme import *
 from utils.misc import accumulate
 
-IMPORTANCE_WEIGHTS = "importance_weight"
-PRIO_WEIGHTS = "gain"
+IMPORTANCE_WEIGHTS = "importance_weights"
+GAINS = "gains"
 XAPPO_DEFAULT_CONFIG = DEFAULT_CONFIG
 XAPPO_DEFAULT_CONFIG["worker_side_prioritization"] = True
 XAPPO_DEFAULT_CONFIG["prioritized_replay"] = True
@@ -26,14 +26,15 @@ XAPPO_DEFAULT_CONFIG["buffer_options"] = {
 	'prioritised_cluster_sampling': True,
 }
 XAPPO_DEFAULT_CONFIG["replay_sequence_length"] = 1
-XAPPO_DEFAULT_CONFIG["priority_weights_aggregator"] = 'np.mean'
 XAPPO_DEFAULT_CONFIG["replay_proportion"] = 1
 # How many steps of the model to sample before learning starts.
 XAPPO_DEFAULT_CONFIG["learning_starts"] = 1000
 XAPPO_DEFAULT_CONFIG["batch_mode"] = "complete_episodes"
 XAPPO_DEFAULT_CONFIG["vtrace"] = False # batch_mode==complete_episodes implies vtrace==False
-XAPPO_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type"
-XAPPO_DEFAULT_CONFIG["gae_with_vtrace"] = True
+XAPPO_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+XAPPO_DEFAULT_CONFIG["gae_with_vtrace"] = True # combines GAE with V-Tracing
+XAPPO_DEFAULT_CONFIG["priority_weight"] = GAINS # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
+XAPPO_DEFAULT_CONFIG["priority_weights_aggregator"] = 'np.mean' # a reduce function (from a list of numbers to a number)
 
 ########################
 # XAPPO's Trajectory Post-Processing
@@ -118,9 +119,9 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 	advantages = sample_batch[Postprocessing.ADVANTAGES]
 	new_priorities = advantages * logp_ratio
 	if policy.config["worker_side_prioritization"]:
-		sample_batch.data[PRIO_WEIGHTS] = new_priorities
+		sample_batch.data[GAINS] = new_priorities
 	else:
-		sample_batch[PRIO_WEIGHTS] = new_priorities
+		sample_batch[GAINS] = new_priorities
 	del sample_batch.data["new_obs"]  # not used, so save some bandwidth
 	return sample_batch
 
@@ -146,21 +147,21 @@ def xappo_execution_plan(workers, config):
 	assert config["batch_mode"] == "complete_episodes", "XAPPO requires 'complete_episodes' as batch_mode"
 	local_replay_buffer = LocalReplayBuffer(
 		prioritized_replay=config["prioritized_replay"],
-		priority_weights_key=PRIO_WEIGHTS,
+		priority_weights_key=config["priority_weight"],
 		buffer_options=config["buffer_options"], 
 		learning_starts=config["learning_starts"], 
 		replay_sequence_length=config["replay_sequence_length"], 
 		priority_weights_aggregator=config["priority_weights_aggregator"], 
 	)
 	clustering_scheme = eval(config["clustering_scheme"])()
-	def update_prio(batch):
+	def update_priorities(batch):
 		if not batch:
 			return
 		if config.get("prioritized_replay"):
 			samples = batch.data if config["worker_side_prioritization"] else batch
 			local_replay_buffer.update_priority(
 				batch_index=samples["batch_indexes"][0], 
-				weights=samples[PRIO_WEIGHTS], 
+				weights=samples[config["priority_weight"]], 
 				type_id=samples["batch_types"][0],
 			)
 		return batch
@@ -194,7 +195,7 @@ def xappo_execution_plan(workers, config):
 	# This sub-flow sends experiences to the learner.
 	enqueue_op = train_batches \
 		.for_each(Enqueue(learner_thread.inqueue)) \
-		.for_each(update_prio)
+		.for_each(update_priorities)
 	# Only need to update workers if there are remote workers.
 	if workers.remote_workers():
 		enqueue_op = enqueue_op.zip_with_source_actor() \
