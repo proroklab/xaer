@@ -1,3 +1,11 @@
+"""
+XAPPO - eXplanation-Aware Asynchronous Proximal Policy Optimization
+==============================================
+
+Detailed documentation:
+https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
+"""  # noqa: E501
+
 import collections
 
 from ray.rllib.agents.impala.impala import *
@@ -7,10 +15,8 @@ from ray.rllib.agents.ppo.ppo_tf_policy import vf_preds_fetches
 from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
 
-from experience_buffers.replay_buffer import LocalReplayBuffer
-# from experience_buffers.replay_ops import Replay, StoreToReplayBuffer
+from agents.xa_ops import *
 from experience_buffers.replay_ops import MixInReplay
-from experience_buffers.clustering_scheme import *
 from utils.misc import accumulate
 
 IMPORTANCE_WEIGHTS = "importance_weights"
@@ -71,7 +77,7 @@ def gae_v(gamma, lambda_, last_value, reversed_reward, reversed_value, reversed_
 
 def compute_gae_v_advantages(rollout: SampleBatch, last_r: float, gamma: float = 0.9, lambda_: float = 1.0):
     rollout_size = len(rollout[SampleBatch.ACTIONS])
-    assert SampleBatch.VF_PREDS in rollout, "use_critic=True but values not found"
+    assert SampleBatch.VF_PREDS in rollout, "values not found"
     reversed_cumulative_return, reversed_cumulative_advantage = gae_v(
     	gamma, 
     	lambda_, 
@@ -144,16 +150,7 @@ def xappo_get_policy_class(config):
 	# return XAPPOTFPolicy
 
 def xappo_execution_plan(workers, config):
-	assert config["batch_mode"] == "complete_episodes", "XAPPO requires 'complete_episodes' as batch_mode"
-	local_replay_buffer = LocalReplayBuffer(
-		prioritized_replay=config["prioritized_replay"],
-		priority_weights_key=config["priority_weight"],
-		buffer_options=config["buffer_options"], 
-		learning_starts=config["learning_starts"], 
-		replay_sequence_length=config["replay_sequence_length"], 
-		priority_weights_aggregator=config["priority_weights_aggregator"], 
-	)
-	clustering_scheme = eval(config["clustering_scheme"])()
+	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	def update_priorities(batch):
 		if not batch:
 			return
@@ -165,13 +162,7 @@ def xappo_execution_plan(workers, config):
 				type_id=samples["batch_types"][0],
 			)
 		return batch
-	def assign_types_from_episode(episode):
-		episode_type = clustering_scheme.get_episode_type(episode)
-		for batch in episode:
-			batch_type = clustering_scheme.get_batch_type(batch, episode_type)
-			batch["batch_types"] = np.array([batch_type]*batch.count)
-		return episode
-
+	
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 
 	# Augment with replay and concat to desired train batch size.
@@ -179,8 +170,8 @@ def xappo_execution_plan(workers, config):
 		.for_each(lambda batch: batch.decompress_if_needed()) \
 		.for_each(lambda batch: batch.split_by_episode()) \
 		.flatten() \
-		.for_each(lambda batch: batch.timeslices(config["rollout_fragment_length"])) \
-		.for_each(assign_types_from_episode) \
+		.for_each(lambda episode: episode.timeslices(config["rollout_fragment_length"])) \
+		.for_each(lambda episode: assign_types_from_episode(episode, clustering_scheme)) \
 		.flatten() \
 		.for_each(MixInReplay(
 			local_buffer=local_replay_buffer,
@@ -219,6 +210,7 @@ def xappo_execution_plan(workers, config):
 	return StandardMetricsReporting(merged_op, workers, config).for_each(learner_thread.add_learner_metrics)
 
 XAPPOTrainer = APPOTrainer.with_updates(
+	name="XAPPO", 
 	default_policy=XAPPOTFPolicy,
 	get_policy_class=xappo_get_policy_class,
 	execution_plan=xappo_execution_plan,
