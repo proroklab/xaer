@@ -8,12 +8,12 @@ from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
 from scipy import optimize
-from environment.game_wrapper import GameWrapper
-from environment.car_controller.car_stuff.utils import *
-from environment.car_controller.car_stuff.roads import *
+from environments.car_controller.car_stuff.utils import *
+from environments.car_controller.car_stuff.roads import *
 import random
+import gym
 
-class CarControllerV4(GameWrapper):
+class CarControllerV4(gym.Env):
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
 	horizon_distance = 3 # meters
 	track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
@@ -39,22 +39,29 @@ class CarControllerV4(GameWrapper):
 	map_size = (max_dimension, max_dimension)
 	max_road_length = max_dimension*2/3
 
-	def get_action_shape(self):
-		return [(2,)] # steering angle, continuous control without softmax
-
 	def get_state_shape(self):
 		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
 		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		return [
-			(1, 2, 2), # current road view: relative coordinates of road.start.pos and road.end.pos
-			( # closest junctions view
-				2, # number of junctions close to current road
-				Junction.max_roads_connected, 
-				1+1, # relative heading vector + road colour
-			),
-			(
-				self.get_concatenation_size(),
-			)
+			{
+				'low': -15,
+				'high': 15,
+				'shape': (1, 2, 2), # current road view: relative coordinates of road.start.pos and road.end.pos
+			},
+			{
+				'low': -15,
+				'high': 15,
+				'shape': ( # closest junctions view
+					2, # number of junctions close to current road
+					Junction.max_roads_connected, 
+					1+1, # relative heading vector + road colour
+				),
+			},
+			{
+				'low': -1,
+				'high': self.max_speed/self.speed_lower_limit,
+				'shape': (self.get_concatenation_size(),)
+			},
 		]
 
 	def get_state(self, car_point, car_orientation):
@@ -67,12 +74,12 @@ class CarControllerV4(GameWrapper):
 		return 4
 		
 	def get_concatenation(self):
-		return (
+		return np.array((
 			self.steering_angle/self.max_steering_angle, 
 			self.speed/self.max_speed, 
 			self.speed/self.speed_upper_limit,
 			self.normalised_car_colour,
-		)
+		), dtype=np.float32)
 
 	def get_reward(self, car_speed, car_point, old_car_point): # to finish
 		def terminal_reward(is_positive,label):
@@ -100,6 +107,22 @@ class CarControllerV4(GameWrapper):
 			return step_reward(is_positive=False, label='respect_speed_limit')
 		return step_reward(is_positive=True, label='move_forward')
 
+	def __init__(self):
+		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)
+		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
+		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
+		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
+		self.road_network = RoadNetwork(map_size=self.map_size, max_road_length=self.max_road_length)
+		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
+		# Spaces
+		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32) # steering angle, continuous control without softmax
+		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
+		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
+		self.observation_space = gym.spaces.Tuple([
+			gym.spaces.Box(**shape) 
+			for shape in self.get_state_shape()
+		])
+
 	@staticmethod
 	def normalize_point(p):
 		return (p[0]/CarControllerV4.map_size[0], p[1]/CarControllerV4.map_size[1])
@@ -116,7 +139,7 @@ class CarControllerV4(GameWrapper):
 		road_view = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_view)
 		road_view = map(self.normalize_point, road_view) # in [-1,1]
 		road_view = tuple(road_view)
-		road_view = np.array((road_view,))
+		road_view = np.array((road_view,), dtype=np.float32)
 		# Get junction view
 		junction_view = np.array([ # 2 x Junction.max_roads_connected x (1+1)
 			[
@@ -127,22 +150,14 @@ class CarControllerV4(GameWrapper):
 				for road in j.roads_connected
 			] + [(-1,-1)]*(Junction.max_roads_connected-len(j.roads_connected))
 			for j in (j1,j2)
-		])
+		], dtype=np.float32)
 		return road_view, junction_view
-
-	def __init__(self, config_dict):
-		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)
-		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
-		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
-		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
-		# Shapes
-		# self.state_shape = self.get_state_shape()[0]
-		self.action_shape = self.get_action_shape()
-		self.road_network = RoadNetwork(map_size=self.map_size, max_road_length=self.max_road_length)
-		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
 	
 	def reset(self):
-		super().reset()
+		self.is_over = False
+		self.episode_statistics = {}
+		self._step = 0
+		###########################
 		self.seconds_per_step = self.get_step_seconds()
 		self.car_colour = random.choice(RoadNetwork.all_road_colours)
 		self.normalised_car_colour = RoadNetwork.all_road_colours.index(self.car_colour)/len(RoadNetwork.all_road_colours)
@@ -164,6 +179,7 @@ class CarControllerV4(GameWrapper):
 		# init log variables
 		self.cumulative_reward = 0
 		self.avg_speed_per_steps = 0
+		return self.last_state
 
 	def move(self, point, orientation, steering_angle, speed, add_noise=False):
 		# https://towardsdatascience.com/how-self-driving-cars-steer-c8e4b5b55d7f?gi=90391432aad7
@@ -196,13 +212,13 @@ class CarControllerV4(GameWrapper):
 	def get_step_seconds(self):
 		return np.random.exponential(scale=self.mean_seconds_per_step)
 
-	def process(self, action_vector):
+	def step(self, action_vector):
 		# first of all, get the seconds passed from last step
 		self.seconds_per_step = self.get_step_seconds()
 		# compute new steering angle
-		self.steering_angle = self.get_steering_angle_from_action(action=action_vector[0][0])
+		self.steering_angle = self.get_steering_angle_from_action(action=action_vector[0])
 		# compute new acceleration
-		self.acceleration = self.get_acceleration_from_action(action=action_vector[0][1])
+		self.acceleration = self.get_acceleration_from_action(action=action_vector[1])
 		# compute new speed
 		self.speed = self.accelerate(speed=self.speed, acceleration=self.acceleration)
 		# move car
@@ -234,19 +250,19 @@ class CarControllerV4(GameWrapper):
 		self.cumulative_reward += reward
 		self.avg_speed_per_steps += self.speed
 		# update step
-		self.step += 1
+		self._step += 1
 		completed_track = self.last_reward_type == 'goal'
-		out_of_time = self.step >= self.max_step
+		out_of_time = self._step >= self.max_step
 		terminal = dead or completed_track or out_of_time
 		if terminal: # populate statistics
 			self.is_over = True
 			stats = {
-				"avg_speed": self.avg_speed_per_steps/self.step,
+				"avg_speed": self.avg_speed_per_steps/self._step,
 				"completed_track": 1 if completed_track else 0,
 				"out_of_time": 1 if out_of_time else 0,
 			}
 			self.episode_statistics = stats
-		return state, reward, terminal
+		return [state, reward, terminal, {'explanation':reward_type}]
 	
 	def get_info(self):
 		return f"speed={self.speed}, steering_angle={self.steering_angle}, orientation={self.car_orientation}\n"
@@ -287,7 +303,7 @@ class CarControllerV4(GameWrapper):
 		handles = [car_handle]
 		ax.legend(handles=handles)
 		# Draw plot
-		figure.suptitle('[Angle]{1:.2f}° [Orientation]{4:.2f}° \n [Speed]{0:.2f} m/s [Limit]{3:.2f} m/s [Step]{2}'.format(self.speed, convert_radiant_to_degree(self.steering_angle), self.step, self.speed_upper_limit, convert_radiant_to_degree(self.car_orientation)))
+		figure.suptitle('[Angle]{1:.2f}° [Orientation]{4:.2f}° \n [Speed]{0:.2f} m/s [Limit]{3:.2f} m/s [Step]{2}'.format(self.speed, convert_radiant_to_degree(self.steering_angle), self._step, self.speed_upper_limit, convert_radiant_to_degree(self.car_orientation)))
 		canvas.draw()
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')

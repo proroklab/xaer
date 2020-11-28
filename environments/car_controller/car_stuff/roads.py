@@ -1,8 +1,8 @@
 import numpy as np
 from collections import deque
-from environment.car_controller.car_stuff.utils import *
-from environment.car_controller.car_stuff.culture.simple import SimpleCulture
-from utils.random_planar_graph.GenerateGraph import get_random_planar_graph, default_seed
+from environments.car_controller.car_stuff.utils import *
+from environments.car_controller.car_stuff.culture.simple import SimpleCulture
+from environments.car_controller.car_stuff.random_planar_graph.GenerateGraph import get_random_planar_graph, default_seed
 import random
 
 class Junction:

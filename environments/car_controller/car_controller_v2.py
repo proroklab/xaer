@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from environment.car_controller.car_controller_v1 import CarControllerV1
-from environment.car_controller.car_stuff.utils import *
+from environments.car_controller.car_controller_v1 import CarControllerV1
+from environments.car_controller.car_stuff.utils import *
+import gym
 
 class CarControllerV2(CarControllerV1):
 	control_points_per_step = 10
@@ -10,21 +11,37 @@ class CarControllerV2(CarControllerV1):
 		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
 		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		return [
-			(1,self.control_points_per_step,2),
-			(1,self.max_obstacle_count,3),
-			(self.get_concatenation_size(),)
+			{
+				'low': -15,
+				'high': 15,
+				'shape': (1,self.control_points_per_step,2),
+			},
+			{
+				'low': -15,
+				'high': 15,
+				'shape': (1,self.max_obstacle_count,3),
+			},
+			{
+				'low': -1,
+				'high': self.max_speed/self.speed_lower_limit,
+				'shape': (self.get_concatenation_size(),)
+			},
 		]
 	
-	def __init__(self, config_dict):
+	def __init__(self):
 		self.max_step = self.max_step_per_spline*self.spline_number
 		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)
 		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
-		# Shapes
-		self.control_points_shape = self.get_state_shape()[0]
-		self.obstacles_shape = self.get_state_shape()[1]
-		self.action_shape = self.get_action_shape()
+		# Spaces
+		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32) # steering angle, continuous control without softmax
+		self.observation_space = gym.spaces.Tuple([
+			gym.spaces.Box(**shape) 
+			for shape in self.get_state_shape()
+		])
+		self.control_points_shape = self.get_state_shape()[0]['shape']
+		self.obstacles_shape = self.get_state_shape()[1]['shape']
 		
 	def get_control_points(self, source_point, source_orientation, source_position): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		source_goal = self.get_goal(source_position)
