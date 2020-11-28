@@ -9,8 +9,8 @@ from agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
-SELECT_ENV = "CescoDrive-v0"
-N_ITER = 30
+SELECT_ENV = "CescoDrive-v2"
+
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["replay_proportion"] = 1 # The input batch will be returned and an additional number of batches proportional to this value will be added as well.
@@ -46,7 +46,9 @@ print(model.base_model.summary())
 # results = []
 # episode_data = []
 # episode_json = []
-for n in range(N_ITER):
+n = 0
+while True:
+	n += 1
 	result = agent.train()
 	# print(result)
 	# results.append(result)
