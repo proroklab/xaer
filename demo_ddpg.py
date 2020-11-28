@@ -13,12 +13,6 @@ SELECT_ENV = "CescoDrive-v2"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
-CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-###############################################
-# Priority_weight: For XADQN one of the following: weigths, rewards, prev_rewards, action_logp
-CONFIG["priority_weight"] = "weights"
-###############################################
-CONFIG["priority_weights_aggregator"] = 'np.mean' # a reduce function (from a list of numbers to a number)
 
 ####################################################################################
 ####################################################################################
