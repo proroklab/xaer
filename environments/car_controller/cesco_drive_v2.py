@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from scipy import optimize
-from environments.car_controller.car_controller_v1 import CarControllerV1
+from environments.car_controller.cesco_drive_v0 import CescoDriveV0
 from environments.car_controller.car_stuff.utils import *
 
-class CarControllerV3(CarControllerV1):
+class CescoDriveV2(CescoDriveV0):
 
 	def step(self, action_vector):
 		# first of all, get the seconds passed from last step

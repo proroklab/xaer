@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from environments.car_controller.car_controller_v1 import CarControllerV1
+from environments.car_controller.cesco_drive_v0 import CescoDriveV0
 from environments.car_controller.car_stuff.utils import *
 import gym
 
-class CarControllerV2(CarControllerV1):
+class CescoDriveV1(CescoDriveV0):
 	control_points_per_step = 10
 
 	def get_state_shape(self):

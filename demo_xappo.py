@@ -9,7 +9,7 @@ from agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
-SELECT_ENV = "AlexDrive-v0"
+SELECT_ENV = "CescoDrive-v0"
 N_ITER = 30
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"

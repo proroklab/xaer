@@ -12,7 +12,7 @@ from scipy import optimize
 from environments.car_controller.car_stuff.utils import *
 import gym
 
-class CarControllerV1(gym.Env):
+class CescoDriveV0(gym.Env):
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
 	horizon_distance = 3 # meters
 	track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
