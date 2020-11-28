@@ -10,7 +10,7 @@ from agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
 from environments import *
 
 SELECT_ENV = "CescoDrive-v2"
-N_ITER = 30
+
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
@@ -42,7 +42,9 @@ agent = XADDPGTrainer(CONFIG, env=SELECT_ENV)
 # results = []
 # episode_data = []
 # episode_json = []
-for n in range(N_ITER):
+n = 0
+while True:
+	n += 1
 	result = agent.train()
 	# print(result)
 	# results.append(result)

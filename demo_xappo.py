@@ -9,7 +9,7 @@ from agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
-SELECT_ENV = "CescoDrive-v2"
+SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
@@ -18,6 +18,7 @@ CONFIG["lambda"] = .95 # GAE(lambda) parameter
 CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
 CONFIG["gae_with_vtrace"] = True # combines GAE with V-Tracing
+CONFIG["prioritized_replay"] = True
 ###############################################
 # Priority_weight: For XAPPO one of the following: gains, importance_weights, advantages, rewards, prev_rewards, action_logp
 CONFIG["priority_weight"] = "gains"
@@ -31,8 +32,8 @@ ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
 # Configure a file location for checkpoints, in this case in a tmp/ppo/taxi subdirectory, deleting any previous files there
-checkpoint_root = "tmp/ppo/taxi"
-shutil.rmtree(checkpoint_root, ignore_errors=True, onerror=None)   # clean up old runs
+# checkpoint_root = "tmp/ppo/taxi"
+# shutil.rmtree(checkpoint_root, ignore_errors=True, onerror=None)   # clean up old runs
 
 # Configure RLlib to train a policy using the “Taxi-v3” environment and a PPO optimizer
 agent = XAPPOTrainer(CONFIG, env=SELECT_ENV)

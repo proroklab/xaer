@@ -9,7 +9,7 @@ from agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
 from environments import *
 
 SELECT_ENV = "ToyExample-v0"
-N_ITER = 30
+
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
@@ -41,7 +41,9 @@ print(model.base_model.summary())
 # results = []
 # episode_data = []
 # episode_json = []
-for n in range(N_ITER):
+n = 0
+while True:
+	n += 1
 	result = agent.train()
 	# print(result)
 	# results.append(result)

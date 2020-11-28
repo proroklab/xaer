@@ -8,6 +8,7 @@ import ray  # noqa F401
 import psutil  # noqa E402
 
 from experience_buffers.buffer.pseudo_prioritized_buffer import PseudoPrioritizedBuffer
+from experience_buffers.buffer.buffer import Buffer
 
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.util.iter import ParallelIteratorWorker
@@ -17,9 +18,6 @@ from ray.rllib.utils.timer import TimerStat
 _ALL_POLICIES = "__all__"
 
 logger = logging.getLogger(__name__)
-
-# Visible for testing.
-_local_replay_buffer = None
 
 class LocalReplayBuffer(ParallelIteratorWorker):
     """A replay buffer shard.
@@ -35,6 +33,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
         replay_sequence_length=1, 
         priority_weights_aggregator='np.mean',
     ):
+        self.prioritized_replay = prioritized_replay
         self.priority_weights_key = priority_weights_key
         self.priority_weights_aggregator = eval(priority_weights_aggregator)
         self.buffer_options = {} if not buffer_options else buffer_options
@@ -48,7 +47,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
         ParallelIteratorWorker.__init__(self, gen_replay, False)
 
         def new_buffer():
-            return PseudoPrioritizedBuffer(**self.buffer_options)
+            return PseudoPrioritizedBuffer(**self.buffer_options) if self.prioritized_replay else Buffer(self.buffer_options['size'])
 
         self.replay_buffers = collections.defaultdict(new_buffer)
 
@@ -58,27 +57,19 @@ class LocalReplayBuffer(ParallelIteratorWorker):
         self.update_priorities_timer = TimerStat()
         self.num_added = 0
 
-        # Make externally accessible for testing.
-        global _local_replay_buffer
-        _local_replay_buffer = self
-        # If set, return this instead of the usual data for testing.
-        self._fake_batch = None
-
-    @staticmethod
-    def get_instance_for_testing():
-        global _local_replay_buffer
-        return _local_replay_buffer
-
     def get_host(self):
         return platform.node()
 
     def add_batch(self, batch):
         # Make a copy so the replay buffer doesn't pin plasma memory.
         batch = batch.copy()
+        batch_type = batch["batch_types"][0]
         with self.add_batch_timer:
-            weight = self.priority_weights_aggregator(batch[self.priority_weights_key])
-            batch_type = batch["batch_types"][0]
-            self.replay_buffers[_ALL_POLICIES].add(batch, weight, batch_type)
+            if self.prioritized_replay:
+                weight = self.priority_weights_aggregator(batch[self.priority_weights_key])
+                self.replay_buffers[_ALL_POLICIES].add(batch, weight, batch_type)
+            else:
+                self.replay_buffers[_ALL_POLICIES].add(batch, batch_type)
         self.num_added += batch.count
         return batch
 
@@ -90,6 +81,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
             return self.replay_buffers[_ALL_POLICIES].sample()
 
     def update_priority(self, batch_index, weights, type_id):
+        if not self.prioritized_replay:
+            return
         with self.update_priorities_timer:
             new_priority = self.priority_weights_aggregator(weights)
             # old_p = self.replay_buffers[_ALL_POLICIES].get_priority(batch_index, type_id)

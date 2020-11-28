@@ -125,7 +125,7 @@ class AlexDriveV0(gym.Env):
 
 	@staticmethod
 	def normalize_point(p):
-		return (p[0]/CarControllerV4.map_size[0], p[1]/CarControllerV4.map_size[1])
+		return (p[0]/AlexDriveV0.map_size[0], p[1]/AlexDriveV0.map_size[1])
 
 	def get_view(self, source_point, source_orientation): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		# get road view
