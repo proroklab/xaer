@@ -20,86 +20,81 @@ _ALL_POLICIES = "__all__"
 logger = logging.getLogger(__name__)
 
 class LocalReplayBuffer(ParallelIteratorWorker):
-    """A replay buffer shard.
+	"""A replay buffer shard.
 
-    Ray actors are single-threaded, so for scalability multiple replay actors
-    may be created to increase parallelism."""
+	Ray actors are single-threaded, so for scalability multiple replay actors
+	may be created to increase parallelism."""
 
-    def __init__(self, 
-        prioritized_replay=True,
-        priority_weights_key="weights",
-        buffer_options=None, 
-        learning_starts=1000, 
-        replay_sequence_length=1, 
-        priority_weights_aggregator='np.mean',
-    ):
-        self.prioritized_replay = prioritized_replay
-        self.priority_weights_key = priority_weights_key
-        self.priority_weights_aggregator = eval(priority_weights_aggregator)
-        self.buffer_options = {} if not buffer_options else buffer_options
-        self.replay_starts = learning_starts
-        self.replay_sequence_length = replay_sequence_length
+	def __init__(self, 
+		prioritized_replay=True,
+		buffer_options=None, 
+		learning_starts=1000, 
+		replay_sequence_length=1, 
+	):
+		self.prioritized_replay = prioritized_replay
+		self.buffer_options = {} if not buffer_options else buffer_options
+		self.replay_starts = learning_starts
+		self.replay_sequence_length = replay_sequence_length
 
-        def gen_replay():
-            while True:
-                yield self.replay()
+		def gen_replay():
+			while True:
+				yield self.replay()
 
-        ParallelIteratorWorker.__init__(self, gen_replay, False)
+		ParallelIteratorWorker.__init__(self, gen_replay, False)
 
-        def new_buffer():
-            return PseudoPrioritizedBuffer(**self.buffer_options) if self.prioritized_replay else Buffer(self.buffer_options['size'])
+		def new_buffer():
+			return PseudoPrioritizedBuffer(**self.buffer_options) if self.prioritized_replay else Buffer(self.buffer_options['size'])
 
-        self.replay_buffers = collections.defaultdict(new_buffer)
+		self.replay_buffers = collections.defaultdict(new_buffer)
 
-        # Metrics
-        self.add_batch_timer = TimerStat()
-        self.replay_timer = TimerStat()
-        self.update_priorities_timer = TimerStat()
-        self.num_added = 0
+		# Metrics
+		self.add_batch_timer = TimerStat()
+		self.replay_timer = TimerStat()
+		self.update_priorities_timer = TimerStat()
+		self.num_added = 0
 
-    def get_host(self):
-        return platform.node()
+	def get_host(self):
+		return platform.node()
 
-    def add_batch(self, batch):
-        # Make a copy so the replay buffer doesn't pin plasma memory.
-        batch = batch.copy()
-        batch_type = batch["batch_types"][0]
-        with self.add_batch_timer:
-            if self.prioritized_replay:
-                weight = self.priority_weights_aggregator(batch[self.priority_weights_key])
-                self.replay_buffers[_ALL_POLICIES].add(batch, weight, batch_type)
-            else:
-                self.replay_buffers[_ALL_POLICIES].add(batch, batch_type)
-        self.num_added += batch.count
-        return batch
+	def add_batch(self, batch):
+		# Make a copy so the replay buffer doesn't pin plasma memory.
+		batch = batch.copy()
+		batch_type = batch["batch_types"][0]
+		with self.add_batch_timer:
+			self.replay_buffers[_ALL_POLICIES].add(batch, batch_type)
+		self.num_added += batch.count
+		return batch
 
-    def replay(self):
-        if self.num_added < self.replay_starts:
-            return None
+	def replay(self):
+		if self.num_added < self.replay_starts:
+			return None
 
-        with self.replay_timer:
-            return self.replay_buffers[_ALL_POLICIES].sample()
+		with self.replay_timer:
+			return self.replay_buffers[_ALL_POLICIES].sample()
 
-    def update_priority(self, batch_index, weights, type_id):
-        if not self.prioritized_replay:
-            return
-        with self.update_priorities_timer:
-            new_priority = self.priority_weights_aggregator(weights)
-            # old_p = self.replay_buffers[_ALL_POLICIES].get_priority(batch_index, type_id)
-            self.replay_buffers[_ALL_POLICIES].update_priority(batch_index, new_priority, type_id)
-            # new_p = self.replay_buffers[_ALL_POLICIES].get_priority(batch_index, type_id)
-            # print(old_p,new_p)
+	def update_priority(self, new_batch):
+		if not self.prioritized_replay:
+			return
+		batch_index = new_batch["batch_indexes"][0]
+		type_id = new_batch["batch_types"][0]
+		new_priority = self.replay_buffers[_ALL_POLICIES].get_batch_priority(new_batch)
+		
+		with self.update_priorities_timer:
+			# old_p = self.replay_buffers[_ALL_POLICIES].get_priority(batch_index, type_id)
+			self.replay_buffers[_ALL_POLICIES].update_priority(new_priority, batch_index, type_id)
+			# new_p = self.replay_buffers[_ALL_POLICIES].get_priority(batch_index, type_id)
+			# print(old_p,new_p)
 
-    def stats(self, debug=False):
-        stat = {
-            "add_batch_time_ms": round(1000 * self.add_batch_timer.mean, 3),
-            "replay_time_ms": round(1000 * self.replay_timer.mean, 3),
-            "update_priorities_time_ms": round(1000 * self.update_priorities_timer.mean, 3),
-        }
-        for policy_id, replay_buffer in self.replay_buffers.items():
-            stat.update({
-                "policy_{}".format(policy_id): replay_buffer.stats(debug=debug)
-            })
-        return stat
+	def stats(self, debug=False):
+		stat = {
+			"add_batch_time_ms": round(1000 * self.add_batch_timer.mean, 3),
+			"replay_time_ms": round(1000 * self.replay_timer.mean, 3),
+			"update_priorities_time_ms": round(1000 * self.update_priorities_timer.mean, 3),
+		}
+		for policy_id, replay_buffer in self.replay_buffers.items():
+			stat.update({
+				"policy_{}".format(policy_id): replay_buffer.stats(debug=debug)
+			})
+		return stat
 
 ReplayActor = ray.remote(num_cpus=0)(LocalReplayBuffer)

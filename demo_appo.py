@@ -1,5 +1,6 @@
 # Read this guide for how to use this script: https://medium.com/distributed-computing-with-ray/intro-to-rllib-example-environments-3a113f532c70
 import os
+os.environ["TUNE_RESULT_DIR"] = 'tmp/ray_results'
 import multiprocessing
 import json
 import shutil
@@ -23,10 +24,6 @@ CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
 
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
-
-# Configure a file location for checkpoints, in this case in a tmp/ppo/taxi subdirectory, deleting any previous files there
-checkpoint_root = "tmp/ppo/taxi"
-shutil.rmtree(checkpoint_root, ignore_errors=True, onerror=None)   # clean up old runs
 
 # Configure RLlib to train a policy using the “Taxi-v3” environment and a PPO optimizer
 agent = APPOTrainer(CONFIG, env=SELECT_ENV)

@@ -22,25 +22,27 @@ from utils.misc import accumulate
 IMPORTANCE_WEIGHTS = "importance_weights"
 GAINS = "gains"
 XAPPO_DEFAULT_CONFIG = DEFAULT_CONFIG
-XAPPO_DEFAULT_CONFIG["worker_side_prioritization"] = True
+# Experience Replay
+XAPPO_DEFAULT_CONFIG["replay_proportion"] = 1
+XAPPO_DEFAULT_CONFIG["learning_starts"] = 1000 # How many steps of the model to sample before learning starts.
 XAPPO_DEFAULT_CONFIG["prioritized_replay"] = True
+XAPPO_DEFAULT_CONFIG["replay_sequence_length"] = 1
 XAPPO_DEFAULT_CONFIG["buffer_options"] = {
+	'priority_id': GAINS, # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
+	'priority_aggregation_fn': 'np.sum', # a reduce function (from a list of numbers to a number)
 	'size': 2**9, 
 	'alpha': 0.5, 
-	'prioritized_drop_probability': 0.5, 
+	'beta': None, 
+	'epsilon': 1e-4, # Epsilon to add to the TD errors when updating priorities.
+	'prioritized_drop_probability': 1, 
 	'global_distribution_matching': False, 
-	'prioritised_cluster_sampling': True,
+	'prioritised_cluster_sampling': False, 
 }
-XAPPO_DEFAULT_CONFIG["replay_sequence_length"] = 1
-XAPPO_DEFAULT_CONFIG["replay_proportion"] = 1
-# How many steps of the model to sample before learning starts.
-XAPPO_DEFAULT_CONFIG["learning_starts"] = 1000
-XAPPO_DEFAULT_CONFIG["batch_mode"] = "complete_episodes"
-XAPPO_DEFAULT_CONFIG["vtrace"] = False # batch_mode==complete_episodes implies vtrace==False
+# Clustering Scheme
 XAPPO_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+XAPPO_DEFAULT_CONFIG["batch_mode"] = "complete_episodes" # can be equal to 'truncate_episodes' only when 'clustering_scheme' is 'none'
+XAPPO_DEFAULT_CONFIG["vtrace"] = False # batch_mode==complete_episodes implies vtrace==False
 XAPPO_DEFAULT_CONFIG["gae_with_vtrace"] = True # combines GAE with V-Tracing
-XAPPO_DEFAULT_CONFIG["priority_weight"] = GAINS # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
-XAPPO_DEFAULT_CONFIG["priority_weights_aggregator"] = 'np.mean' # a reduce function (from a list of numbers to a number)
 
 ########################
 # XAPPO's Trajectory Post-Processing
@@ -76,20 +78,20 @@ def gae_v(gamma, lambda_, last_value, reversed_reward, reversed_value, reversed_
 	)
 
 def compute_gae_v_advantages(rollout: SampleBatch, last_r: float, gamma: float = 0.9, lambda_: float = 1.0):
-    rollout_size = len(rollout[SampleBatch.ACTIONS])
-    assert SampleBatch.VF_PREDS in rollout, "values not found"
-    reversed_cumulative_return, reversed_cumulative_advantage = gae_v(
-    	gamma, 
-    	lambda_, 
-    	last_r, 
-    	rollout[SampleBatch.REWARDS][::-1], 
-    	rollout[SampleBatch.VF_PREDS][::-1], 
-    	rollout[IMPORTANCE_WEIGHTS][::-1]
-    )
-    rollout[Postprocessing.ADVANTAGES] = np.array(reversed_cumulative_advantage, dtype=np.float32)[::-1]
-    rollout[Postprocessing.VALUE_TARGETS] = np.array(reversed_cumulative_return, dtype=np.float32)[::-1]
-    assert all(val.shape[0] == rollout_size for key, val in rollout.items()), "Rollout stacked incorrectly!"
-    return rollout
+	rollout_size = len(rollout[SampleBatch.ACTIONS])
+	assert SampleBatch.VF_PREDS in rollout, "values not found"
+	reversed_cumulative_return, reversed_cumulative_advantage = gae_v(
+		gamma, 
+		lambda_, 
+		last_r, 
+		rollout[SampleBatch.REWARDS][::-1], 
+		rollout[SampleBatch.VF_PREDS][::-1], 
+		rollout[IMPORTANCE_WEIGHTS][::-1]
+	)
+	rollout[Postprocessing.ADVANTAGES] = np.array(reversed_cumulative_advantage, dtype=np.float32)[::-1]
+	rollout[Postprocessing.VALUE_TARGETS] = np.array(reversed_cumulative_return, dtype=np.float32)[::-1]
+	assert all(val.shape[0] == rollout_size for key, val in rollout.items()), "Rollout stacked incorrectly!"
+	return rollout
 
 def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None, episode=None):
 	# Add PPO's importance weights
@@ -124,10 +126,7 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 	# Add gains
 	advantages = sample_batch[Postprocessing.ADVANTAGES]
 	new_priorities = advantages * logp_ratio
-	if policy.config["worker_side_prioritization"]:
-		sample_batch.data[GAINS] = new_priorities
-	else:
-		sample_batch[GAINS] = new_priorities
+	sample_batch[GAINS] = new_priorities
 	del sample_batch.data["new_obs"]  # not used, so save some bandwidth
 	return sample_batch
 
@@ -151,18 +150,6 @@ def xappo_get_policy_class(config):
 
 def xappo_execution_plan(workers, config):
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
-	def update_priorities(batch):
-		if not batch:
-			return
-		if config.get("prioritized_replay"):
-			samples = batch.data if config["worker_side_prioritization"] else batch
-			local_replay_buffer.update_priority(
-				batch_index=samples["batch_indexes"][0], 
-				weights=samples[config["priority_weight"]], 
-				type_id=samples["batch_types"][0],
-			)
-		return batch
-	
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 
 	# Augment with replay and concat to desired train batch size.
@@ -180,13 +167,11 @@ def xappo_execution_plan(workers, config):
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
 
 	# Start the learner thread.
-	learner_thread = make_learner_thread(workers.local_worker(), config)
+	learner_thread = xa_make_learner_thread(workers.local_worker(), config)
 	learner_thread.start()
 
 	# This sub-flow sends experiences to the learner.
-	enqueue_op = train_batches \
-		.for_each(Enqueue(learner_thread.inqueue)) \
-		.for_each(update_priorities)
+	enqueue_op = train_batches.for_each(Enqueue(learner_thread.inqueue)) 
 	# Only need to update workers if there are remote workers.
 	if workers.remote_workers():
 		enqueue_op = enqueue_op.zip_with_source_actor() \
@@ -195,7 +180,14 @@ def xappo_execution_plan(workers, config):
 				broadcast_interval=config["broadcast_interval"]))
 
 	# This sub-flow updates the steps trained counter based on learner output.
+	def update_priorities(info):
+		if config.get("prioritized_replay"):
+			batch, stats_dict = info
+			local_replay_buffer.update_priority(batch)
+		return info
 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
+		.for_each(update_priorities) \
+		.for_each(lambda x: (x[0].count, x[1])) \
 		.for_each(record_steps_trained)
 
 	merged_op = Concurrently([enqueue_op, dequeue_op], mode="async", output_indexes=[1])

@@ -116,8 +116,6 @@ class AlexDriveV0(gym.Env):
 		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
 		# Spaces
 		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32) # steering angle, continuous control without softmax
-		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
-		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		self.observation_space = gym.spaces.Tuple([
 			gym.spaces.Box(**shape) 
 			for shape in self.get_state_shape()
@@ -213,56 +211,62 @@ class AlexDriveV0(gym.Env):
 		return np.random.exponential(scale=self.mean_seconds_per_step)
 
 	def step(self, action_vector):
-		# first of all, get the seconds passed from last step
-		self.seconds_per_step = self.get_step_seconds()
-		# compute new steering angle
-		self.steering_angle = self.get_steering_angle_from_action(action=action_vector[0])
-		# compute new acceleration
-		self.acceleration = self.get_acceleration_from_action(action=action_vector[1])
-		# compute new speed
-		self.speed = self.accelerate(speed=self.speed, acceleration=self.acceleration)
-		# move car
-		old_car_point = self.car_point
-		self.car_point, self.car_orientation = self.move(
-			point=self.car_point, 
-			orientation=self.car_orientation, 
-			steering_angle=self.steering_angle, 
-			speed=self.speed, 
-			add_noise=True
-		)
-		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point, self.closest_junctions)
-		# compute perceived reward
-		reward, dead, reward_type = self.get_reward(
-			car_speed=self.speed, 
-			car_point=self.car_point, 
-			old_car_point=old_car_point, 
-		)
-		# compute new state (after updating progress)
-		state = self.get_state(
-			car_point=self.car_point, 
-			car_orientation=self.car_orientation,
-		)
-		# update last action/state/reward
-		self.last_state = state
-		self.last_reward = reward
-		self.last_reward_type = reward_type
-		# update cumulative reward
-		self.cumulative_reward += reward
-		self.avg_speed_per_steps += self.speed
-		# update step
-		self._step += 1
-		completed_track = self.last_reward_type == 'goal'
-		out_of_time = self._step >= self.max_step
-		terminal = dead or completed_track or out_of_time
-		if terminal: # populate statistics
+		try:
+			# first of all, get the seconds passed from last step
+			self.seconds_per_step = self.get_step_seconds()
+			# compute new steering angle
+			self.steering_angle = self.get_steering_angle_from_action(action=action_vector[0])
+			# compute new acceleration
+			self.acceleration = self.get_acceleration_from_action(action=action_vector[1])
+			# compute new speed
+			self.speed = self.accelerate(speed=self.speed, acceleration=self.acceleration)
+			# move car
+			old_car_point = self.car_point
+			self.car_point, self.car_orientation = self.move(
+				point=self.car_point, 
+				orientation=self.car_orientation, 
+				steering_angle=self.steering_angle, 
+				speed=self.speed, 
+				add_noise=True
+			)
+			self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point, self.closest_junctions)
+			# compute perceived reward
+			reward, dead, reward_type = self.get_reward(
+				car_speed=self.speed, 
+				car_point=self.car_point, 
+				old_car_point=old_car_point, 
+			)
+			# compute new state (after updating progress)
+			state = self.get_state(
+				car_point=self.car_point, 
+				car_orientation=self.car_orientation,
+			)
+			# update last action/state/reward
+			self.last_state = state
+			self.last_reward = reward
+			self.last_reward_type = reward_type
+			# update cumulative reward
+			self.cumulative_reward += reward
+			self.avg_speed_per_steps += self.speed
+			# update step
+			self._step += 1
+			completed_track = self.last_reward_type == 'goal'
+			out_of_time = self._step >= self.max_step
+			terminal = dead or completed_track or out_of_time
+			if terminal: # populate statistics
+				self.is_over = True
+				stats = {
+					"avg_speed": self.avg_speed_per_steps/self._step,
+					"completed_track": 1 if completed_track else 0,
+					"out_of_time": 1 if out_of_time else 0,
+				}
+				self.episode_statistics = stats
+			return [state, reward, terminal, {'explanation':reward_type}]
+		except Exception as e:
+			print('Error',e)
 			self.is_over = True
-			stats = {
-				"avg_speed": self.avg_speed_per_steps/self._step,
-				"completed_track": 1 if completed_track else 0,
-				"out_of_time": 1 if out_of_time else 0,
-			}
-			self.episode_statistics = stats
-		return [state, reward, terminal, {'explanation':reward_type}]
+			return [self.last_state, self.last_reward, True, {'explanation':'error'}]
+		
 	
 	def get_info(self):
 		return f"speed={self.speed}, steering_angle={self.steering_angle}, orientation={self.car_orientation}\n"

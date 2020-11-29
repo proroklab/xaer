@@ -1,5 +1,6 @@
 # Read this guide for how to use this script: https://medium.com/distributed-computing-with-ray/intro-to-rllib-example-environments-3a113f532c70
 import os
+os.environ["TUNE_RESULT_DIR"] = 'tmp/ray_results'
 import multiprocessing
 import json
 import shutil
@@ -9,7 +10,9 @@ from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAU
 # from agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
 from environments import *
 
-SELECT_ENV = "CescoDrive-v2"
+# SELECT_ENV = "CescoDrive-v2"
+# SELECT_ENV = "ToyExample-v0"
+SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"

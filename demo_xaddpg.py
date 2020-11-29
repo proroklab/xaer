@@ -1,5 +1,6 @@
 # Read this guide for how to use this script: https://medium.com/distributed-computing-with-ray/intro-to-rllib-example-environments-3a113f532c70
 import os
+os.environ["TUNE_RESULT_DIR"] = 'tmp/ray_results'
 import multiprocessing
 import json
 import shutil
@@ -13,12 +14,19 @@ SELECT_ENV = "CescoDrive-v2"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
+CONFIG["buffer_options"] = {
+	'priority_id': "weights", # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
+	'priority_aggregation_fn': 'lambda x: np.sum(np.abs(x))', # a reduce function (from a list of numbers to a number)
+	'size': 50000, 
+	'alpha': 0.6, 
+	'beta': 0.4, # set to None for no weights correction
+	'epsilon': 1e-4, # Epsilon to add to the TD errors when updating priorities.
+	'prioritized_drop_probability': 1, 
+	'global_distribution_matching': False, 
+	'prioritised_cluster_sampling': False, 
+}
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-###############################################
-# Priority_weight: For XADQN one of the following: weigths, rewards, prev_rewards, action_logp
-CONFIG["priority_weight"] = "weights"
-###############################################
-CONFIG["priority_weights_aggregator"] = 'np.mean' # a reduce function (from a list of numbers to a number)
+CONFIG["batch_mode"] = "complete_episodes" # can be equal to 'truncate_episodes' only when 'clustering_scheme' is 'none'
 
 ####################################################################################
 ####################################################################################

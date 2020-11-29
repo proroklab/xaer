@@ -1,11 +1,12 @@
 # Read this guide for how to use this script: https://medium.com/distributed-computing-with-ray/intro-to-rllib-example-environments-3a113f532c70
 import os
+os.environ["TUNE_RESULT_DIR"] = 'tmp/ray_results'
 import multiprocessing
 import json
 import shutil
 import ray
 
-from agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG
+from agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG, GAINS
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
@@ -13,17 +14,28 @@ SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
-CONFIG["replay_proportion"] = 1 # The input batch will be returned and an additional number of batches proportional to this value will be added as well.
 CONFIG["lambda"] = .95 # GAE(lambda) parameter
 CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
-CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-CONFIG["gae_with_vtrace"] = True # combines GAE with V-Tracing
+CONFIG["gamma"] = 0.999
+##################################
+CONFIG["replay_proportion"] = 1
 CONFIG["prioritized_replay"] = True
-###############################################
-# Priority_weight: For XAPPO one of the following: gains, importance_weights, advantages, rewards, prev_rewards, action_logp
-CONFIG["priority_weight"] = "gains"
-###############################################
-CONFIG["priority_weights_aggregator"] = 'np.mean' # a reduce function (from a list of numbers to a number)
+CONFIG["buffer_options"] = {
+	'priority_id': GAINS, # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
+	'priority_aggregation_fn': 'np.sum', # a reduce function (from a list of numbers to a number)
+	'size': 2**9, 
+	'alpha': 0.5, 
+	'beta': None, 
+	'epsilon': 1e-4, # Epsilon to add to the TD errors when updating priorities.
+	'prioritized_drop_probability': 1, 
+	'global_distribution_matching': False, 
+	'prioritised_cluster_sampling': False, 
+}
+# Clustering Scheme
+CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+CONFIG["batch_mode"] = "complete_episodes" # can be equal to 'truncate_episodes' only when 'clustering_scheme' is 'none'
+CONFIG["vtrace"] = False # batch_mode==complete_episodes implies vtrace==False
+CONFIG["gae_with_vtrace"] = True # combines GAE with V-Tracing
 
 ####################################################################################
 ####################################################################################

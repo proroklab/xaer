@@ -1,5 +1,6 @@
 # Read this guide for how to use this script: https://medium.com/distributed-computing-with-ray/intro-to-rllib-example-environments-3a113f532c70
 import os
+os.environ["TUNE_RESULT_DIR"] = 'tmp/ray_results'
 import multiprocessing
 import json
 import shutil
