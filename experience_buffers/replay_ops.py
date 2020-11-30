@@ -28,27 +28,11 @@ class StoreToReplayBuffer:
         SampleBatch(...)
     """
 
-    def __init__(self,
-                 *,
-                 local_buffer: LocalReplayBuffer = None,
-                 actors: List["ActorHandle"] = None):
-        if bool(local_buffer) == bool(actors):
-            raise ValueError(
-                "Exactly one of local_buffer and replay_actors must be given.")
-
-        if local_buffer:
-            self.local_actor = local_buffer
-            self.replay_actors = None
-        else:
-            self.local_actor = None
-            self.replay_actors = actors
-
+    def __init__(self, local_buffer: LocalReplayBuffer = None):
+        self.local_actor = local_buffer
+        
     def __call__(self, batch: SampleBatchType):
-        if self.local_actor:
-            self.local_actor.add_batch(batch)
-        else:
-            actor = random.choice(self.replay_actors)
-            actor.add_batch.remote(batch)
+        self.local_actor.add_batch(batch)
         return batch
 
 

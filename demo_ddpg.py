@@ -23,10 +23,6 @@ CONFIG["log_level"] = "WARN"
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-# Configure a file location for checkpoints, in this case in a tmp/ppo/taxi subdirectory, deleting any previous files there
-checkpoint_root = "tmp/ppo/taxi"
-shutil.rmtree(checkpoint_root, ignore_errors=True, onerror=None)   # clean up old runs
-
 # Configure RLlib to train a policy using the “Taxi-v3” environment and a PPO optimizer
 agent = DDPGTrainer(CONFIG, env=SELECT_ENV)
 
