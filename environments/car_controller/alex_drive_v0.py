@@ -8,7 +8,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
 from environments.car_controller.car_stuff.utils import *
-from environments.car_controller.car_stuff.continuous.roads import *
+from environments.car_controller.car_stuff.alex_continuous.roads import *
 import random
 import gym
 
