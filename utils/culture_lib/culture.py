@@ -1,4 +1,4 @@
-from culture.argument import ArgumentationFramework
+from utils.culture_lib.argument import ArgumentationFramework
 
 class Culture:
     def __init__(self):
