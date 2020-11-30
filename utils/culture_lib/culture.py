@@ -1,10 +1,11 @@
-from utils.culture_lib.argument import ArgumentationFramework
-from utils.culture_lib.argument_old import ArgumentationFramework as ArgumentationFrameworkSlow
+try:
+	from utils.culture_lib.argument import Argument, ArgumentationFramework
+except Exception as e:
+	from utils.culture_lib.argument_old import Argument, ArgumentationFramework
 
 class Culture:
     def __init__(self):
         self.AF = ArgumentationFramework()
-        self.argumentation_framework = ArgumentationFrameworkSlow()
         self.properties = {}
         self.name = None
 

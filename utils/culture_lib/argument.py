@@ -1,11 +1,7 @@
+import graph_tool.all as gt
 import subprocess
 import string
 import re
-try:
-    import graph_tool.all as gt
-except Exception as e:
-    print('Cannot find graph_tool lib')
-    pass
 
 class Argument:
     def __init__(self, arg_id, descriptive_text):
@@ -292,8 +288,4 @@ class ArgumentationFramework:
     def circuits(self):
         g = self.to_graph_tool()
         self.from_graph_tool(g)
-
-
-
-
 

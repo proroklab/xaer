@@ -1,5 +1,4 @@
-from culture.culture import Culture
-from culture.argument import Argument, ArgumentationFramework
+from culture.culture import Culture, Argument
 from environment.discrete_environment.road_cell import RoadCell
 from environment.discrete_environment.road_agent import RoadAgent
 import numpy as np

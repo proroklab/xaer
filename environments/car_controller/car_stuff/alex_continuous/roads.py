@@ -131,7 +131,7 @@ class RoadNetwork:
 
 	def feasible_road_colours(self, agent_colour):
 		feasible_colours = set()
-		AF = self.culture.argumentation_framework
+		AF = self.culture.AF
 		for road_colour in self.all_road_colours:
 			challenged = False
 			for arg_id in AF.arguments_that_attack(0): # Arguments that attack the motion.
