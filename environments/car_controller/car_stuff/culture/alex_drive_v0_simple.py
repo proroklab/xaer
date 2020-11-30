@@ -1,5 +1,5 @@
-from environments.car_controller.car_stuff.culture.culture import Culture
-from environments.car_controller.car_stuff.culture.argument import Argument, ArgumentationFramework
+from utils.culture_lib.culture import Culture
+from utils.culture_lib.argument import Argument, ArgumentationFramework
 
 class SimpleCulture(Culture):
     def __init__(self):

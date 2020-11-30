@@ -1,8 +1,8 @@
-from environments.car_controller.car_stuff.culture.argument import ArgumentationFramework
+from culture.argument import ArgumentationFramework
 
 class Culture:
     def __init__(self):
-        self.argumentation_framework = ArgumentationFramework()
+        self.AF = ArgumentationFramework()
         self.properties = {}
         self.name = None
 
