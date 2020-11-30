@@ -5,8 +5,6 @@ import time
 from experience_buffers.buffer.buffer import Buffer
 from utils.segment_tree import SumSegmentTree, MinSegmentTree
 
-sign = lambda x: -1 if x < 0 else 1
-
 class PseudoPrioritizedBuffer(Buffer):
 	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling')
 	
@@ -25,6 +23,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._priority_aggregation_fn = eval(priority_aggregation_fn)
 		self._alpha = alpha # How much prioritization is used (0 - no prioritization, 1 - full prioritization)
 		self._beta = beta # To what degree to use importance weights (0 - no corrections, 1 - full correction).
+		assert self._beta >= 0., "beta >= 0, if beta is not None"
 		self._epsilon = epsilon # Epsilon to add to the priorities when updating priorities.
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
@@ -57,11 +56,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		return True
 	
 	def normalize_priority(self, priority): # O(1)
-		return sign(priority)*np.power(
-			np.maximum(np.absolute(priority), self._epsilon), 
-			self._alpha, 
-			dtype=np.float32
-		)
+		return np.sign(priority)*np.power(np.absolute(priority) + (self._epsilon if self._beta is not None else 0.), self._alpha, dtype=np.float32)
 
 	def get_priority(self, idx, type_id):
 		sample_type = self.get_type(type_id)
@@ -105,9 +100,6 @@ class PseudoPrioritizedBuffer(Buffer):
 			sample_type = self.get_type(type_id)
 		return type_id, sample_type
 
-	def no_zeros(self, x):
-		return sign(x) * np.maximum(np.absolute(x), self._epsilon)
-		
 	def sample(self, remove=False): # O(log)
 		type_id, sample_type = self.sample_cluster()
 		# print(type_id)
@@ -118,22 +110,18 @@ class PseudoPrioritizedBuffer(Buffer):
 		batch = type_batch[idx]
 		# Update weights
 		if self._beta is not None: # Update weights
-			assert self._beta >= 0.
-			total_priority = self.no_zeros(type_sum_tree.sum())
-			# print(0, total_priority)
-			lowest_priority = self._drop_priority_tree[sample_type].min()[0]
-			sample_priority = type_sum_tree[idx]
-			batch_count = self.count(sample_type)
-			max_weight = batch_count * (lowest_priority / total_priority)
-			# print(1, max_weight)
-			max_weight = sign(max_weight)*np.power(np.absolute(max_weight), -self._beta, dtype=np.float32)
-			max_weight = self.no_zeros(max_weight)
-			# print(2, max_weight)
-			weight = batch_count * (sample_priority / total_priority)
-			# print(3, weight)
-			weight = sign(weight)*np.power(np.absolute(weight), -self._beta, dtype=np.float32)
-			# print(4, weight)
-			batch[self._priority_id] = np.array([weight / max_weight] * batch.count)
+			min_priority = type_sum_tree.min_tree.min()
+			assert min_priority > 0, "min_priority > 0, if beta is not None"
+			tot_priority = type_sum_tree.sum(scaled=False)
+			N = type_sum_tree.inserted_elements
+
+			p_min = min_priority / tot_priority
+			max_weight = np.power(p_min * N, -self._beta, dtype=np.float32)
+
+			p_sample = type_sum_tree[idx] / tot_priority
+			weight = np.power(p_sample * N, -self._beta, dtype=np.float32)
+
+			batch[self._priority_id] = np.full(batch.count, weight/max_weight)
 		# Remove from buffer
 		if remove:
 			self._insertion_time_tree[sample_type][idx] = None # O(log)

@@ -32,7 +32,7 @@ class SegmentTree(object):
 		self._capacity = capacity
 		self._value = [neutral_element]*(2 * capacity)
 		self._neutral_element = neutral_element
-		self._inserted_elements = 0
+		self.inserted_elements = 0
 
 	def _reduce_helper(self, start, end, node, node_start, node_end): # O(log)
 		if (start == node_start and end == node_end) or node_start >= node_end:
@@ -76,10 +76,10 @@ class SegmentTree(object):
 		idx += self._capacity
 		if self._value[idx] == self._neutral_element:
 			if val:
-				self._inserted_elements += 1
+				self.inserted_elements += 1
 		else:
 			if not val:
-				self._inserted_elements -= 1
+				self.inserted_elements -= 1
 		self._value[idx] = val if val else self._neutral_element
 		idx //= 2
 		while idx >= 1:
@@ -114,7 +114,7 @@ class SumSegmentTree(SegmentTree):
 		"""Returns arr[start] + ... + arr[end]"""
 		tot = super(SumSegmentTree, self).reduce(start, end)
 		if scaled:
-			tot -= self.min_tree.min()*self._inserted_elements
+			tot -= self.min_tree.min()*self.inserted_elements
 		return tot
 
 	def find_prefixsum_idx(self, prefixsum_fn, scaled_prefix=True): # O(log)
@@ -181,12 +181,14 @@ class MaxSegmentTree(SegmentTree):
 		"""Returns min(arr[start], ...,  arr[end])"""
 		return super(MaxSegmentTree, self).reduce(start, end)
 
+# from random import random
 # test = SumSegmentTree(4)
 # test[2] = -10
 # test[3] = -5
 # test[0] = 1
 # test[1] = 2
-# print(test.sum())
-# i = test.find_prefixsum_idx(23)
+# print('unscaled', test.sum(scaled=False))
+# print('scaled', test.sum(scaled=True), test.sum(scaled=True)+test.min_tree.min()*test.inserted_elements)
+# i = test.find_prefixsum_idx(lambda x:23)
 # print(i,test[i] )
 
