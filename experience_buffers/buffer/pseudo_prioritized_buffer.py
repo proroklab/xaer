@@ -23,7 +23,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._priority_aggregation_fn = eval(priority_aggregation_fn)
 		self._alpha = alpha # How much prioritization is used (0 - no prioritization, 1 - full prioritization)
 		self._beta = beta # To what degree to use importance weights (0 - no corrections, 1 - full correction).
-		assert self._beta >= 0., "beta >= 0, if beta is not None"
+		assert self._beta is None or self._beta >= 0., "beta >= 0, if beta is not None"
 		self._epsilon = epsilon # Epsilon to add to the priorities when updating priorities.
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
