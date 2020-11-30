@@ -1,6 +1,7 @@
 try:
 	from utils.culture_lib.argument import Argument, ArgumentationFramework
 except Exception as e:
+    print('Error: graph-tool not installed, using old Argumentation Framework.')
 	from utils.culture_lib.argument_old import Argument, ArgumentationFramework
 
 class Culture:
