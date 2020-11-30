@@ -44,7 +44,7 @@ class SimpleCulture(Culture):
         rule4.set_verifier(rule4_verifier)
         args.append(rule4)
         
-        self.argumentation_framework.add_arguments(args)
+        self.AF.add_arguments(args)
 
     def define_attacks(self):
         """
@@ -57,10 +57,10 @@ class SimpleCulture(Culture):
         a3 = 3
         a4 = 4
 
-        self.argumentation_framework.add_attack(a1, motion_id)
-        self.argumentation_framework.add_attack(a2, motion_id)
-        self.argumentation_framework.add_attack(a3, motion_id)
-        self.argumentation_framework.add_attack(a4, motion_id)
+        self.AF.add_attack(a1, motion_id)
+        self.AF.add_attack(a2, motion_id)
+        self.AF.add_attack(a3, motion_id)
+        self.AF.add_attack(a4, motion_id)
 
 
 

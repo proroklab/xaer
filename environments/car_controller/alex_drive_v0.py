@@ -7,9 +7,8 @@ from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
-from scipy import optimize
 from environments.car_controller.car_stuff.utils import *
-from environments.car_controller.car_stuff.roads import *
+from environments.car_controller.car_stuff.continuous.roads import *
 import random
 import gym
 
@@ -40,8 +39,6 @@ class AlexDriveV0(gym.Env):
 	max_road_length = max_dimension*2/3
 
 	def get_state_shape(self):
-		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
-		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		return [
 			{
 				'low': -15,
