@@ -10,23 +10,26 @@ from agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG, GAINS
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
+# SELECT_ENV = "CescoDrive-v2"
 SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["lambda"] = .95 # GAE(lambda) parameter
 CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
-CONFIG["gamma"] = 0.999
+# CONFIG["gamma"] = 0.999
 ##################################
 CONFIG["replay_proportion"] = 1
+CONFIG["learning_starts"] = 1000 # How many steps of the model to sample before learning starts.
 CONFIG["prioritized_replay"] = True
+CONFIG["replay_sequence_length"] = 1
 CONFIG["buffer_options"] = {
 	'priority_id': GAINS, # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
 	'priority_aggregation_fn': 'np.sum', # a reduce function (from a list of numbers to a number)
 	'size': 2**9, 
 	'alpha': 0.5, 
 	'beta': None, 
-	'epsilon': 1e-4, # Epsilon to add to the TD errors when updating priorities.
+	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
 	'prioritized_drop_probability': 1, 
 	'global_distribution_matching': False, 
 	'prioritised_cluster_sampling': False, 
@@ -42,10 +45,6 @@ CONFIG["gae_with_vtrace"] = True # combines GAE with V-Tracing
 
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
-
-# Configure a file location for checkpoints, in this case in a tmp/ppo/taxi subdirectory, deleting any previous files there
-# checkpoint_root = "tmp/ppo/taxi"
-# shutil.rmtree(checkpoint_root, ignore_errors=True, onerror=None)   # clean up old runs
 
 # Configure RLlib to train a policy using the “Taxi-v3” environment and a PPO optimizer
 agent = XAPPOTrainer(CONFIG, env=SELECT_ENV)

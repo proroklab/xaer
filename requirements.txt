@@ -2,6 +2,10 @@ ray[rllib]
 gym
 tensorflow
 sklearn
-# CescoDrive & AlexDrive stuff
-matplotlib
+# AlexDrive stuff
 triangle
+# Plotter
+matplotlib
+imageio
+seaborn
+Pillow

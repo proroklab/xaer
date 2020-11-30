@@ -58,12 +58,11 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 	def add_batch(self, batch):
 		# Make a copy so the replay buffer doesn't pin plasma memory.
-		batch = batch.copy()
+		# batch = batch.copy()
 		batch_type = batch["batch_types"][0]
 		with self.add_batch_timer:
 			self.replay_buffers[_ALL_POLICIES].add(batch, batch_type)
 		self.num_added += batch.count
-		return batch
 
 	def replay(self):
 		if self.num_added < self.replay_starts:

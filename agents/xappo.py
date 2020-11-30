@@ -33,10 +33,10 @@ XAPPO_DEFAULT_CONFIG["buffer_options"] = {
 	'size': 2**9, 
 	'alpha': 0.5, 
 	'beta': None, 
-	'epsilon': 1e-4, # Epsilon to add to the TD errors when updating priorities.
-	'prioritized_drop_probability': 1, 
+	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
+	'prioritized_drop_probability': 0, 
 	'global_distribution_matching': False, 
-	'prioritised_cluster_sampling': False, 
+	'prioritised_cluster_sampling': True, 
 }
 # Clustering Scheme
 XAPPO_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type

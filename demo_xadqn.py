@@ -9,26 +9,31 @@ import ray
 from agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
 from environments import *
 
+# SELECT_ENV = "Taxi-v3"
 SELECT_ENV = "ToyExample-v0"
 
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
+CONFIG["prioritized_replay"] = True
+CONFIG["buffer_options"] = {
+	'priority_id': "weights", # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
+	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # a reduce function (from a list of numbers to a number)
+	'size': 50000, 
+	'alpha': 0.6, 
+	'beta': 0.4, 
+	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
+	'prioritized_drop_probability': 0, 
+	'global_distribution_matching': False, 
+	'prioritised_cluster_sampling': False, 
+}
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-###############################################
-# Priority_weight: For XADQN one of the following: weigths, rewards, prev_rewards, action_logp
-CONFIG["priority_weight"] = "weights"
-###############################################
-CONFIG["priority_weights_aggregator"] = 'np.mean' # a reduce function (from a list of numbers to a number)
+CONFIG["batch_mode"] = "complete_episodes" # can be equal to 'truncate_episodes' only when 'clustering_scheme' is 'none'
 
 ####################################################################################
 ####################################################################################
 
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
-
-# Configure a file location for checkpoints, in this case in a tmp/ppo/taxi subdirectory, deleting any previous files there
-checkpoint_root = "tmp/ppo/taxi"
-shutil.rmtree(checkpoint_root, ignore_errors=True, onerror=None)   # clean up old runs
 
 # Configure RLlib to train a policy using the “Taxi-v3” environment and a PPO optimizer
 agent = XADQNTrainer(CONFIG, env=SELECT_ENV)

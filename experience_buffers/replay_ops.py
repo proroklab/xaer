@@ -52,30 +52,7 @@ class StoreToReplayBuffer:
         return batch
 
 
-def Replay(*,
-           local_buffer: LocalReplayBuffer = None,
-           actors: List["ActorHandle"] = None,
-           num_async=4):
-    """Replay experiences from the given buffer or actors.
-
-    This should be combined with the StoreToReplayActors operation using the
-    Concurrently() operator.
-
-    Args:
-        local_buffer (LocalReplayBuffer): Local buffer to use. Only one of this
-            and replay_actors can be specified.
-        actors (list): List of replay actors. Only one of this and
-            local_buffer can be specified.
-        num_async (int): In async mode, the max number of async
-            requests in flight per actor.
-
-    Examples:
-        >>> actors = [ReplayActor.remote() for _ in range(4)]
-        >>> replay_op = Replay(actors=actors)
-        >>> next(replay_op)
-        SampleBatch(...)
-    """
-
+def Replay(local_buffer, replay_batch_size=1, actors=None, num_async=4):
     if bool(local_buffer) == bool(actors):
         raise ValueError(
             "Exactly one of local_buffer and replay_actors must be given.")
@@ -86,11 +63,14 @@ def Replay(*,
 
     def gen_replay(_):
         while True:
-            item = local_buffer.replay()
-            if item is None:
+            item_list = list(filter(lambda x:x, (
+                local_buffer.replay()
+                for _ in range(replay_batch_size)
+            )))
+            if not item_list:
                 yield _NextValueNotReady()
             else:
-                yield item
+                yield item_list
 
     return LocalIterator(gen_replay, SharedMetrics())
 
@@ -170,7 +150,7 @@ class MixInReplay:
     def __call__(self, sample_batch):
         # print(sample_batch["weights"])
         # Put in replay buffer if enabled.
-        sample_batch = self.replay_buffer.add_batch(sample_batch)
+        self.replay_buffer.add_batch(sample_batch)
         # print(sample_batch['index'])
 
         # Proportional replay.
