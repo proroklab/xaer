@@ -23,12 +23,12 @@ CONFIG["buffer_options"] = {
 	'alpha': 0.6, 
 	'beta': 0.4, 
 	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-	'prioritized_drop_probability': 0, 
+	'prioritized_drop_probability': 1, 
 	'global_distribution_matching': False, 
-	'prioritised_cluster_sampling': False, 
+	'prioritised_cluster_sampling': True, 
 }
-CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-CONFIG["batch_mode"] = "complete_episodes" # can be equal to 'truncate_episodes' only when 'clustering_scheme' is 'none'
+CONFIG["clustering_scheme"] = "reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+CONFIG["batch_mode"] = "truncate_episodes" # can be equal to 'truncate_episodes' only when 'clustering_scheme' is 'none'
 
 ####################################################################################
 ####################################################################################

@@ -45,7 +45,7 @@ XAPPO_DEFAULT_CONFIG["vtrace"] = False # batch_mode==complete_episodes implies v
 XAPPO_DEFAULT_CONFIG["gae_with_vtrace"] = True # combines GAE with V-Tracing
 
 ########################
-# XAPPO's Trajectory Post-Processing
+# XAPPO's Policy
 ########################
 # Han, Seungyul, and Youngchul Sung. "Dimension-Wise Importance Sampling Weight Clipping for Sample-Efficient Reinforcement Learning." arXiv preprint arXiv:1905.02363 (2019).
 def gae_v(gamma, lambda_, last_value, reversed_reward, reversed_value, reversed_importance_weight):

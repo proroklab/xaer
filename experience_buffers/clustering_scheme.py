@@ -42,6 +42,6 @@ class moving_best_extrinsic_reward_with_type(moving_best_extrinsic_reward):
 		return f"{episode_type}/{batch_type}"
 
 class reward_with_type(none):
-	def get_batch_type(self, batch, agents, episode_type):
+	def get_batch_type(self, batch, episode_type):
 		batch_type = '-'.join(sorted(set(map(lambda x: x.get("explanation",'None'), batch["infos"]))))
 		return batch_type
