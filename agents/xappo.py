@@ -22,27 +22,25 @@ from utils.misc import accumulate
 IMPORTANCE_WEIGHTS = "importance_weights"
 GAINS = "gains"
 XAPPO_DEFAULT_CONFIG = DEFAULT_CONFIG
-# Experience Replay
-XAPPO_DEFAULT_CONFIG["replay_proportion"] = 1
+# For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
+XAPPO_DEFAULT_CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 XAPPO_DEFAULT_CONFIG["learning_starts"] = 1000 # How many steps of the model to sample before learning starts.
 XAPPO_DEFAULT_CONFIG["prioritized_replay"] = True
-XAPPO_DEFAULT_CONFIG["replay_sequence_length"] = 1
 XAPPO_DEFAULT_CONFIG["buffer_options"] = {
-	'priority_id': GAINS, # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
-	'priority_aggregation_fn': 'np.sum', # a reduce function (from a list of numbers to a number)
-	'size': 2**9, 
-	'alpha': 0.5, 
-	'beta': None, 
+	'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, advantages, rewards, prev_rewards, action_logp
+	'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
+	'size': 2**9, # "Maximum number of batches stored in the experience buffer."
+	'alpha': 0.5, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
+	'beta': None, # Parameter that regulates a mechanism for computing importance sampling. Not needed in PPO.
 	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-	'prioritized_drop_probability': 0, 
-	'global_distribution_matching': False, 
-	'prioritised_cluster_sampling': True, 
+	'prioritized_drop_probability': 0, # Probability of dropping experience with the lowest priority in the buffer
+	'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
+	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
 }
-# Clustering Scheme
-XAPPO_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-XAPPO_DEFAULT_CONFIG["batch_mode"] = "complete_episodes" # can be equal to 'truncate_episodes' only when 'clustering_scheme' is 'none'
-XAPPO_DEFAULT_CONFIG["vtrace"] = False # batch_mode==complete_episodes implies vtrace==False
-XAPPO_DEFAULT_CONFIG["gae_with_vtrace"] = True # combines GAE with V-Tracing
+XAPPO_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+XAPPO_DEFAULT_CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes' otherwise it can also be 'truncate_episodes'
+XAPPO_DEFAULT_CONFIG["vtrace"] = False # Formula for computing the advantage: batch_mode==complete_episodes implies vtrace==False
+XAPPO_DEFAULT_CONFIG["gae_with_vtrace"] = True # Formula for computing the advantage: combines GAE with V-Tracing
 
 ########################
 # XAPPO's Policy

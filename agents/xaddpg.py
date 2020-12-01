@@ -15,20 +15,21 @@ from ray.rllib.utils.torch_ops import explained_variance as torch_explained_vari
 from ray.rllib.policy.sample_batch import SampleBatch
 
 XADDPG_DEFAULT_CONFIG = DDPG_DEFAULT_CONFIG
+# For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
 XADDPG_DEFAULT_CONFIG["prioritized_replay"] = True
 XADDPG_DEFAULT_CONFIG["buffer_options"] = {
-	'priority_id': "weights", # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
-	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # a reduce function (from a list of numbers to a number)
-	'size': 50000, 
-	'alpha': 0.6, 
-	'beta': 0.4, 
+	'priority_id': "weights", # What batch column to use for prioritisation. One of the following: rewards, prev_rewards, weights
+	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
+	'size': 50000, # "Maximum number of batches stored in the experience buffer."
+	'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
+	'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
 	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-	'prioritized_drop_probability': 1, 
-	'global_distribution_matching': False, 
-	'prioritised_cluster_sampling': False, 
+	'prioritized_drop_probability': 1, # Probability of dropping experience with the lowest priority in the buffer
+	'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
+	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
 }
-XADDPG_DEFAULT_CONFIG["clustering_scheme"] = "reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-# XADQN_DEFAULT_CONFIG["batch_mode"] = "truncate_episodes" # for some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes'
+XADDPG_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+XADDPG_DEFAULT_CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes' otherwise it can also be 'truncate_episodes'
 
 ########################
 # XADDPG's Policy

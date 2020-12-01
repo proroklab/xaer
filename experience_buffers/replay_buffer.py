@@ -29,12 +29,10 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		prioritized_replay=True,
 		buffer_options=None, 
 		learning_starts=1000, 
-		replay_sequence_length=1, 
 	):
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
 		self.replay_starts = learning_starts
-		self.replay_sequence_length = replay_sequence_length
 
 		def gen_replay():
 			while True:
