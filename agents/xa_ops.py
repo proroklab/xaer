@@ -6,7 +6,7 @@ from ray.rllib.execution.learner_thread import LearnerThread, get_learner_stats
 from ray.rllib.execution.multi_gpu_learner import TFMultiGPULearner, get_learner_stats as get_gpu_learner_stats
 
 def get_clustered_replay_buffer(config):
-	assert config["batch_mode"] == "complete_episodes" or config["clustering_scheme"] not in ["moving_best_extrinsic_reward_with_type","extrinsic_reward"], f"This algorithm requires 'complete_episodes' as batch_mode when 'clustering_scheme' is {config['clustering_scheme']}"
+	assert config["batch_mode"] == "complete_episodes" or not eval(config["clustering_scheme"]).batch_type_is_based_on_episode_type, f"This algorithm requires 'complete_episodes' as batch_mode when 'clustering_scheme' is {config['clustering_scheme']}"
 	local_replay_buffer = LocalReplayBuffer(
 		prioritized_replay=config["prioritized_replay"],
 		buffer_options=config["buffer_options"], 

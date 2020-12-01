@@ -3,6 +3,8 @@ import numpy as np
 from utils.running_std import RunningMeanStd
 
 class none():
+	batch_type_is_based_on_episode_type = False
+
 	@staticmethod
 	def is_best_episode(episode_type):
 		return episode_type == 'better'
@@ -15,6 +17,8 @@ class none():
 		return 'none'
 
 class extrinsic_reward(none):
+	batch_type_is_based_on_episode_type = True
+
 	def get_batch_type(self, batch, episode_type):
 		# Build batch type
 		batch_extrinsic_reward = np.sum(batch["rewards"])
