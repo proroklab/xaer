@@ -1,7 +1,7 @@
 import numpy as np
 
-from experience_buffers.replay_buffer import LocalReplayBuffer
-from experience_buffers.clustering_scheme import *
+from xarl.experience_buffers.replay_buffer import LocalReplayBuffer
+from xarl.experience_buffers.clustering_scheme import *
 from ray.rllib.execution.learner_thread import LearnerThread, get_learner_stats
 from ray.rllib.execution.multi_gpu_learner import TFMultiGPULearner, get_learner_stats as get_gpu_learner_stats
 

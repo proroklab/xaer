@@ -1,33 +1,13 @@
 from typing import List
 import random
 
-from ray.util.iter import from_actors, LocalIterator, _NextValueNotReady
+from ray.util.iter import LocalIterator, _NextValueNotReady
 from ray.util.iter_metrics import SharedMetrics
-from ray.rllib.execution.replay_buffer import LocalReplayBuffer, \
-    warn_replay_buffer_size
-from ray.rllib.execution.common import \
-    STEPS_SAMPLED_COUNTER, _get_shared_metrics
+from ray.rllib.execution.replay_buffer import LocalReplayBuffer
 from ray.rllib.utils.typing import SampleBatchType
 
 
 class StoreToReplayBuffer:
-    """Callable that stores data into replay buffer actors.
-
-    If constructed with a local replay actor, data will be stored into that
-    buffer. If constructed with a list of replay actor handles, data will
-    be stored randomly among those actors.
-
-    This should be used with the .for_each() operator on a rollouts iterator.
-    The batch that was stored is returned.
-
-    Examples:
-        >>> actors = [ReplayActor.remote() for _ in range(4)]
-        >>> rollouts = ParallelRollouts(...)
-        >>> store_op = rollouts.for_each(StoreToReplayActors(actors=actors))
-        >>> next(store_op)
-        SampleBatch(...)
-    """
-
     def __init__(self, local_buffer: LocalReplayBuffer = None):
         self.local_actor = local_buffer
         
@@ -35,16 +15,7 @@ class StoreToReplayBuffer:
         self.local_actor.add_batch(batch)
         return batch
 
-
-def Replay(local_buffer, replay_batch_size=1, actors=None, num_async=4):
-    if bool(local_buffer) == bool(actors):
-        raise ValueError(
-            "Exactly one of local_buffer and replay_actors must be given.")
-
-    if actors:
-        replay = from_actors(actors)
-        return replay.gather_async(num_async=num_async).filter(lambda x: x is not None)
-
+def Replay(local_buffer, replay_batch_size=1, num_async=4):
     def gen_replay(_):
         while True:
             item_list = list(filter(lambda x:x, (
@@ -55,49 +26,7 @@ def Replay(local_buffer, replay_batch_size=1, actors=None, num_async=4):
                 yield _NextValueNotReady()
             else:
                 yield item_list
-
     return LocalIterator(gen_replay, SharedMetrics())
-
-
-class WaitUntilTimestepsElapsed:
-    """Callable that returns True once a given number of timesteps are hit."""
-
-    def __init__(self, target_num_timesteps):
-        self.target_num_timesteps = target_num_timesteps
-
-    def __call__(self, item):
-        metrics = _get_shared_metrics()
-        ts = metrics.counters[STEPS_SAMPLED_COUNTER]
-        return ts > self.target_num_timesteps
-
-
-# TODO(ekl) deprecate this in favor of the replay_sequence_length option.
-class SimpleReplayBuffer:
-    """Simple replay buffer that operates over batches."""
-
-    def __init__(self, num_slots, replay_proportion: float = None):
-        """Initialize SimpleReplayBuffer.
-
-        Args:
-            num_slots (int): Number of batches to store in total.
-        """
-        self.num_slots = num_slots
-        self.replay_batches = []
-        self.replay_index = 0
-
-    def add_batch(self, sample_batch):
-        warn_replay_buffer_size(item=sample_batch, num_items=self.num_slots)
-        if self.num_slots > 0:
-            if len(self.replay_batches) < self.num_slots:
-                self.replay_batches.append(sample_batch)
-            else:
-                self.replay_batches[self.replay_index] = sample_batch
-                self.replay_index += 1
-                self.replay_index %= self.num_slots
-
-    def replay(self):
-        return random.choice(self.replay_batches)
-
 
 class MixInReplay:
     """This operator adds replay to a stream of experiences.

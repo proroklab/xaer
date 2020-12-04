@@ -1,4 +1,4 @@
-from utils.culture_lib.culture import Culture, Argument
+from environments.utils.culture_lib.culture import Culture, Argument
 
 class SimpleCulture(Culture):
     def __init__(self):

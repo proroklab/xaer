@@ -6,7 +6,7 @@ import json
 import shutil
 import ray
 
-from agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
+from xarl.agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "Taxi-v3"

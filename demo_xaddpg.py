@@ -6,7 +6,7 @@ import json
 import shutil
 import ray
 
-from agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
+from xarl.agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"

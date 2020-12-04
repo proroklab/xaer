@@ -14,10 +14,11 @@ SELECT_ENV = "CescoDrive-v2"
 
 CONFIG = APPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
-CONFIG["replay_proportion"] = 1 # The input batch will be returned and an additional number of batches proportional to this value will be added as well.
+# For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 CONFIG["lambda"] = .95 # GAE(lambda) parameter
 CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
-# CONFIG["vtrace"] = False
+# CONFIG["gamma"] = 0.999
+CONFIG["replay_proportion"] = 0 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 
 ####################################################################################
 ####################################################################################

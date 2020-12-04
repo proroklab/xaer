@@ -7,8 +7,8 @@ import platform
 import ray  # noqa F401
 import psutil  # noqa E402
 
-from experience_buffers.buffer.pseudo_prioritized_buffer import PseudoPrioritizedBuffer
-from experience_buffers.buffer.buffer import Buffer
+from xarl.experience_buffers.buffer.pseudo_prioritized_buffer import PseudoPrioritizedBuffer
+from xarl.experience_buffers.buffer.buffer import Buffer
 
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.util.iter import ParallelIteratorWorker

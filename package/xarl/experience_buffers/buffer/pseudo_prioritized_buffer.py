@@ -2,8 +2,8 @@
 from random import choice, random, randint
 import numpy as np
 import time
-from experience_buffers.buffer.buffer import Buffer
-from utils.segment_tree import SumSegmentTree, MinSegmentTree
+from xarl.experience_buffers.buffer.buffer import Buffer
+from xarl.utils.segment_tree import SumSegmentTree, MinSegmentTree
 
 class PseudoPrioritizedBuffer(Buffer):
 	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling')

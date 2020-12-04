@@ -6,7 +6,7 @@ Detailed documentation:
 https://docs.ray.io/en/master/rllib-algorithms.html#deep-deterministic-policy-gradients-ddpg-td3
 """  # noqa: E501
 
-from agents.xadqn import xadqn_execution_plan
+from xarl.agents.xadqn import xadqn_execution_plan
 from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAULT_CONFIG
 from ray.rllib.agents.ddpg.ddpg_tf_policy import DDPGTFPolicy, tf, PRIO_WEIGHTS
 from ray.rllib.agents.ddpg.ddpg_torch_policy import DDPGTorchPolicy, torch
@@ -14,22 +14,26 @@ from ray.rllib.utils.tf_ops import explained_variance as tf_explained_variance
 from ray.rllib.utils.torch_ops import explained_variance as torch_explained_variance
 from ray.rllib.policy.sample_batch import SampleBatch
 
-XADDPG_DEFAULT_CONFIG = DDPG_DEFAULT_CONFIG
-# For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
-XADDPG_DEFAULT_CONFIG["prioritized_replay"] = True
-XADDPG_DEFAULT_CONFIG["buffer_options"] = {
-	'priority_id': "weights", # What batch column to use for prioritisation. One of the following: rewards, prev_rewards, weights
-	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
-	'size': 50000, # "Maximum number of batches stored in the experience buffer."
-	'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
-	'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
-	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-	'prioritized_drop_probability': 1, # Probability of dropping experience with the lowest priority in the buffer
-	'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
-	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
-}
-XADDPG_DEFAULT_CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-XADDPG_DEFAULT_CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes' otherwise it can also be 'truncate_episodes'
+XADDPG_DEFAULT_CONFIG = DDPGTrainer.merge_trainer_configs(
+	DDPG_DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
+	{
+		"prioritized_replay": True,
+		"buffer_options": {
+			'priority_id': "weights", # What batch column to use for prioritisation. One of the following: rewards, prev_rewards, weights
+			'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
+			'size': 50000, # "Maximum number of batches stored in the experience buffer."
+			'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
+			'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
+			'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
+			'prioritized_drop_probability': 1, # Probability of dropping experience with the lowest priority in the buffer
+			'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
+			'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
+		},
+		"clustering_scheme": "moving_best_extrinsic_reward_with_type", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+		"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes' otherwise it can also be 'truncate_episodes'
+	},
+	_allow_unknown_configs=True
+)
 
 ########################
 # XADDPG's Policy
@@ -160,11 +164,22 @@ def torch_get_selected_qts(policy, model, train_batch):
 
 def build_xaddpg_stats(policy, batch):
 	explained_variance_fn = torch_explained_variance if policy.config["framework"]=="torch" else tf_explained_variance
+	qts_fn = torch_get_selected_qts if policy.config["framework"]=="torch" else tf_get_selected_qts
 	mean_fn = torch.mean if policy.config["framework"]=="torch" else tf.reduce_mean
 	max_fn = torch.max if policy.config["framework"]=="torch" else tf.reduce_max
 	min_fn = torch.min if policy.config["framework"]=="torch" else tf.reduce_min
-	qts_fn = torch_get_selected_qts if policy.config["framework"]=="torch" else tf_get_selected_qts
+
 	q_t_selected, q_t_selected_target = qts_fn(policy, policy.model, batch)
+	# pkg = torch if policy.config["framework"]=="torch" else tf
+	# reward_with_v = batch[SampleBatch.REWARDS]+[q_t_selected[-1]]
+	# discounted_cumulative_returns = pkg.scan(
+	# 	fn=lambda acc, cur: cur + policy.config["gamma"] * acc,
+	# 	elems=reward_with_v[::-1],
+	# 	initializer=pkg.zeros_like(reward_with_v),
+	# 	# back_prop=False
+	# )[1::-1]
+
+	explained_variance = explained_variance_fn(q_t_selected_target/q_t_selected_target[0], q_t_selected/q_t_selected[0])
 	stats = {
 		"actor_loss": policy.actor_loss,
 		"critic_loss": policy.critic_loss,
@@ -173,7 +188,7 @@ def build_xaddpg_stats(policy, batch):
 		"min_q": min_fn(policy.q_t),
 		"mean_td_error": mean_fn(policy.td_error),
 		# "td_error": policy.td_error,
-		"vf_explained_var": mean_fn(explained_variance_fn(q_t_selected_target, q_t_selected)),
+		"vf_explained_var": mean_fn(explained_variance),
 	}
 	return stats
 
@@ -195,6 +210,12 @@ def get_policy_class(config):
 
 XADDPGTrainer = DDPGTrainer.with_updates(
 	name="XADDPG", 
+	default_config=XADDPG_DEFAULT_CONFIG,
 	execution_plan=xadqn_execution_plan,
 	get_policy_class=get_policy_class,
+)
+
+DDPGTrainer = DDPGTrainer.with_updates(
+	name="DDPG_vf_explained_var", 
+	get_policy_class=get_policy_class, # retrieve run-time vf_explained_var
 )

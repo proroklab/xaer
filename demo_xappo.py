@@ -6,7 +6,7 @@ import json
 import shutil
 import ray
 
-from agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG, GAINS
+from xarl.agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG, GAINS
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
