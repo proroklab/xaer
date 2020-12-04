@@ -66,7 +66,8 @@ def tf_get_selected_qts(policy, train_batch):
 	done_mask = tf.cast(train_batch[SampleBatch.DONES], tf.float32)
 	q_tp1_best_masked = (1.0 - done_mask) * q_tp1_best
 	q_t_selected_target = rewards + gamma**n_step * q_tp1_best_masked
-	return q_t_selected, q_t_selected_target
+	q_t_delta = q_t_selected - gamma**n_step * q_tp1_best_masked
+	return q_t_selected, q_t_selected_target, q_t_delta
 
 def torch_get_selected_qts(policy, train_batch):
 	config = policy.config
@@ -92,18 +93,21 @@ def torch_get_selected_qts(policy, train_batch):
 	done_mask = tf.cast(train_batch[SampleBatch.DONES], tf.float32)
 	q_tp1_best_masked = (1.0 - done_mask) * q_tp1_best
 	q_t_selected_target = rewards + gamma**n_step * q_tp1_best_masked
-	return q_t_selected, q_t_selected_target
+	q_t_delta = q_t_selected - gamma**n_step * q_tp1_best_masked
+	return q_t_selected, q_t_selected_target, q_t_delta
 
 def build_xadqn_stats(policy, batch):
 	mean_fn = torch.mean if policy.config["framework"]=="torch" else tf.reduce_mean
 	explained_variance_fn = torch_explained_variance if policy.config["framework"]=="torch" else tf_explained_variance
 	qts_fn = torch_get_selected_qts if policy.config["framework"]=="torch" else tf_get_selected_qts
 
-	q_t_selected, q_t_selected_target = qts_fn(policy, batch)
-	explained_variance = explained_variance_fn(q_t_selected_target/q_t_selected_target[0], q_t_selected/q_t_selected[0])
+	q_t_selected, q_t_selected_target, q_t_delta = qts_fn(policy, policy.model, batch)
+	
 	return dict({
 		"cur_lr": tf.cast(policy.cur_lr, tf.float64),
-		"vf_explained_var": mean_fn(explained_variance),
+		"vf_explained_var_1": mean_fn(explained_variance_fn(q_t_selected_target/q_t_selected_target[0], q_t_selected/q_t_selected[0])),
+		"vf_explained_var_2": mean_fn(explained_variance_fn(q_t_selected_target, q_t_selected)),
+		"vf_explained_var_3": mean_fn(explained_variance_fn(batch[SampleBatch.REWARDS], q_t_delta)),
 	}, **policy.q_loss.stats)
 
 XADQNTFPolicy = DQNTFPolicy.with_updates(

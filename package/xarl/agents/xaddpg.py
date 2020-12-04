@@ -94,7 +94,8 @@ def tf_get_selected_qts(policy, model, train_batch):
 
 	# Compute RHS of bellman equation.
 	q_t_selected_target = train_batch[SampleBatch.REWARDS] + gamma**n_step * q_tp1_best_masked
-	return q_t_selected, q_t_selected_target
+	q_t_delta = q_t_selected - gamma**n_step * q_tp1_best_masked
+	return q_t_selected, q_t_selected_target, q_t_delta
 
 def torch_get_selected_qts(policy, model, train_batch):
 	twin_q = policy.config["twin_q"]
@@ -158,9 +159,10 @@ def torch_get_selected_qts(policy, model, train_batch):
 	q_tp1_best_masked = (1.0 - train_batch[SampleBatch.DONES].float()) * q_tp1_best
 
 	# Compute RHS of bellman equation.
-	q_t_selected_target = (train_batch[SampleBatch.REWARDS] + gamma**n_step * q_tp1_best_masked).detach()
+	q_t_selected_target = train_batch[SampleBatch.REWARDS] + gamma**n_step * q_tp1_best_masked
+	q_t_delta = q_t_selected - gamma**n_step * q_tp1_best_masked
 
-	return q_t_selected, q_t_selected_target
+	return q_t_selected, q_t_selected_target, q_t_delta
 
 def build_xaddpg_stats(policy, batch):
 	explained_variance_fn = torch_explained_variance if policy.config["framework"]=="torch" else tf_explained_variance
@@ -169,17 +171,7 @@ def build_xaddpg_stats(policy, batch):
 	max_fn = torch.max if policy.config["framework"]=="torch" else tf.reduce_max
 	min_fn = torch.min if policy.config["framework"]=="torch" else tf.reduce_min
 
-	q_t_selected, q_t_selected_target = qts_fn(policy, policy.model, batch)
-	# pkg = torch if policy.config["framework"]=="torch" else tf
-	# reward_with_v = batch[SampleBatch.REWARDS]+[q_t_selected[-1]]
-	# discounted_cumulative_returns = pkg.scan(
-	# 	fn=lambda acc, cur: cur + policy.config["gamma"] * acc,
-	# 	elems=reward_with_v[::-1],
-	# 	initializer=pkg.zeros_like(reward_with_v),
-	# 	# back_prop=False
-	# )[1::-1]
-
-	explained_variance = explained_variance_fn(q_t_selected_target/q_t_selected_target[0], q_t_selected/q_t_selected[0])
+	q_t_selected, q_t_selected_target, q_t_delta = qts_fn(policy, policy.model, batch)
 	stats = {
 		"actor_loss": policy.actor_loss,
 		"critic_loss": policy.critic_loss,
@@ -188,7 +180,9 @@ def build_xaddpg_stats(policy, batch):
 		"min_q": min_fn(policy.q_t),
 		"mean_td_error": mean_fn(policy.td_error),
 		# "td_error": policy.td_error,
-		"vf_explained_var": mean_fn(explained_variance),
+		"vf_explained_var_1": mean_fn(explained_variance_fn(q_t_selected_target/q_t_selected_target[0], q_t_selected/q_t_selected[0])),
+		"vf_explained_var_2": mean_fn(explained_variance_fn(q_t_selected_target, q_t_selected)),
+		"vf_explained_var_3": mean_fn(explained_variance_fn(batch[SampleBatch.REWARDS], q_t_delta)),
 	}
 	return stats
 
