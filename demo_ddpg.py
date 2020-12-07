@@ -16,6 +16,7 @@ SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
+CONFIG["batch_mode"] = "complete_episodes" # Whether to rollout "complete_episodes" or "truncate_episodes" to `rollout_fragment_length` length unrolls. Episode truncation guarantees evenly sized batches, but increases variance as the reward-to-go will need to be estimated at truncation boundaries.
 
 ####################################################################################
 ####################################################################################
