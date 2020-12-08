@@ -14,6 +14,7 @@ from ray.rllib.agents.ppo.appo_tf_policy import *
 from ray.rllib.agents.ppo.ppo_tf_policy import vf_preds_fetches
 from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
+from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
 from xarl.agents.xa_ops import *
 from xarl.experience_buffers.replay_ops import MixInReplay
@@ -184,17 +185,23 @@ def xappo_execution_plan(workers, config):
 
 	# This sub-flow updates the steps trained counter based on learner output.
 	def update_priorities(item):
+		samples, info_dict = item
 		if config.get("prioritized_replay"):
-			samples, info_dict = item
 			prio_dict = {}
-			for policy_id, info in info_dict.items():
-				batch = samples.policy_batches[policy_id]
-				prio_dict[policy_id] = batch
+			if isinstance(samples, MultiAgentBatch):
+				for policy_id, info in info_dict.items():
+					batch = samples.policy_batches[policy_id]
+					prio_dict[policy_id] = batch
+			else:
+				prio_dict[DEFAULT_POLICY_ID] = samples
 			local_replay_buffer.update_priorities(prio_dict)
-		return item
+		if isinstance(samples, MultiAgentBatch):
+			count = samples.agent_steps()
+		else:
+			count = samples.count
+		return count, item[1]
 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
 		.for_each(update_priorities) \
-		.for_each(lambda x: (x[0].count, x[1])) \
 		.for_each(record_steps_trained)
 
 	merged_op = Concurrently([enqueue_op, dequeue_op], mode="async", output_indexes=[1])
