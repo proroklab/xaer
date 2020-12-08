@@ -17,9 +17,9 @@ class RoadAgent:
 
     def binary_features(self):
         features = []
-        for key in sorted(self.properties):
-            if key != "speed":
-                features.append(0 if self.properties[key] is False else 1)
+        for prop in sorted(self.culture_properties().keys()):
+            if prop != "Speed":
+                features.append(0 if self[prop] is False else 1)
         return features
 
     def set_culture(self, culture):

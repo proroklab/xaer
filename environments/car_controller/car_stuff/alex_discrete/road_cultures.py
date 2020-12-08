@@ -1,4 +1,4 @@
-from utils.culture_lib.culture import Culture, Argument
+from environments.utils.culture_lib.culture import Culture, Argument
 from environments.car_controller.car_stuff.alex_discrete.road_cell import RoadCell
 from environments.car_controller.car_stuff.alex_discrete.road_agent import RoadAgent
 import numpy as np

@@ -35,7 +35,7 @@ class AlexDriveV1(gym.Env):
 		speed 		= action_vector[1]
 		reward, explanation = self.grid.move_agent(direction, speed)
 		self.step_counter += 1
-		state = self.grid.neighbour_features()
+		state = [self.grid.neighbour_features(), self.grid.agent.binary_features(), self.grid.agent_position]
 		return [state, reward, self.step_counter > 100, {'explanation': explanation}]
 
 
