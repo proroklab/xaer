@@ -16,6 +16,12 @@ class RoadCell:
             return
         return self.road_culture.__dict__.get("properties", None)
 
+    def binary_features(self):
+        features = [1]
+        for prop in sorted(self.culture_properties().keys()):
+            features.append(0 if self[prop] is False else 1)
+        return features
+
     def set_culture(self, culture):
         self.road_culture = culture
         if self.culture_properties() is None:

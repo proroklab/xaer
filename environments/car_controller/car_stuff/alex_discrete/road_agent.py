@@ -15,6 +15,13 @@ class RoadAgent:
             return
         return self.road_culture.__dict__.get("agent_properties", None)
 
+    def binary_features(self):
+        features = []
+        for key in sorted(self.properties):
+            if key != "speed":
+                features.append(0 if self.properties[key] is False else 1)
+        return features
+
     def set_culture(self, culture):
         self.road_culture = culture
         if self.culture_properties() is None:

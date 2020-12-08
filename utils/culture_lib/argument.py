@@ -20,9 +20,6 @@ class Argument:
     def add_evidence(self, evidence):
         self.evidence.append(evidence)
 
-    def descriptive_text(self):
-        return self.descriptive_text
-
     def attacks(self, attacked):
         if type(attacked) is Argument:
             self.framework.add_argument(self)

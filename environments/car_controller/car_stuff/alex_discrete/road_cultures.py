@@ -1,6 +1,6 @@
-from culture.culture import Culture, Argument
-from environment.discrete_environment.road_cell import RoadCell
-from environment.discrete_environment.road_agent import RoadAgent
+from utils.culture_lib.culture import Culture, Argument
+from environments.car_controller.car_stuff.alex_discrete.road_cell import RoadCell
+from environments.car_controller.car_stuff.alex_discrete.road_agent import RoadAgent
 import numpy as np
 import random
 
@@ -231,7 +231,8 @@ class MediumRoadCulture(Culture):
 
         town_road = random.choice([True, False])
         road.assign_property_value("Town Road", town_road)
-        
+
+
     def initialise_random_agent(self, agent: RoadAgent):
         """
         Receives an empty RoadAgent and initialises properties with acceptable random values.

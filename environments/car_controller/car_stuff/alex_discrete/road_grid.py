@@ -1,8 +1,14 @@
-import numpy as np
-from environment.discrete_environment.road_cell import RoadCell
-from environment.discrete_environment.road_agent import RoadAgent
-from environment.discrete_environment.road_cultures import *
+# import numpy as np
+from environments.car_controller.car_stuff.alex_discrete.road_cell import RoadCell
+from environments.car_controller.car_stuff.alex_discrete.road_agent import RoadAgent
+from environments.car_controller.car_stuff.alex_discrete.road_cultures import *
+
 import copy
+
+NORTH = 0
+SOUTH = 1
+EAST  = 2
+WEST  = 3
 
 class RoadGrid:
     def __init__(self, x_dim, y_dim):
@@ -57,6 +63,19 @@ class RoadGrid:
             return None
         return neighbours
 
+    def neighbour_features(self):
+        # Start with order NORTH, SOUTH, EAST, WEST.
+        inaccessible = [0] * (len(self.road_culture.properties) + 1)
+        x, y = self.agent_position
+        north_features = self.cells[x][y + 1].binary_features() if self.within_bounds((x, y + 1)) else inaccessible
+        south_features = self.cells[x][y - 1].binary_features() if self.within_bounds((x, y - 1)) else inaccessible
+        east_features  = self.cells[x + 1][y].binary_features() if self.within_bounds((x + 1, y)) else inaccessible
+        west_features  = self.cells[x - 1][y].binary_features() if self.within_bounds((x - 1, y)) else inaccessible
+
+        total_features = north_features + south_features + east_features + west_features
+        return total_features
+
+
     def initialise_random_grid(self):
         """
         Fills a grid with random RoadCells, each initialised by the current culture.
@@ -70,47 +89,141 @@ class RoadGrid:
                 self.road_culture.initialise_random_road(road)
                 self.cells[i].append(road)
 
-    def move_agent(self, dest_coord, speed):
+    def run_dialogue(self, road, agent, explanation_type="verbose"):
         """
-        Attempts to move an agent to a neighbouring cell.
-        :param speed: commanded speed to traverse next cell
-        :param dest_coord: destination RoadCell
-        :return: False if move is illegal. Integer-valued reward if move is valid.
+        Runs dialogue to find out decision regarding penalty in argumentation framework.
+        Args:
+            road: RoadCell corresponding to destination cell.
+            agent: RoadAgent corresponding to agent.
+            explanation_type: 'verbose' for all arguments used in exchange; 'compact' for only winning ones.
+
+        Returns: Decision on penalty + explanation.
         """
-        current_coord = self.agent_position
-        if current_coord is False:
-            print("RoadGrid::move_agent: Agent not found!")
-            return False
-
-        reward = 0
-
-        self.visited_positions.add(current_coord)
-
-        x, y = dest_coord
-        temp_AF = copy.deepcopy(self.road_culture.AF)
-        self.agent.assign_property_value("Speed", speed)
+        # print("@@@@@@@@@@@@@ NEW DIALOGUE @@@@@@@@@@@@@")
+        AF = self.road_culture.AF
+        verified = set()
 
         # Prune temporary AF out of unverified arguments
         to_remove = []
-        for argument_id in temp_AF.all_arguments:
-            argument_obj = temp_AF.argument(argument_id)
-            if not argument_obj.verify(self.cells[x][y], self.agent):
-                to_remove.append(argument_id)
-        for argument_id in to_remove:
-            temp_AF.remove_argument(argument_id)
+        for argument_id in AF.all_arguments:
+            argument_obj = AF.argument(argument_id)
+            if argument_obj.verify(road, agent):
+                verified.add(argument_id)
 
-        # Check if motion belongs to grounded extension.
-        solver_result = temp_AF.run_solver(semantics="DS-PR", arg_str="0")
-        if "YES" in solver_result:  # If the argument "I will not get a ticket" is valid
-            reward += 5
+        # Game starts with proponent using argument 0 ("I will not get a ticket").
+        used_arguments = {"opponent": set(), "proponent": {0}}
+        last_argument = {"opponent": set(), "proponent": {0}}
+
+        dialogue_history = []
+        dialogue_history.append(last_argument["proponent"])
+
+        # Odd turns: opponent. Even turns: proponent.
+        turn = 1
+        game_over = False
+        winner = None
+        while not game_over:
+            # print("##### TURN {} #####".format(turn))
+            if turn % 2:
+                # Opponent's turn.
+                current_player = "opponent"
+                next_player = "proponent"
+            else:
+                # Proponent's turn.
+                current_player = "proponent"
+                next_player = "opponent"
+            turn += 1
+            # Remove previously used arguments.
+            all_used_arguments = used_arguments["proponent"] | used_arguments["opponent"]
+            forbidden_arguments = set(all_used_arguments)
+            # Cannot pick argument that is attacked by previously used argument.
+            forbidden_arguments.update(AF.arguments_attacked_by_list(list(all_used_arguments)))
+            # print("All used arguments: {}".format(all_used_arguments))
+            # print("Forbidden arguments: {}".format(forbidden_arguments))
+            # Use all arguments as possible.
+            all_viable_arguments = set(AF.arguments_that_attack(list(last_argument[next_player])))
+            # print("Viable arguments: {}".format(all_viable_arguments))
+            verified_attacks = verified.intersection(all_viable_arguments)
+            # print("Verified attacks: {}".format(verified_attacks))
+            targets = set(AF.arguments_attacked_by_list(list(verified_attacks)))
+            if last_argument[next_player].issubset(targets):
+                used_arguments[current_player].update(verified_attacks)
+                last_argument[current_player] = verified_attacks
+                # print("{} used arguments {}".format(current_player, verified_attacks))
+                dialogue_history.append(verified_attacks)
+            else:
+                game_over = True
+                winner = next_player
+                # print("GAME OVER! {} wins".format(winner))
+
+        motion_validated = True if winner == "proponent" else False
+
+        # Building the explanation.
+
+        explanation = ""
+        if explanation_type == "verbose":
+            turn = 0
+            for argument_list in dialogue_history:
+                turn_label = "CON: " if turn % 2 else "PRO: "
+                explanation += turn_label + "\""
+                for argument_id in argument_list:
+                    argument_obj = AF.argument(argument_id)
+                    explanation += argument_obj.descriptive_text + " "
+                explanation += "\"" + "\n"
+                turn += 1
+        else:
+            explanation += "\""
+            for argument_id in last_argument[winner]:
+                argument_obj = AF.argument(argument_id)
+                explanation += argument_obj.descriptive_text + " "
+            explanation += "\""
+
+        return motion_validated, explanation
+
+
+    def move_agent(self, direction, speed):
+        """
+        Attempts to move an agent to a neighbouring cell.
+        :param speed: commanded speed to traverse next cell
+        :param direction: 0 == NORTH, 1 == SOUTH, 2 == EAST, 3 == WEST
+        :return: False if move is illegal. Integer-valued reward if move is valid.
+        """
+        if self.agent_position is False:
+            print("RoadGrid::move_agent: Agent not found!")
+            return False
+
+        dest_x, dest_y = self.agent_position
+        if   direction == NORTH:
+            dest_y += 1
+        elif direction == SOUTH:
+            dest_y -= 1
+        elif direction == EAST:
+            dest_x += 1
+        elif direction == WEST:
+            dest_x -= 1
+
+        if not self.within_bounds((dest_x, dest_y)):
+            return -10, "FAIL: Out of bounds!"
+
+        reward = 0
+
+        self.visited_positions.add(self.agent_position)
+        self.agent.assign_property_value("Speed", speed)
+
+        motion, explanation = self.run_dialogue(self.cells[dest_x][dest_y], self.agent, explanation_type="compact")
+        if motion:  # If the argument "I will not get a ticket" is validated.
+            reward += int(min((speed/10), 10))
+        else:  # Got ticket.
+            reward += -5
 
         # Check if not repeating previously-visited cells.
-        if (x, y) not in self.visited_positions:
+        if (dest_x, dest_y) not in self.visited_positions:
             reward += 2
+            explanation += "EXTRA: This is a new cell."
+        else:
+            explanation += "EXTRA: This is a repeated cell."
 
-        self.agent_position = (x, y)
-
-        return reward
+        self.agent_position = (dest_x, dest_y)
+        return reward, explanation
 
 
 
