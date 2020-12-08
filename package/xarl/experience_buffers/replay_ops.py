@@ -5,7 +5,7 @@ from ray.util.iter import LocalIterator, _NextValueNotReady
 from ray.util.iter_metrics import SharedMetrics
 from ray.rllib.execution.replay_buffer import LocalReplayBuffer
 from ray.rllib.utils.typing import SampleBatchType
-from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
+
 
 class StoreToReplayBuffer:
 	def __init__(self, local_buffer: LocalReplayBuffer = None):
@@ -73,8 +73,5 @@ class MixInReplay:
 			replayed_batch = self.replay_buffer.replay()
 			if not replayed_batch:
 				return output_batches
-			if isinstance(replayed_batch, MultiAgentBatch) and not isinstance(sample_batch, MultiAgentBatch):
-				output_batches += replayed_batch.policy_batches.values()
-			else:
-				output_batches.append(replayed_batch)
+			output_batches.append(replayed_batch)
 		return output_batches

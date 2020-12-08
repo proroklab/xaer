@@ -53,15 +53,14 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 	def add_batch(self, batch):
 		# Make a copy so the replay buffer doesn't pin plasma memory.
-		batch = batch.copy()
+		# batch = batch.copy()
 		batch_type = batch["batch_types"][0] if "batch_types" in batch else 'None'
 		# Handle everything as if multiagent
+		if isinstance(batch, SampleBatch):
+			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
 		with self.add_batch_timer:
-			if isinstance(batch, MultiAgentBatch):
-				for policy_id, b in batch.policy_batches.items():
-					self.replay_buffers[policy_id].add(b, batch_type)
-			else:
-				self.replay_buffers[DEFAULT_POLICY_ID].add(batch, batch_type)
+			for policy_id, b in batch.policy_batches.items():
+				self.replay_buffers[policy_id].add(b, batch_type)
 		self.num_added += batch.count
 		return batch
 
@@ -71,16 +70,12 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 		with self.replay_timer:
 			samples = {}
-			if len(self.replay_buffers) > 1:
-				max_size = 0
-				for policy_id, replay_buffer in self.replay_buffers.items():
-					batch = replay_buffer.sample()
-					samples[policy_id] = batch
-					if batch.count > max_size:
-						max_size = batch.count
-				return MultiAgentBatch(samples, max_size)
-			else:
-				return next(iter(self.replay_buffers.values())).sample()
+			max_size = 1
+			for policy_id, replay_buffer in self.replay_buffers.items():
+				samples[policy_id] = replay_buffer.sample()
+				if samples[policy_id].count > max_size:
+					max_size = samples[policy_id].count
+			return MultiAgentBatch(samples, max_size)
 
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:
