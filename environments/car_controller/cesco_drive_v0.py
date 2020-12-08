@@ -46,8 +46,8 @@ class CescoDriveV0(gym.Env):
 		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		return [
 			{
-				'low': -15,
-				'high': 15,
+				'low': -20,
+				'high': 20,
 				'shape': (2,self.control_points_per_step,3 if self.max_obstacle_count > 0 else 2),
 			},
 			{

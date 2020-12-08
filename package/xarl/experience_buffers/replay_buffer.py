@@ -7,8 +7,8 @@ import platform
 import ray  # noqa F401
 import psutil  # noqa E402
 
-from experience_buffers.buffer.pseudo_prioritized_buffer import PseudoPrioritizedBuffer
-from experience_buffers.buffer.buffer import Buffer
+from xarl.experience_buffers.buffer.pseudo_prioritized_buffer import PseudoPrioritizedBuffer
+from xarl.experience_buffers.buffer.buffer import Buffer
 
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.util.iter import ParallelIteratorWorker
@@ -29,12 +29,10 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		prioritized_replay=True,
 		buffer_options=None, 
 		learning_starts=1000, 
-		replay_sequence_length=1, 
 	):
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
 		self.replay_starts = learning_starts
-		self.replay_sequence_length = replay_sequence_length
 
 		def gen_replay():
 			while True:

@@ -14,24 +14,29 @@ from ray.rllib.utils.torch_ops import explained_variance as torch_explained_vari
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
 from ray.rllib.policy.sample_batch import SampleBatch, DEFAULT_POLICY_ID
 
-from agents.xa_ops import *
-from experience_buffers.replay_ops import StoreToReplayBuffer, Replay
+from xarl.agents.xa_ops import *
+from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay
 
-XADQN_DEFAULT_CONFIG = DQN_DEFAULT_CONFIG
-XADQN_DEFAULT_CONFIG["prioritized_replay"] = True
-XADQN_DEFAULT_CONFIG["buffer_options"] = {
-	'priority_id': "weights", # one of the following: gains, importance_weights, rewards, prev_rewards, action_logp
-	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # a reduce function (from a list of numbers to a number)
-	'size': 50000, 
-	'alpha': 0.6, 
-	'beta': 0.4, 
-	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-	'prioritized_drop_probability': 1, 
-	'global_distribution_matching': False, 
-	'prioritised_cluster_sampling': False, 
-}
-XADQN_DEFAULT_CONFIG["clustering_scheme"] = "reward_with_type" # one of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
-# XADQN_DEFAULT_CONFIG["batch_mode"] = "truncate_episodes" # for some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes'
+XADQN_DEFAULT_CONFIG = DQNTrainer.merge_trainer_configs(
+	DQN_DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
+	{
+		"prioritized_replay": True,
+		"buffer_options": {
+			'priority_id': "weights", # What batch column to use for prioritisation. One of the following: rewards, prev_rewards, weights
+			'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
+			'size': 50000, # "Maximum number of batches stored in the experience buffer."
+			'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
+			'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
+			'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
+			'prioritized_drop_probability': 1, # Probability of dropping experience with the lowest priority in the buffer
+			'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
+			'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
+		},
+		"clustering_scheme": "moving_best_extrinsic_reward_with_type", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+		"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes' otherwise it can also be 'truncate_episodes'
+	},
+	_allow_unknown_configs=True
+)
 
 ########################
 # XADQN's Policy
@@ -61,7 +66,8 @@ def tf_get_selected_qts(policy, train_batch):
 	done_mask = tf.cast(train_batch[SampleBatch.DONES], tf.float32)
 	q_tp1_best_masked = (1.0 - done_mask) * q_tp1_best
 	q_t_selected_target = rewards + gamma**n_step * q_tp1_best_masked
-	return q_t_selected, q_t_selected_target
+	q_t_delta = q_t_selected - gamma**n_step * q_tp1_best_masked
+	return q_t_selected, q_t_selected_target, q_t_delta
 
 def torch_get_selected_qts(policy, train_batch):
 	config = policy.config
@@ -87,16 +93,21 @@ def torch_get_selected_qts(policy, train_batch):
 	done_mask = tf.cast(train_batch[SampleBatch.DONES], tf.float32)
 	q_tp1_best_masked = (1.0 - done_mask) * q_tp1_best
 	q_t_selected_target = rewards + gamma**n_step * q_tp1_best_masked
-	return q_t_selected, q_t_selected_target
+	q_t_delta = q_t_selected - gamma**n_step * q_tp1_best_masked
+	return q_t_selected, q_t_selected_target, q_t_delta
 
 def build_xadqn_stats(policy, batch):
 	mean_fn = torch.mean if policy.config["framework"]=="torch" else tf.reduce_mean
 	explained_variance_fn = torch_explained_variance if policy.config["framework"]=="torch" else tf_explained_variance
 	qts_fn = torch_get_selected_qts if policy.config["framework"]=="torch" else tf_get_selected_qts
-	q_t_selected, q_t_selected_target = qts_fn(policy, batch)
+
+	q_t_selected, q_t_selected_target, q_t_delta = qts_fn(policy, policy.model, batch)
+	
 	return dict({
 		"cur_lr": tf.cast(policy.cur_lr, tf.float64),
-		"vf_explained_var": mean_fn(explained_variance_fn(q_t_selected_target, q_t_selected)),
+		"vf_explained_var_1": mean_fn(explained_variance_fn(q_t_selected_target/q_t_selected_target[0], q_t_selected/q_t_selected[0])),
+		"vf_explained_var_2": mean_fn(explained_variance_fn(q_t_selected_target, q_t_selected)),
+		"vf_explained_var_3": mean_fn(explained_variance_fn(batch[SampleBatch.REWARDS], q_t_delta)),
 	}, **policy.q_loss.stats)
 
 XADQNTFPolicy = DQNTFPolicy.with_updates(
@@ -160,6 +171,12 @@ def xadqn_execution_plan(workers, config):
 
 XADQNTrainer = DQNTrainer.with_updates(
 	name="XADQN", 
+	default_config=XADQN_DEFAULT_CONFIG,
 	execution_plan=xadqn_execution_plan,
 	get_policy_class=get_policy_class,
+)
+
+DQNTrainer = DQNTrainer.with_updates(
+	name="DQN_vf_explained_var", 
+	get_policy_class=get_policy_class, # retrieve run-time vf_explained_var
 )

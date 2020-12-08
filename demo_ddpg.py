@@ -7,7 +7,7 @@ import shutil
 import ray
 
 from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAULT_CONFIG
-# from agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
+from xarl.agents.xaddpg import DDPGTrainer as DDPGTrainer_ExplainedVar
 from environments import *
 
 # SELECT_ENV = "CescoDrive-v2"
@@ -16,6 +16,7 @@ SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
+CONFIG["batch_mode"] = "complete_episodes" # Whether to rollout "complete_episodes" or "truncate_episodes" to `rollout_fragment_length` length unrolls. Episode truncation guarantees evenly sized batches, but increases variance as the reward-to-go will need to be estimated at truncation boundaries.
 
 ####################################################################################
 ####################################################################################
@@ -24,7 +25,8 @@ ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
 # Configure RLlib to train a policy using the “Taxi-v3” environment and a PPO optimizer
-agent = DDPGTrainer(CONFIG, env=SELECT_ENV)
+# agent = DDPGTrainer(CONFIG, env=SELECT_ENV)
+agent = DDPGTrainer_ExplainedVar(CONFIG, env=SELECT_ENV)
 
 # Inspect the trained policy and model, to see the results of training in detail
 # policy = agent.get_policy()

@@ -1,0 +1,5 @@
+gym
+scipy
+numpy
+matplotlib
+triangle

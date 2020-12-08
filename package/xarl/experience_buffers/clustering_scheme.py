@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from utils.running_std import RunningMeanStd
+from xarl.utils.running_std import RunningMeanStd
 
 class none():
 	batch_type_is_based_on_episode_type = False

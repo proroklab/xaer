@@ -12,13 +12,13 @@ class CescoDriveV1(CescoDriveV0):
 		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		return [
 			{
-				'low': -15,
-				'high': 15,
+				'low': -20,
+				'high': 20,
 				'shape': (1,self.control_points_per_step,2),
 			},
 			{
-				'low': -15,
-				'high': 15,
+				'low': -20,
+				'high': 20,
 				'shape': (1,self.max_obstacle_count,3),
 			},
 			{
