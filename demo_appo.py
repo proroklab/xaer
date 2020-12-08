@@ -10,8 +10,7 @@ from ray.rllib.agents.ppo.appo import APPOTrainer, DEFAULT_CONFIG as APPO_DEFAUL
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
-# SELECT_ENV = "CescoDrive-v2"
-SELECT_ENV = "AlexDrive-v2" # discrete
+SELECT_ENV = "CescoDrive-v2"
 
 CONFIG = APPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
