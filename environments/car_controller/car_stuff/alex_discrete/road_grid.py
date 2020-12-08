@@ -3,6 +3,8 @@ from environments.car_controller.car_stuff.alex_discrete.road_cell import RoadCe
 from environments.car_controller.car_stuff.alex_discrete.road_agent import RoadAgent
 from environments.car_controller.car_stuff.alex_discrete.road_cultures import *
 
+import copy
+
 NORTH = 0
 SOUTH = 1
 EAST  = 2
@@ -29,7 +31,10 @@ class RoadGrid:
         :param coord: Position to check.
         :returns True if within bounds. False otherwise.
         """
-        return 0 <= coord[0] <= self.width and 0 <= coord[1] <= self.height
+        wr = range(0, self.width)
+        hr = range(0, self.height)
+        x, y = coord
+        return x in wr and y in hr
 
     def neighbours_of(self, coord, neighbourhood_type='von_neumann'):
         """
