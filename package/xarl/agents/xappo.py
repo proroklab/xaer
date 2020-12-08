@@ -152,11 +152,7 @@ def xappo_get_policy_class(config):
 	# return XAPPOTFPolicy
 
 def xappo_execution_plan(workers, config):
-	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(
-		config,
-		replay_batch_size=1,
-		replay_sequence_length=None,
-	)
+	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 
 	# Augment with replay and concat to desired train batch size.

@@ -127,11 +127,12 @@ def get_policy_class(config):
 	return XADQNTFPolicy
 
 def xadqn_execution_plan(workers, config):
-	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(
-		config, 
-		replay_batch_size=config["train_batch_size"],
-		replay_sequence_length=config["replay_sequence_length"],
-	)
+	replay_sequence_length = config["replay_sequence_length"]
+	replay_batch_size = config["train_batch_size"]
+	if replay_sequence_length and replay_sequence_length > 1:
+		replay_batch_size = int(max(1, replay_batch_size // replay_sequence_length))
+
+	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	def update_priorities(item):
 		samples, info_dict = item
 		if config.get("prioritized_replay"):
@@ -154,7 +155,8 @@ def xadqn_execution_plan(workers, config):
 	store_op = rollouts \
 		.for_each(lambda batch: batch.split_by_episode()) \
 		.flatten() \
-		.for_each(lambda episode: assign_types_from_episode([episode], clustering_scheme)) \
+		.for_each(lambda episode: episode.timeslices(replay_sequence_length)) \
+		.for_each(lambda episode: assign_types_from_episode(episode, clustering_scheme)) \
 		.flatten() \
 		.for_each(StoreToReplayBuffer(local_buffer=local_replay_buffer))
 
@@ -162,7 +164,9 @@ def xadqn_execution_plan(workers, config):
 	# returned from the LocalReplay() iterator is passed to TrainOneStep to
 	# take a SGD step, and then we decide whether to update the target network.
 	post_fn = config.get("before_learn_on_batch") or (lambda b, *a: b)
-	replay_op = Replay(local_buffer=local_replay_buffer) \
+	replay_op = Replay(local_buffer=local_replay_buffer, replay_batch_size=replay_batch_size) \
+		.flatten() \
+		.combine(ConcatBatches(min_batch_size=replay_batch_size)) \
 		.for_each(lambda x: post_fn(x, workers, config)) \
 		.for_each(TrainOneStep(workers)) \
 		.for_each(update_priorities) \

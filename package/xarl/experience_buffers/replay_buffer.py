@@ -26,14 +26,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		prioritized_replay=True,
 		buffer_options=None, 
 		learning_starts=1000, 
-		replay_sequence_length=None,
-		replay_batch_size=1,
 	):
-		self.replay_batch_size = replay_batch_size
-		self.replay_sequence_length = replay_sequence_length
-		if replay_sequence_length and replay_sequence_length > 1:
-			self.replay_batch_size = int(max(1, replay_batch_size // replay_sequence_length))
-			logger.info("Since replay_sequence_length={} and replay_batch_size={}, we will replay {} sequences at a time.".format(replay_sequence_length, replay_batch_size, self.replay_batch_size))
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
 		self.replay_starts = learning_starts
@@ -60,18 +53,14 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 	def add_batch(self, batch):
 		# Make a copy so the replay buffer doesn't pin plasma memory.
-		batch = batch.copy()
+		# batch = batch.copy()
 		batch_type = batch["batch_types"][0] if "batch_types" in batch else 'None'
 		# Handle everything as if multiagent
 		if isinstance(batch, SampleBatch):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
 		with self.add_batch_timer:
 			for policy_id, b in batch.policy_batches.items():
-				if not self.replay_sequence_length:
-					self.replay_buffers[policy_id].add(b, batch_type)
-				else:
-					for s in b.timeslices(self.replay_sequence_length):
-						self.replay_buffers[policy_id].add(s, batch_type)
+				self.replay_buffers[policy_id].add(b, batch_type)
 		self.num_added += batch.count
 		return batch
 
@@ -81,13 +70,12 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 		with self.replay_timer:
 			samples = {}
+			max_size = 1
 			for policy_id, replay_buffer in self.replay_buffers.items():
-				item_list = [
-					replay_buffer.sample().decompress_if_needed()
-					for _ in range(self.replay_batch_size)
-				]
-				samples[policy_id] = SampleBatch.concat_samples(item_list)
-			return MultiAgentBatch(samples, self.replay_batch_size)
+				samples[policy_id] = replay_buffer.sample()
+				if samples[policy_id].count > max_size:
+					max_size = samples[policy_id].count
+			return MultiAgentBatch(samples, max_size)
 
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:

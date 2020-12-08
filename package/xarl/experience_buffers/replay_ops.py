@@ -12,17 +12,19 @@ class StoreToReplayBuffer:
 		self.local_actor = local_buffer
 		
 	def __call__(self, batch: SampleBatchType):
-		self.local_actor.add_batch(batch)
-		return batch
+		return self.local_actor.add_batch(batch)
 
-def Replay(local_buffer):
+def Replay(local_buffer, replay_batch_size=1):
 	def gen_replay(_):
 		while True:
-			item = local_buffer.replay()
-			if item is None:
+			item_list = list(filter(lambda x:x, (
+				local_buffer.replay()
+				for _ in range(replay_batch_size)
+			)))
+			if not item_list:
 				yield _NextValueNotReady()
 			else:
-				yield item
+				yield item_list
 	return LocalIterator(gen_replay, SharedMetrics())
 
 class MixInReplay:
