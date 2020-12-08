@@ -11,7 +11,8 @@ from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
 # SELECT_ENV = "CescoDrive-v2"
-SELECT_ENV = "AlexDrive-v0"
+# SELECT_ENV = "AlexDrive-v0" # continuous
+SELECT_ENV = "AlexDrive-v2" # discrete
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"

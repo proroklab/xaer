@@ -10,7 +10,8 @@ from xarl.agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "Taxi-v3"
-SELECT_ENV = "ToyExample-v0"
+# SELECT_ENV = "ToyExample-v0"
+SELECT_ENV = "AlexDrive-v2"
 
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
