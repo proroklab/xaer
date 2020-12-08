@@ -29,7 +29,7 @@ class RoadGrid:
         :param coord: Position to check.
         :returns True if within bounds. False otherwise.
         """
-        return 0 <= coord[0] <= self.width and 0 <= coord[1] <= self.height
+        return 0 <= coord[0] < self.width and 0 <= coord[1] < self.height
 
     def neighbours_of(self, coord, neighbourhood_type='von_neumann'):
         """
