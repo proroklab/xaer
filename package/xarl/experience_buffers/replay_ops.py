@@ -12,8 +12,7 @@ class StoreToReplayBuffer:
 		self.local_actor = local_buffer
 		
 	def __call__(self, batch: SampleBatchType):
-		self.local_actor.add_batch(batch)
-		return batch
+		return self.local_actor.add_batch(batch)
 
 def Replay(local_buffer):
 	def gen_replay(_):
