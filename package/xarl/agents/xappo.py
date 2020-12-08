@@ -152,7 +152,11 @@ def xappo_get_policy_class(config):
 	# return XAPPOTFPolicy
 
 def xappo_execution_plan(workers, config):
-	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
+	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(
+		config,
+		replay_batch_size=1,
+		replay_sequence_length=None,
+	)
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 
 	# Augment with replay and concat to desired train batch size.
@@ -183,11 +187,15 @@ def xappo_execution_plan(workers, config):
 				broadcast_interval=config["broadcast_interval"]))
 
 	# This sub-flow updates the steps trained counter based on learner output.
-	def update_priorities(info):
+	def update_priorities(item):
 		if config.get("prioritized_replay"):
-			batch, stats_dict = info
-			local_replay_buffer.update_priority(batch)
-		return info
+			samples, info_dict = item
+			prio_dict = {}
+			for policy_id, info in info_dict.items():
+				batch = samples.policy_batches[policy_id]
+				prio_dict[policy_id] = batch
+			local_replay_buffer.update_priorities(prio_dict)
+		return item
 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
 		.for_each(update_priorities) \
 		.for_each(lambda x: (x[0].count, x[1])) \

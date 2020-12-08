@@ -39,7 +39,8 @@ XADDPG_DEFAULT_CONFIG = DDPGTrainer.merge_trainer_configs(
 # XADDPG's Policy
 ########################
 
-def tf_get_selected_qts(policy, model, train_batch):
+def tf_get_selected_qts(policy, train_batch):
+	model = policy.model
 	twin_q = policy.config["twin_q"]
 	gamma = policy.config["gamma"]
 	n_step = policy.config["n_step"]
@@ -97,7 +98,8 @@ def tf_get_selected_qts(policy, model, train_batch):
 	q_t_delta = q_t_selected - gamma**n_step * q_tp1_best_masked
 	return q_t_selected, q_t_selected_target, q_t_delta
 
-def torch_get_selected_qts(policy, model, train_batch):
+def torch_get_selected_qts(policy, train_batch):
+	model = policy.model
 	twin_q = policy.config["twin_q"]
 	gamma = policy.config["gamma"]
 	n_step = policy.config["n_step"]
@@ -171,7 +173,7 @@ def build_xaddpg_stats(policy, batch):
 	max_fn = torch.max if policy.config["framework"]=="torch" else tf.reduce_max
 	min_fn = torch.min if policy.config["framework"]=="torch" else tf.reduce_min
 
-	q_t_selected, q_t_selected_target, q_t_delta = qts_fn(policy, policy.model, batch)
+	q_t_selected, q_t_selected_target, q_t_delta = qts_fn(policy, batch)
 	stats = {
 		"actor_loss": policy.actor_loss,
 		"critic_loss": policy.critic_loss,

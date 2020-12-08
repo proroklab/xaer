@@ -12,7 +12,7 @@ from ray.rllib.agents.dqn.dqn_tf_policy import DQNTFPolicy, compute_q_values as 
 from ray.rllib.utils.tf_ops import explained_variance as tf_explained_variance
 from ray.rllib.utils.torch_ops import explained_variance as torch_explained_variance
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
-from ray.rllib.policy.sample_batch import SampleBatch, DEFAULT_POLICY_ID
+from ray.rllib.policy.sample_batch import SampleBatch
 
 from xarl.agents.xa_ops import *
 from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay
@@ -101,7 +101,7 @@ def build_xadqn_stats(policy, batch):
 	explained_variance_fn = torch_explained_variance if policy.config["framework"]=="torch" else tf_explained_variance
 	qts_fn = torch_get_selected_qts if policy.config["framework"]=="torch" else tf_get_selected_qts
 
-	q_t_selected, q_t_selected_target, q_t_delta = qts_fn(policy, policy.model, batch)
+	q_t_selected, q_t_selected_target, q_t_delta = qts_fn(policy, batch)
 	
 	return dict({
 		"cur_lr": tf.cast(policy.cur_lr, tf.float64),
@@ -127,15 +127,23 @@ def get_policy_class(config):
 	return XADQNTFPolicy
 
 def xadqn_execution_plan(workers, config):
-	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
+	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(
+		config, 
+		replay_batch_size=config["train_batch_size"],
+		replay_sequence_length=config["replay_sequence_length"],
+	)
 	def update_priorities(item):
-		batch, info_dict = item
-		# print(info_dict, config.get("prioritized_replay"))
+		samples, info_dict = item
 		if config.get("prioritized_replay"):
 			priority_id = config["buffer_options"]["priority_id"]
-			if priority_id == "weights":
-				batch[priority_id] = info_dict[DEFAULT_POLICY_ID][LEARNER_STATS_KEY].get("td_error", info_dict[DEFAULT_POLICY_ID].get("td_error"))
-			local_replay_buffer.update_priority(batch)
+			prio_dict = {}
+			for policy_id, info in info_dict.items():
+				td_error = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))
+				batch = samples.policy_batches[policy_id]
+				if priority_id == "weights":
+					batch[priority_id] = td_error
+				prio_dict[policy_id] = batch
+			local_replay_buffer.update_priorities(prio_dict)
 		return info_dict
 
 	rollouts = ParallelRollouts(workers, mode="bulk_sync")
@@ -146,8 +154,7 @@ def xadqn_execution_plan(workers, config):
 	store_op = rollouts \
 		.for_each(lambda batch: batch.split_by_episode()) \
 		.flatten() \
-		.for_each(lambda episode: episode.timeslices(config["replay_sequence_length"])) \
-		.for_each(lambda episode: assign_types_from_episode(episode, clustering_scheme)) \
+		.for_each(lambda episode: assign_types_from_episode([episode], clustering_scheme)) \
 		.flatten() \
 		.for_each(StoreToReplayBuffer(local_buffer=local_replay_buffer))
 
@@ -155,9 +162,7 @@ def xadqn_execution_plan(workers, config):
 	# returned from the LocalReplay() iterator is passed to TrainOneStep to
 	# take a SGD step, and then we decide whether to update the target network.
 	post_fn = config.get("before_learn_on_batch") or (lambda b, *a: b)
-	replay_op = Replay(local_buffer=local_replay_buffer, replay_batch_size=config["train_batch_size"]) \
-		.flatten() \
-		.combine(ConcatBatches(min_batch_size=config["train_batch_size"])) \
+	replay_op = Replay(local_buffer=local_replay_buffer) \
 		.for_each(lambda x: post_fn(x, workers, config)) \
 		.for_each(TrainOneStep(workers)) \
 		.for_each(update_priorities) \
