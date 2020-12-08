@@ -11,7 +11,7 @@ class AlexDriveV1(gym.Env):
 	
 	def __init__(self):
 		# Initialising grid
-		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION)
+		self.grid = None
 
 		# Replace here in case culture changes.
 		OBS_ROAD_FEATURES	 = self.MEDIUM_OBS_ROAD_FEATURES
@@ -32,11 +32,11 @@ class AlexDriveV1(gym.Env):
 		return self.get_state()
 
 	def get_state(self):
-		return list(map(np.array,[
-			self.grid.neighbour_features(), 
-			self.grid.agent.binary_features(), 
-			self.grid.agent_position
-		]))
+		return [
+			np.array(self.grid.neighbour_features(), dtype=np.int8), 
+			np.array(self.grid.agent.binary_features(), dtype=np.int8), 
+			np.array(self.grid.agent_position, dtype=np.int64), 
+		]
 
 	def step(self, action_vector):
 		direction 	= action_vector[0]
@@ -44,8 +44,4 @@ class AlexDriveV1(gym.Env):
 		reward, explanation = self.grid.move_agent(direction, speed)
 		self.step_counter += 1
 		state = self.get_state()
-		return [state, reward, self.step_counter > 100, {'explanation': explanation}]
-
-
-
-
+		return [state, reward, self.step_counter >= 2**6, {'explanation': explanation}]

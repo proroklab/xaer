@@ -1,4 +1,4 @@
-import graph_tool.all as gt
+# import graph_tool.all as gt
 import subprocess
 import string
 import re
@@ -215,24 +215,24 @@ class ArgumentationFramework:
                 text += "att({},{}).\n".format(attacker_text, attacked_text)
         return text
 
-    def to_graph_tool(self):
-        g = gt.Graph(directed=True)
-        ref = {}
-        g.vp.id = g.new_vertex_property("int")
-        g.vp.privacy = g.new_vertex_property("int")
-        g.vp.arg_obj = g.new_vertex_property("object")
-        for argument_id, argument_obj in self.all_arguments.items():
-            v = g.add_vertex()
-            ref[argument_id] = v
-            g.vp.id[v] = argument_id
-            g.vp.privacy[v] = argument_obj.privacy_cost
-            g.vp.arg_obj[v] = argument_obj
-        for attacker, attacked_set in self.all_attacks.items():
-            for attacked in attacked_set:
-                source = ref[attacker]
-                target = ref[attacked]
-                g.add_edge(source, target)
-        return g
+    # def to_graph_tool(self):
+    #     g = gt.Graph(directed=True)
+    #     ref = {}
+    #     g.vp.id = g.new_vertex_property("int")
+    #     g.vp.privacy = g.new_vertex_property("int")
+    #     g.vp.arg_obj = g.new_vertex_property("object")
+    #     for argument_id, argument_obj in self.all_arguments.items():
+    #         v = g.add_vertex()
+    #         ref[argument_id] = v
+    #         g.vp.id[v] = argument_id
+    #         g.vp.privacy[v] = argument_obj.privacy_cost
+    #         g.vp.arg_obj[v] = argument_obj
+    #     for attacker, attacked_set in self.all_attacks.items():
+    #         for attacked in attacked_set:
+    #             source = ref[attacker]
+    #             target = ref[attacked]
+    #             g.add_edge(source, target)
+    #     return g
 
     def from_graph_tool(self, g):
         self.all_arguments = {}
@@ -254,32 +254,32 @@ class ArgumentationFramework:
             target_id = g.vp.id[e.target()]
             self.add_attack(source_id, target_id)
 
-    def make_largest_component(self):
-        g = self.to_graph_tool()
-        comp = gt.label_largest_component(g, directed=False)
-        g = gt.GraphView(g, vfilt=comp)
-        self.from_graph_tool()
+    # def make_largest_component(self):
+    #     g = self.to_graph_tool()
+    #     comp = gt.label_largest_component(g, directed=False)
+    #     g = gt.GraphView(g, vfilt=comp)
+    #     self.from_graph_tool()
 
-    def make_spanning_graph(self):
-        spanning_graph = None
-        while True:
-            self.make_largest_component()
-            g = self.to_graph_tool()
-            motion_found = gt.find_vertex(g, g.vp.id, 0)
-            if motion_found:
-                spanning_graph = gt.random_spanning_tree(g, root=motion_found[0])
-                break
-            print("Failed to find root!")
-        g = gt.GraphView(g, efilt=spanning_graph)
-        self.from_graph_tool(g)
+    # def make_spanning_graph(self):
+    #     spanning_graph = None
+    #     while True:
+    #         self.make_largest_component()
+    #         g = self.to_graph_tool()
+    #         motion_found = gt.find_vertex(g, g.vp.id, 0)
+    #         if motion_found:
+    #             spanning_graph = gt.random_spanning_tree(g, root=motion_found[0])
+    #             break
+    #         print("Failed to find root!")
+    #     g = gt.GraphView(g, efilt=spanning_graph)
+    #     self.from_graph_tool(g)
 
-    def stats(self):
-        g = self.to_graph_tool()
-        dist, ends = gt.pseudo_diameter(g)
-        print("Diameter: {}".format(dist))
-        num_v = len(g.get_vertices())
-        num_e = len(g.get_edges())
-        print("Edges per vertex: {}".format(num_e/num_v))
+    # def stats(self):
+    #     g = self.to_graph_tool()
+    #     dist, ends = gt.pseudo_diameter(g)
+    #     print("Diameter: {}".format(dist))
+    #     num_v = len(g.get_vertices())
+    #     num_e = len(g.get_edges())
+    #     print("Edges per vertex: {}".format(num_e/num_v))
 
 
     def circuits(self):

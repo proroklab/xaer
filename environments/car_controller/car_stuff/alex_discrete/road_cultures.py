@@ -25,39 +25,39 @@ class EasyRoadCulture(Culture):
         """
         args = []
 
-        id = 0
-        motion = Argument(id, "I will not get a ticket.")
-        self.ids["no_ticket"] = id
+        _id = 0
+        motion = Argument(_id, "I will not get a ticket.")
+        self.ids["no_ticket"] = _id
         motion.set_verifier(lambda gen: True)  # Propositional arguments are always valid.
         args.append(motion)
 
-        id += 1
-        arg1 = Argument(id, "This is a motorway.")
-        self.ids["is_motorway"] = id
+        _id += 1
+        arg1 = Argument(_id, "This is a motorway.")
+        self.ids["is_motorway"] = _id
         def arg1_verifier(road: RoadCell, agent: RoadAgent):
             return road["Motorway"] is True
         arg1.set_verifier(arg1_verifier)
         args.append(arg1)
 
-        id += 1
-        arg2 = Argument(id, "There is a stop sign.")
-        self.ids["has_stop_sign"] = id
+        _id += 1
+        arg2 = Argument(_id, "There is a stop sign.")
+        self.ids["has_stop_sign"] = _id
         def arg2_verifier(road: RoadCell, agent: RoadAgent):
             return road["Stop Sign"] is True
         arg2.set_verifier(arg2_verifier)
         args.append(arg2)
 
-        id += 1
-        speed0 = Argument(id, "My speed is 0.")
-        self.ids["speed==0"] = id
+        _id += 1
+        speed0 = Argument(_id, "My speed is 0.")
+        self.ids["speed==0"] = _id
         def speed0_verifier(road: RoadCell, agent: RoadAgent):
             return agent["Speed"] <= 0
         speed0.set_verifier(speed0_verifier)
         args.append(speed0)
 
-        id += 1
-        speed70 = Argument(id, "My speed is 70 or less.")
-        self.ids["speed<=70"] = id
+        _id += 1
+        speed70 = Argument(_id, "My speed is 70 or less.")
+        self.ids["speed<=70"] = _id
         def speed70_verifier(road: RoadCell, agent: RoadAgent):
             return agent["Speed"] <= 70
         speed70.set_verifier(speed70_verifier)
@@ -116,95 +116,95 @@ class MediumRoadCulture(Culture):
         """
         args = []
 
-        id = 0
-        motion = Argument(id, "I will not get a ticket.")
-        self.ids["no_ticket"] = id
+        _id = 0
+        motion = Argument(_id, "I will not get a ticket.")
+        self.ids["no_ticket"] = _id
         motion.set_verifier(lambda *gen: True)  # Propositional arguments are always valid.
         args.append(motion)
 
-        id += 1
-        arg1 = Argument(id, "This is a motorway.")
-        self.ids["is_motorway"] = id
+        _id += 1
+        arg1 = Argument(_id, "This is a motorway.")
+        self.ids["is_motorway"] = _id
         def arg1_verifier(road: RoadCell, agent: RoadAgent):
             return road["Motorway"] is True
         arg1.set_verifier(arg1_verifier)
         args.append(arg1)
 
-        id += 1
-        arg2 = Argument(id, "There is a stop sign.")
-        self.ids["has_stop_sign"] = id
+        _id += 1
+        arg2 = Argument(_id, "There is a stop sign.")
+        self.ids["has_stop_sign"] = _id
         def arg2_verifier(road: RoadCell, agent: RoadAgent):
             return road["Stop Sign"] is True
         arg2.set_verifier(arg2_verifier)
         args.append(arg2)
 
-        id += 1
-        arg3 = Argument(id, "There is a school nearby.")
-        self.ids["has_school"] = id
+        _id += 1
+        arg3 = Argument(_id, "There is a school nearby.")
+        self.ids["has_school"] = _id
         def arg3_verifier(road: RoadCell, agent: RoadAgent):
             return road["School"] is True
         arg3.set_verifier(arg3_verifier)
         args.append(arg3)
 
-        id += 1
-        arg4 = Argument(id, "This is a single lane road.")
-        self.ids["single_lane"] = id
+        _id += 1
+        arg4 = Argument(_id, "This is a single lane road.")
+        self.ids["single_lane"] = _id
         def arg4_verifier(road: RoadCell, agent: RoadAgent):
             return road["Single Lane"] is True
         arg4.set_verifier(arg4_verifier)
         args.append(arg4)
 
-        id += 1
-        arg5 = Argument(id, "This is a town road.")
-        self.ids["town_road"] = id
+        _id += 1
+        arg5 = Argument(_id, "This is a town road.")
+        self.ids["town_road"] = _id
         def arg5_verifier(road: RoadCell, agent: RoadAgent):
             return road["Town Road"] is True
         arg5.set_verifier(arg5_verifier)
         args.append(arg5)
 
-        id += 1
-        speed0 = Argument(id, "My speed is 0.")
-        self.ids["speed==0"] = id
+        _id += 1
+        speed0 = Argument(_id, "My speed is 0.")
+        self.ids["speed==0"] = _id
         def speed0_verifier(road: RoadCell, agent: RoadAgent):
             return agent["Speed"] <= 0
         speed0.set_verifier(speed0_verifier)
         args.append(speed0)
 
-        id += 1
-        speed20 = Argument(id, "My speed is 20 or less.")
-        self.ids["speed<=20"] = id
+        _id += 1
+        speed20 = Argument(_id, "My speed is 20 or less.")
+        self.ids["speed<=20"] = _id
         def speed20_verifier(road: RoadCell, agent: RoadAgent):
             return agent["Speed"] <= 20
         speed20.set_verifier(speed20_verifier)
         args.append(speed20)
 
-        id += 1
-        speed30 = Argument(id, "My speed is 30 or less.")
-        self.ids["speed<=30"] = id
+        _id += 1
+        speed30 = Argument(_id, "My speed is 30 or less.")
+        self.ids["speed<=30"] = _id
         def speed30_verifier(road: RoadCell, agent: RoadAgent):
             return agent["Speed"] <= 30
         speed30.set_verifier(speed30_verifier)
         args.append(speed30)
 
-        id += 1
-        speed60 = Argument(id, "My speed is 60 or less.")
-        self.ids["speed<=60"] = id
+        _id += 1
+        speed60 = Argument(_id, "My speed is 60 or less.")
+        self.ids["speed<=60"] = _id
         def speed60_verifier(road: RoadCell, agent: RoadAgent):
             return agent["Speed"] <= 60
         speed60.set_verifier(speed60_verifier)
         args.append(speed60)
 
-        id += 1
-        speed70 = Argument(id, "My speed is 70 or less.")
-        self.ids["speed<=70"] = id
+        _id += 1
+        speed70 = Argument(_id, "My speed is 70 or less.")
+        self.ids["speed<=70"] = _id
         def speed70_verifier(road: RoadCell, agent: RoadAgent):
             return agent["Speed"] <= 70
         speed70.set_verifier(speed70_verifier)
         args.append(speed70)
 
-        id += 1
-        emergency = Argument(id, "I am an emergency vehicle.")
-        self.ids["emergency_vehicle"] = id
+        _id += 1
+        emergency = Argument(_id, "I am an emergency vehicle.")
+        self.ids["emergency_vehicle"] = _id
         def emergency_verifier(road: RoadCell, agent: RoadAgent):
             return agent["Emergency Vehicle"] is True
         emergency.set_verifier(emergency_verifier)
