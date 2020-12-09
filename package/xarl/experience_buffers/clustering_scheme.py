@@ -63,7 +63,7 @@ class moving_best_extrinsic_reward_with_multiple_types(moving_best_extrinsic_rew
 		explanation_iter = sum(explanation_iter, [])
 		explanation_iter = unique_everseen(explanation_iter)
 		explanation_iter = map(lambda x:f"{episode_type}/{x}", explanation_iter)
-		explanation_list = list(explanation_iter)
+		explanation_list = tuple(explanation_iter)
 		# print(explanation_list)
 		return explanation_list
 
@@ -88,5 +88,5 @@ class reward_with_multiple_types(none):
 		explanation_iter = map(lambda x: list(x) if isinstance(x,(list,tuple)) else [x], explanation_iter)
 		explanation_iter = sum(explanation_iter, [])
 		explanation_iter = unique_everseen(explanation_iter)
-		explanation_list = list(explanation_iter)
+		explanation_list = tuple(explanation_iter)
 		return explanation_list

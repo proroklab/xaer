@@ -97,7 +97,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			samples = {}
 			for policy_id, replay_buffer in self.replay_buffers.items():
 				item_list = [
-					replay_buffer.sample().decompress_if_needed()
+					replay_buffer.sample()#.decompress_if_needed()
 					for _ in range(self.replay_batch_size)
 				]
 				samples[policy_id] = SampleBatch.concat_samples(item_list)
