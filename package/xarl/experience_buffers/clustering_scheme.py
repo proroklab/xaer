@@ -6,6 +6,7 @@ from xarl.utils.running_std import RunningMeanStd
 
 class none():
 	batch_type_is_based_on_episode_type = False
+	batch_type_is_list = False
 
 	@staticmethod
 	def is_best_episode(episode_type):
@@ -54,6 +55,18 @@ class moving_best_extrinsic_reward_with_type(moving_best_extrinsic_reward):
 		# batch_type = '-'.join([most_frequent_explanation,less_frequent_explanation])
 		return f"{episode_type}/{batch_type}"
 
+class moving_best_extrinsic_reward_with_multiple_types(moving_best_extrinsic_reward):
+	batch_type_is_list = True
+	def get_batch_type(self, batch, episode_type):
+		explanation_iter = map(lambda x: x.get("explanation",'None'), batch["infos"])
+		explanation_iter = map(lambda x: list(x) if isinstance(x,(list,tuple)) else [x], explanation_iter)
+		explanation_iter = sum(explanation_iter, [])
+		explanation_iter = unique_everseen(explanation_iter)
+		explanation_iter = map(lambda x:f"{episode_type}/{x}", explanation_iter)
+		explanation_list = list(explanation_iter)
+		# print(explanation_list)
+		return explanation_list
+
 class reward_with_type(none):
 	def get_batch_type(self, batch, episode_type):
 		explanation_iter = map(lambda x: x.get("explanation",'None'), batch["infos"])
@@ -67,3 +80,13 @@ class reward_with_type(none):
 		# most_frequent_explanation = max(explanation_counter.items(), key=lambda x:x[-1])[0]
 		# batch_type = '-'.join([most_frequent_explanation,less_frequent_explanation])
 		return batch_type
+
+class reward_with_multiple_types(none):
+	batch_type_is_list = True
+	def get_batch_type(self, batch, episode_type):
+		explanation_iter = map(lambda x: x.get("explanation",'None'), batch["infos"])
+		explanation_iter = map(lambda x: list(x) if isinstance(x,(list,tuple)) else [x], explanation_iter)
+		explanation_iter = sum(explanation_iter, [])
+		explanation_iter = unique_everseen(explanation_iter)
+		explanation_list = list(explanation_iter)
+		return explanation_list

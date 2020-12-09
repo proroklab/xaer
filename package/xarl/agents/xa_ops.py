@@ -17,12 +17,13 @@ def get_clustered_replay_buffer(config, replay_batch_size=1, replay_sequence_len
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme
 
-def assign_types_from_episode(episode, clustering_scheme):
+def assign_types_to_episode(episode, clustering_scheme):
 	episode_type = clustering_scheme.get_episode_type(episode)
 	# print(episode_type)
 	for batch in episode:
 		batch_type = clustering_scheme.get_batch_type(batch, episode_type)
-		batch["batch_types"] = np.array([batch_type]*batch.count)
+		batch["infos"][0]['batch_type'] = batch_type
+		batch["infos"][0]['batch_index'] = {}
 	return episode
 
 class BatchLearnerThread(LearnerThread):

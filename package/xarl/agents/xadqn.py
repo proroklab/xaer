@@ -28,7 +28,7 @@ XADQN_DEFAULT_CONFIG = DQNTrainer.merge_trainer_configs(
 			'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
 			'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
 			'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-			'prioritized_drop_probability': 1, # Probability of dropping experience with the lowest priority in the buffer
+			'prioritized_drop_probability': 0.5, # Probability of dropping experience with the lowest priority in the buffer
 			'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 			'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
 		},
@@ -154,7 +154,7 @@ def xadqn_execution_plan(workers, config):
 	store_op = rollouts \
 		.for_each(lambda batch: batch.split_by_episode()) \
 		.flatten() \
-		.for_each(lambda episode: assign_types_from_episode([episode], clustering_scheme)) \
+		.for_each(lambda episode: assign_types_to_episode([episode], clustering_scheme)) \
 		.flatten() \
 		.for_each(StoreToReplayBuffer(local_buffer=local_replay_buffer))
 

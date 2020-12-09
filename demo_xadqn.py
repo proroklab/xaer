@@ -24,11 +24,11 @@ CONFIG["buffer_options"] = {
 	'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
 	'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
 	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-	'prioritized_drop_probability': 1, # Probability of dropping experience with the lowest priority in the buffer
+	'prioritized_drop_probability': 0.5, # Probability of dropping experience with the lowest priority in the buffer
 	'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
 }
-CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_type" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
+CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_multiple_types" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type
 CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes' otherwise it can also be 'truncate_episodes'
 
 ####################################################################################

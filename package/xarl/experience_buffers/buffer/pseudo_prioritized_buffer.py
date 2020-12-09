@@ -75,7 +75,9 @@ class PseudoPrioritizedBuffer(Buffer):
 		else: # add new element to buffer
 			idx = len(type_batch)
 			type_batch.append(batch)
-		batch["batch_indexes"] = np.array([idx]*batch.count)
+		batch_infos = batch['infos'][0]
+		assert "batch_index" in batch_infos, "Something wrong!"
+		batch_infos["batch_index"][type_id] = idx
 		# batch["batch_types"] = np.array([type_id]*batch.count)
 		# Set insertion time
 		if self._prioritized_drop_probability < 1:
