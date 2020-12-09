@@ -4,7 +4,7 @@ import gym
 import numpy as np
 
 
-class AlexDriveV1(gym.Env):
+class GridDriveV0(gym.Env):
 	GRID_DIMENSION				= 30
 	MEDIUM_OBS_ROAD_FEATURES 	= 6  # Number of binary ROAD features in Medium Culture
 	MEDIUM_OBS_CAR_FEATURES 	= 1  # Number of binary CAR features in Medium Culture (excl. speed)
@@ -44,4 +44,4 @@ class AlexDriveV1(gym.Env):
 		reward, explanation = self.grid.move_agent(direction, speed)
 		self.step_counter += 1
 		state = self.get_state()
-		return [state, reward, self.step_counter >= 2**6, {'explanation': explanation}]
+		return [state, reward, self.step_counter >= 2**7, {'explanation': explanation}]

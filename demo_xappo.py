@@ -9,10 +9,11 @@ import ray
 from xarl.agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG, GAINS
 from environments import *
 
+# SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-v0"
 # SELECT_ENV = "CescoDrive-v2"
-# SELECT_ENV = "AlexDrive-v0" # continuous
-SELECT_ENV = "AlexDrive-v2" # discrete
+# SELECT_ENV = "AlexDrive-v0"
+SELECT_ENV = "GridDrive-v1"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"

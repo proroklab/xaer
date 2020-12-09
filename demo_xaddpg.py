@@ -10,8 +10,8 @@ from xarl.agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
-# SELECT_ENV = "CescoDrive-v2"
-SELECT_ENV = "AlexDrive-v0"
+SELECT_ENV = "CescoDrive-v2"
+# SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"

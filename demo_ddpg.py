@@ -10,9 +10,9 @@ from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAU
 from xarl.agents.xaddpg import DDPGTrainer as DDPGTrainer_ExplainedVar
 from environments import *
 
-# SELECT_ENV = "CescoDrive-v2"
 # SELECT_ENV = "ToyExample-v0"
-SELECT_ENV = "AlexDrive-v0"
+SELECT_ENV = "CescoDrive-v2"
+# SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"

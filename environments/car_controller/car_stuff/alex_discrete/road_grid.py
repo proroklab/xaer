@@ -154,25 +154,24 @@ class RoadGrid:
 
         # Building the explanation.
 
-        explanation = ""
+        explanation_list = []
         if explanation_type == "verbose":
             turn = 0
             for argument_list in dialogue_history:
-                turn_label = "CON: " if turn % 2 else "PRO: "
-                explanation += turn_label + "\""
-                for argument_id in argument_list:
-                    argument_obj = AF.argument(argument_id)
-                    explanation += argument_obj.descriptive_text + " "
-                explanation += "\"" + "\n"
+                argument_explanation = "CON: " if turn % 2 else "PRO: "
+                argument_explanation += ' - '.join(sorted((
+                    AF.argument(argument_id).descriptive_text
+                    for argument_id in argument_list
+                )))
                 turn += 1
+                explanation_list.append(argument_explanation)
         else:
-            explanation += "\""
-            for argument_id in last_argument[winner]:
-                argument_obj = AF.argument(argument_id)
-                explanation += argument_obj.descriptive_text + " "
-            explanation += "\""
+            explanation_list += [
+                AF.argument(argument_id).descriptive_text
+                for argument_id in last_argument[winner]
+            ]
 
-        return motion_validated, explanation
+        return motion_validated, explanation_list
 
 
     def move_agent(self, direction, speed):
@@ -201,21 +200,22 @@ class RoadGrid:
 
         reward = 0
 
-        self.visited_positions.add(self.agent_position)
+        # self.visited_positions.add(self.agent_position)
         self.agent.assign_property_value("Speed", speed)
 
-        motion, explanation = self.run_dialogue(self.cells[dest_x][dest_y], self.agent, explanation_type="compact")
+        motion, explanation_list = self.run_dialogue(self.cells[dest_x][dest_y], self.agent, explanation_type="compact")
         if motion:  # If the argument "I will not get a ticket" is validated.
             reward += int(min((speed/10), 10))
         else:  # Got ticket.
             reward += -5
 
-        # Check if not repeating previously-visited cells.
-        if (dest_x, dest_y) not in self.visited_positions:
-            reward += 2
-            explanation += "EXTRA: This is a new cell."
-        else:
-            explanation += "EXTRA: This is a repeated cell."
+        # # Check if not repeating previously-visited cells.
+        # if (dest_x, dest_y) not in self.visited_positions:
+        #     reward += 2
+        #     explanation_list.append("EXTRA: This is a new cell.")
+        # else:
+        #     explanation_list.append("EXTRA: This is a repeated cell.")
+        explanation = ' / '.join(sorted(explanation_list))
 
         self.agent_position = (dest_x, dest_y)
         return reward, explanation

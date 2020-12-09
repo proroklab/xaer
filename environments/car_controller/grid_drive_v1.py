@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from environments.car_controller.alex_drive_v1 import AlexDriveV1
+from environments.car_controller.grid_drive_v0 import GridDriveV0
 import gym
 
-class AlexDriveV2(AlexDriveV1):
+class GridDriveV1(GridDriveV0):
 	def __init__(self):
 		super().__init__()
 		# Direction (N, S, W, E) + Speed [0-200]
@@ -14,4 +14,4 @@ class AlexDriveV2(AlexDriveV1):
 		reward, explanation = self.grid.move_agent(direction, speed)
 		self.step_counter += 1
 		state = self.get_state()
-		return [state, reward, self.step_counter >= 2**6, {'explanation': explanation}]
+		return [state, reward, self.step_counter >= 2**7, {'explanation': explanation}]

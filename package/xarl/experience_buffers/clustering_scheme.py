@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from collections import Counter
 from xarl.utils.running_std import RunningMeanStd
 
 class none():
@@ -40,12 +41,20 @@ class moving_best_extrinsic_reward(extrinsic_reward):
 		
 class moving_best_extrinsic_reward_with_type(moving_best_extrinsic_reward):
 	def get_batch_type(self, batch, episode_type):
-		# print(batch["infos"])
 		batch_type = '-'.join(sorted(set(map(lambda x: x.get("explanation",'None'), batch["infos"]))))
-		# print(batch_type)
+		# explanation_list = list(map(lambda x: x.get("explanation",'None'), batch["infos"]))
+		# explanation_counter = Counter(explanation_list)
+		# less_frequent_explanation = min(explanation_counter.items(), key=lambda x:x[-1])[0]
+		# most_frequent_explanation = max(explanation_counter.items(), key=lambda x:x[-1])[0]
+		# batch_type = '-'.join([most_frequent_explanation,less_frequent_explanation])
 		return f"{episode_type}/{batch_type}"
 
 class reward_with_type(none):
 	def get_batch_type(self, batch, episode_type):
 		batch_type = '-'.join(sorted(set(map(lambda x: x.get("explanation",'None'), batch["infos"]))))
+		# explanation_list = list(map(lambda x: x.get("explanation",'None'), batch["infos"]))
+		# explanation_counter = Counter(explanation_list)
+		# less_frequent_explanation = min(explanation_counter.items(), key=lambda x:x[-1])[0]
+		# most_frequent_explanation = max(explanation_counter.items(), key=lambda x:x[-1])[0]
+		# batch_type = '-'.join([most_frequent_explanation,less_frequent_explanation])
 		return batch_type
