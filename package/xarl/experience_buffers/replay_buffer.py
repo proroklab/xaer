@@ -78,7 +78,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					for s in b.timeslices(self.replay_sequence_length):
 						s_infos = s['infos'][0]
 						s_infos["batch_type"] = batch_type
-						s_infos["batch_index"] = b_infos["batch_index"]
+						s_infos["batch_index"] = {}
 						if isinstance(batch_type,(tuple,list)):
 							for sub_batch_type in batch_type:
 								self.replay_buffers[policy_id].add(s, sub_batch_type)
