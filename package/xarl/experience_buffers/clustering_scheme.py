@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from collections import Counter
+from more_itertools import unique_everseen
 from xarl.utils.running_std import RunningMeanStd
 
 class none():
@@ -41,7 +42,11 @@ class moving_best_extrinsic_reward(extrinsic_reward):
 		
 class moving_best_extrinsic_reward_with_type(moving_best_extrinsic_reward):
 	def get_batch_type(self, batch, episode_type):
-		batch_type = '-'.join(sorted(set(map(lambda x: x.get("explanation",'None'), batch["infos"]))))
+		explanation_iter = map(lambda x: x.get("explanation",'None'), batch["infos"])
+		explanation_iter = map(lambda x: list(x) if isinstance(x,(list,tuple)) else [x], explanation_iter)
+		explanation_iter = sum(explanation_iter, [])
+		explanation_iter = unique_everseen(explanation_iter)
+		batch_type = '-'.join(sorted(explanation_iter))
 		# explanation_list = list(map(lambda x: x.get("explanation",'None'), batch["infos"]))
 		# explanation_counter = Counter(explanation_list)
 		# less_frequent_explanation = min(explanation_counter.items(), key=lambda x:x[-1])[0]
@@ -51,7 +56,11 @@ class moving_best_extrinsic_reward_with_type(moving_best_extrinsic_reward):
 
 class reward_with_type(none):
 	def get_batch_type(self, batch, episode_type):
-		batch_type = '-'.join(sorted(set(map(lambda x: x.get("explanation",'None'), batch["infos"]))))
+		explanation_iter = map(lambda x: x.get("explanation",'None'), batch["infos"])
+		explanation_iter = map(lambda x: list(x) if isinstance(x,(list,tuple)) else [x], explanation_iter)
+		explanation_iter = sum(explanation_iter, [])
+		explanation_iter = unique_everseen(explanation_iter)
+		batch_type = '-'.join(sorted(explanation_iter))
 		# explanation_list = list(map(lambda x: x.get("explanation",'None'), batch["infos"]))
 		# explanation_counter = Counter(explanation_list)
 		# less_frequent_explanation = min(explanation_counter.items(), key=lambda x:x[-1])[0]

@@ -41,7 +41,7 @@ class GridDriveV0(gym.Env):
 	def step(self, action_vector):
 		direction 	= action_vector[0]
 		speed 		= action_vector[1]
-		reward, explanation = self.grid.move_agent(direction, speed)
+		reward, explanation = self.grid.move_agent(direction, speed, with_exploratory_bonus=True)
 		self.step_counter += 1
 		state = self.get_state()
 		return [state, reward, self.step_counter >= 2**7, {'explanation': explanation}]

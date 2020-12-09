@@ -11,7 +11,7 @@ class GridDriveV1(GridDriveV0):
 	def step(self, action_vector):
 		direction 	= action_vector//200
 		speed 		= action_vector%200
-		reward, explanation = self.grid.move_agent(direction, speed)
+		reward, explanation = self.grid.move_agent(direction, speed, with_exploratory_bonus=False)
 		self.step_counter += 1
 		state = self.get_state()
 		return [state, reward, self.step_counter >= 2**7, {'explanation': explanation}]
