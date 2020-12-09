@@ -23,6 +23,7 @@ CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
 # CONFIG["gamma"] = 0.999
 CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 # CONFIG["batch_mode"] = "complete_episodes" # Whether to rollout "complete_episodes" or "truncate_episodes" to `rollout_fragment_length` length unrolls. Episode truncation guarantees evenly sized batches, but increases variance as the reward-to-go will need to be estimated at truncation boundaries.
+# CONFIG["vtrace"] = False
 
 ####################################################################################
 ####################################################################################
