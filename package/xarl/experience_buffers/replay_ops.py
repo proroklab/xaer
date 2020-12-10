@@ -1,5 +1,6 @@
 from typing import List
 import random
+import numpy as np
 
 from ray.util.iter import LocalIterator, _NextValueNotReady
 from ray.util.iter_metrics import SharedMetrics
@@ -57,18 +58,12 @@ class MixInReplay:
 		self.replay_proportion = replay_proportion
 
 	def __call__(self, sample_batch):
-		# print(sample_batch["weights"])
-		# Put in replay buffer if enabled.
+		# Sample n batches from experience buffer, using a poisson distribution
+		n = np.random.poisson(self.replay_proportion)
+		output_batches = (self.replay_buffer.replay() for _ in range(n))
+		output_batches = filter(lambda x:x, output_batches)
+		output_batches = list(output_batches)
+		# Put in the experience buffer, after replaying, to avoid double sampling.
 		sample_batch = self.replay_buffer.add_batch(sample_batch)
-		# print(sample_batch['index'])
-
-		# Proportional replay.
-		output_batches = [sample_batch]
-		f = self.replay_proportion
-		while random.random() < f:
-			f -= 1
-			replayed_batch = self.replay_buffer.replay()
-			if not replayed_batch:
-				return output_batches
-			output_batches.append(replayed_batch)
+		output_batches.append(sample_batch)
 		return output_batches

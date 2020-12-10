@@ -2,6 +2,8 @@ import collections
 import logging
 import numpy as np
 import platform
+from more_itertools import unique_everseen
+from itertools import islice
 
 # Import ray before psutil will make sure we use psutil's bundled version
 import ray  # noqa F401
@@ -89,19 +91,28 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		self.num_added += batch.count
 		return batch
 
+	@staticmethod
+	def gen_replay(replay_buffer):
+		while True:
+			yield replay_buffer.sample()
+
 	def replay(self):
 		if self.num_added < self.replay_starts:
 			return None
 
 		with self.replay_timer:
 			samples = {}
+			transitions_max_count = 0
 			for policy_id, replay_buffer in self.replay_buffers.items():
-				item_list = [
-					replay_buffer.sample()#.decompress_if_needed()
-					for _ in range(self.replay_batch_size)
-				]
-				samples[policy_id] = SampleBatch.concat_samples(item_list)
-			return MultiAgentBatch(samples, self.replay_batch_size)
+				batch_iter = self.gen_replay(replay_buffer) # generate new batches
+				batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
+				batch_iter = islice(batch_iter, self.replay_batch_size) # take the first n batches
+				batch_list = list(batch_iter)
+				concat_batch = SampleBatch.concat_samples(batch_list) # add current batch
+				samples[policy_id] = concat_batch
+				if concat_batch.count > transitions_max_count:
+					transitions_max_count = concat_batch.count
+			return MultiAgentBatch(samples, transitions_max_count)
 
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:
