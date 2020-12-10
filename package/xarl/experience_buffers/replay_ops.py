@@ -62,12 +62,14 @@ class MixInReplay:
 	def __call__(self, sample_batch):
 		output_batches = []
 		if self.replay_buffer.can_replay():
-			# Sample n batches from experience buffer, using a poisson distribution
-			n = np.random.poisson(self.replay_proportion)
-			n = min(n,self.replay_buffer.num_added) # cannot sample more unique elements than there is in the buffer
-			if n > 0:
-				output_batches.append(self.replay_buffer.replay(n))
+			f = self.replay_proportion
+			while random.random() < f:
+				f -= 1
+				replayed_batch = self.replay_buffer.replay()
+				if not replayed_batch:
+					return output_batches
+				output_batches.append(replayed_batch)
 		# Put in the experience buffer, after replaying, to avoid double sampling.
 		sample_batch = self.replay_buffer.add_batch(sample_batch)
-		output_batches.insert(0, sample_batch)
+		output_batches.append(sample_batch)
 		return output_batches
