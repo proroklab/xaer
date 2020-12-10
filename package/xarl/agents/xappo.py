@@ -115,6 +115,11 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 							   sample_batch[SampleBatch.ACTIONS][-1],
 							   sample_batch[SampleBatch.REWARDS][-1],
 							   *next_state)
+	importance_weights_id = policy.config["buffer_options"]["priority_id"]
+	if importance_weights_id not in sample_batch:
+		importance_weights = np.ones_like(sample_batch[SampleBatch.REWARDS])
+	else:
+		importance_weights = sample_batch[importance_weights_id]
 	if policy.config["gae_with_vtrace"]:
 		sample_batch = compute_gae_v_advantages(sample_batch, last_r, policy.config["gamma"], policy.config["lambda"])
 	else:
@@ -126,6 +131,8 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 			use_gae=policy.config["use_gae"],
 			use_critic=policy.config["use_critic"]
 		)
+	sample_batch['unweighted_'+Postprocessing.ADVANTAGES] = sample_batch[Postprocessing.ADVANTAGES].copy()
+	sample_batch[Postprocessing.ADVANTAGES] *= importance_weights
 	# Add gains
 	advantages = sample_batch[Postprocessing.ADVANTAGES]
 	new_priorities = advantages * logp_ratio
