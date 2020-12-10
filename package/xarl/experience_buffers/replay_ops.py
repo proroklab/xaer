@@ -66,9 +66,8 @@ class MixInReplay:
 			while random.random() < f:
 				f -= 1
 				replayed_batch = self.replay_buffer.replay()
-				if not replayed_batch:
-					return output_batches
-				output_batches.append(replayed_batch)
+				if replayed_batch:
+					output_batches.append(replayed_batch)
 		# Put in the experience buffer, after replaying, to avoid double sampling.
 		sample_batch = self.replay_buffer.add_batch(sample_batch)
 		output_batches.append(sample_batch)
