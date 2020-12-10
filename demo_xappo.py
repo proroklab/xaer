@@ -23,7 +23,7 @@ CONFIG["clip_param"] = 0.2 # PPO surrogate loss options
 ##################################
 # For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
-CONFIG["learning_starts"] = 1000 # How many steps of the model to sample before learning starts.
+CONFIG["learning_starts"] = 1000 # How many batches to sample before learning starts.
 CONFIG["prioritized_replay"] = True
 CONFIG["buffer_options"] = {
 	'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, advantages, rewards, prev_rewards, action_logp
@@ -34,7 +34,7 @@ CONFIG["buffer_options"] = {
 	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
 	'prioritized_drop_probability': 0.5, # Probability of dropping experience with the lowest priority in the buffer
 	'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
-	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
+	'prioritised_cluster_sampling': False, # Whether to select which cluster to replay in a prioritised fashion
 }
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_multiple_types" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types
 CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes' otherwise it can also be 'truncate_episodes'

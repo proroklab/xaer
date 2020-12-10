@@ -9,13 +9,14 @@ EAST  = 2
 WEST  = 3
 
 class RoadGrid:
-	def __init__(self, x_dim, y_dim):
+	def __init__(self, x_dim, y_dim, max_speed):
 		self.agent = RoadAgent()
 		self.agent_position = (0, 0)
 		self.cells = []
 		self.visited_positions = set()
 		self.width = x_dim
 		self.height = y_dim
+		self.max_speed = max_speed
 
 		self.road_culture = MediumRoadCulture()
 		self.agent.set_culture(self.road_culture)
@@ -196,7 +197,7 @@ class RoadGrid:
 			dest_x -= 1
 
 		if not self.within_bounds((dest_x, dest_y)):
-			return -10, "FAIL: Out of bounds!"
+			return -1, "FAIL: Out of bounds!"
 
 		reward = 0
 
@@ -206,14 +207,14 @@ class RoadGrid:
 
 		motion, explanation_list = self.run_dialogue(self.cells[dest_x][dest_y], self.agent, explanation_type="compact")
 		if motion:  # If the argument "I will not get a ticket" is validated.
-			reward += int(min((speed/10), 10))
+			reward += speed/self.max_speed
 		else:  # Got ticket.
-			reward += -5
+			reward += -1
 
 		if with_exploratory_bonus:
 			# Check if not repeating previously-visited cells.
 			if (dest_x, dest_y) not in self.visited_positions:
-				reward += 2
+				reward += speed/self.max_speed
 				explanation_list.append("EXTRA: This is a new cell.")
 			else:
 				explanation_list.append("EXTRA: This is a repeated cell.")

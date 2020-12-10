@@ -26,7 +26,7 @@ XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
 	DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 	{
 		"replay_proportion": 1, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
-		"learning_starts": 1000, # How many steps of the model to sample before learning starts.
+		"learning_starts": 1000, # How many batches to sample before learning starts.
 		"prioritized_replay": True,
 		"buffer_options": {
 			'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, advantages, rewards, prev_rewards, action_logp

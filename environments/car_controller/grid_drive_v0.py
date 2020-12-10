@@ -8,6 +8,7 @@ class GridDriveV0(gym.Env):
 	GRID_DIMENSION				= 30
 	MEDIUM_OBS_ROAD_FEATURES 	= 6  # Number of binary ROAD features in Medium Culture
 	MEDIUM_OBS_CAR_FEATURES 	= 1  # Number of binary CAR features in Medium Culture (excl. speed)
+	MAX_SPEED 					= 100
 	
 	def __init__(self):
 		# Initialising grid
@@ -17,8 +18,8 @@ class GridDriveV0(gym.Env):
 		OBS_ROAD_FEATURES	 = self.MEDIUM_OBS_ROAD_FEATURES
 		OBS_CAR_FEATURES	 = self.MEDIUM_OBS_CAR_FEATURES
 
-		# Direction (N, S, W, E) + Speed [0-200]
-		self.action_space	   = gym.spaces.MultiDiscrete([4, 200])
+		# Direction (N, S, W, E) + Speed [0-MAX_SPEED]
+		self.action_space	   = gym.spaces.MultiDiscrete([4, self.MAX_SPEED])
 		self.observation_space = gym.spaces.Tuple([
 			gym.spaces.MultiBinary(OBS_ROAD_FEATURES * 4), 	# Extra feature representing whether the cell is accessible.
 			gym.spaces.MultiBinary(OBS_CAR_FEATURES),  # Car features
@@ -27,7 +28,7 @@ class GridDriveV0(gym.Env):
 		self.step_counter = 0
 
 	def reset(self):
-		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION)
+		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.MAX_SPEED)
 		self.step_counter = 0
 		return self.get_state()
 
