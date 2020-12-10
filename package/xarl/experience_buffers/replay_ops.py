@@ -1,6 +1,8 @@
 from typing import List
 import random
 import numpy as np
+from more_itertools import unique_everseen
+from itertools import islice
 
 from ray.util.iter import LocalIterator, _NextValueNotReady
 from ray.util.iter_metrics import SharedMetrics
@@ -58,12 +60,14 @@ class MixInReplay:
 		self.replay_proportion = replay_proportion
 
 	def __call__(self, sample_batch):
-		# Sample n batches from experience buffer, using a poisson distribution
-		n = np.random.poisson(self.replay_proportion)
-		output_batches = (self.replay_buffer.replay() for _ in range(n))
-		output_batches = filter(lambda x:x, output_batches)
-		output_batches = list(output_batches)
+		output_batches = []
+		if self.replay_buffer.can_replay():
+			# Sample n batches from experience buffer, using a poisson distribution
+			n = np.random.poisson(self.replay_proportion)
+			n = min(n,self.replay_buffer.num_added) # cannot sample more unique elements than there is in the buffer
+			if n > 0:
+				output_batches.append(self.replay_buffer.replay(n))
 		# Put in the experience buffer, after replaying, to avoid double sampling.
 		sample_batch = self.replay_buffer.add_batch(sample_batch)
-		output_batches.append(sample_batch)
+		output_batches.insert(0, sample_batch)
 		return output_batches

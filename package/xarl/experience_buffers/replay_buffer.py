@@ -70,6 +70,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		with self.add_batch_timer:
 			for policy_id, b in batch.policy_batches.items():
 				if not self.replay_sequence_length:
+					self.num_added += 1
 					if isinstance(batch_type,(tuple,list)):
 						for sub_batch_type in batch_type:
 							self.replay_buffers[policy_id].add(b, sub_batch_type)
@@ -78,6 +79,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 				else:
 					b_infos = b['infos'][0]
 					for s in b.timeslices(self.replay_sequence_length):
+						self.num_added += 1
 						s_infos = s['infos'][0]
 						if "batch_type" not in s_infos:
 							s_infos["batch_type"] = batch_type
@@ -88,7 +90,6 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 								self.replay_buffers[policy_id].add(s, sub_batch_type)
 						else:
 							self.replay_buffers[policy_id].add(s, batch_type)
-		self.num_added += batch.count
 		return batch
 
 	@staticmethod
@@ -96,23 +97,26 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		while True:
 			yield replay_buffer.sample()
 
-	def replay(self):
-		if self.num_added < self.replay_starts:
+	def can_replay(self):
+		return self.num_added >= self.replay_starts
+
+	def replay(self, replay_size=None):
+		if not self.can_replay():
 			return None
+		if replay_size is None:
+			replay_size = self.replay_batch_size
 
 		with self.replay_timer:
 			samples = {}
-			transitions_max_count = 0
+			transitions_count = 0
 			for policy_id, replay_buffer in self.replay_buffers.items():
 				batch_iter = self.gen_replay(replay_buffer) # generate new batches
 				batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
-				batch_iter = islice(batch_iter, self.replay_batch_size) # take the first n batches
+				batch_iter = islice(batch_iter, replay_size) # take the first n batches
 				batch_list = list(batch_iter)
-				concat_batch = SampleBatch.concat_samples(batch_list) # add current batch
-				samples[policy_id] = concat_batch
-				if concat_batch.count > transitions_max_count:
-					transitions_max_count = concat_batch.count
-			return MultiAgentBatch(samples, transitions_max_count)
+				samples[policy_id] = concat_batch = SampleBatch.concat_samples(batch_list) # add current batch
+				transitions_count += concat_batch.count
+			return MultiAgentBatch(samples, transitions_count)
 
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:
