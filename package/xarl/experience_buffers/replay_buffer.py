@@ -111,7 +111,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			transitions_max_count = 0
 			for policy_id, replay_buffer in self.replay_buffers.items():
 				batch_iter = self.gen_replay(replay_buffer) # generate new batches
-				batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
+				# batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
 				batch_iter = islice(batch_iter, replay_size) # take the first n batches
 				batch_list = list(batch_iter)
 				samples[policy_id] = concat_batch = SampleBatch.concat_samples(batch_list) # add current batch
