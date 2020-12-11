@@ -27,10 +27,10 @@ CONFIG["learning_starts"] = 100 # How many batches to sample before learning sta
 CONFIG["prioritized_replay"] = True
 CONFIG["buffer_options"] = {
 	'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp
-	'priority_aggregation_fn': 'lambda x: np.mean(np.absolute(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
+	'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
 	'size': 2**8, # Maximum number of batches stored in the experience buffer.
 	'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
-	'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
+	'beta': None, # Parameter that regulates a mechanism for computing importance sampling.
 	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
 	'prioritized_drop_probability': 0.5, # Probability of dropping experience with the lowest priority in the buffer
 	'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
