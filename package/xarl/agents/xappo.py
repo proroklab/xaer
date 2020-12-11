@@ -14,6 +14,7 @@ from ray.rllib.agents.ppo.appo_tf_policy import *
 from ray.rllib.agents.ppo.ppo_tf_policy import vf_preds_fetches
 from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
+from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
 from xarl.agents.xa_ops import *
 from xarl.experience_buffers.replay_ops import MixInReplay
@@ -116,10 +117,6 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 							   sample_batch[SampleBatch.REWARDS][-1],
 							   *next_state)
 	importance_weights_id = policy.config["buffer_options"]["priority_id"]
-	if importance_weights_id not in sample_batch:
-		importance_weights = np.ones_like(sample_batch[SampleBatch.REWARDS])
-	else:
-		importance_weights = sample_batch[importance_weights_id]
 	if policy.config["gae_with_vtrace"]:
 		sample_batch = compute_gae_v_advantages(sample_batch, last_r, policy.config["gamma"], policy.config["lambda"])
 	else:
@@ -132,12 +129,15 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 			use_critic=policy.config["use_critic"]
 		)
 	sample_batch['unweighted_'+Postprocessing.ADVANTAGES] = sample_batch[Postprocessing.ADVANTAGES].copy()
-	sample_batch[Postprocessing.ADVANTAGES] *= importance_weights
+	if 'weights' in sample_batch:
+		# print(sample_batch['weights'])
+		sample_batch[Postprocessing.ADVANTAGES] *= sample_batch['weights']
 	# Add gains
 	advantages = sample_batch[Postprocessing.ADVANTAGES]
 	new_priorities = advantages * logp_ratio
 	sample_batch[GAINS] = new_priorities
-	del sample_batch.data["new_obs"]  # not used, so save some bandwidth
+	# if "new_obs" in sample_batch:
+	# 	del sample_batch.data["new_obs"]  # not used, so save some bandwidth
 	return sample_batch
 
 XAPPOTFPolicy = AsyncPPOTFPolicy.with_updates(
@@ -165,6 +165,18 @@ def xappo_execution_plan(workers, config):
 		replay_sequence_length=None,
 	)
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
+	local_worker = workers.local_worker()
+
+	def update_replayed_fn(samples):
+		if isinstance(samples, MultiAgentBatch):
+			for pid, batch in samples.policy_batches.items():
+				if pid not in local_worker.policies_to_train:
+					continue
+				policy = local_worker.policy_map[pid]
+				samples.policy_batches[pid] = xappo_postprocess_trajectory(policy, batch)
+		else:
+			samples = xappo_postprocess_trajectory(local_worker.policy_map[DEFAULT_POLICY_ID], samples)
+		return samples
 
 	# Augment with replay and concat to desired train batch size.
 	train_batches = rollouts \
@@ -176,12 +188,14 @@ def xappo_execution_plan(workers, config):
 		.flatten() \
 		.for_each(MixInReplay(
 			local_buffer=local_replay_buffer,
-			replay_proportion=config["replay_proportion"])) \
+			replay_proportion=config["replay_proportion"],
+			update_replayed_fn=update_replayed_fn,
+		)) \
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
 
 	# Start the learner thread.
-	learner_thread = xa_make_learner_thread(workers.local_worker(), config)
+	learner_thread = xa_make_learner_thread(local_worker, config)
 	learner_thread.start()
 
 	# This sub-flow sends experiences to the learner.

@@ -78,6 +78,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		batch_infos = batch['infos'][0]
 		assert "batch_index" in batch_infos, "Something wrong!"
 		batch_infos["batch_index"][type_id] = idx
+		if self._beta is not None: # Add default weights
+			batch['weights'] = np.ones(batch.count)
 		# batch["batch_types"] = np.array([type_id]*batch.count)
 		# Set insertion time
 		if self._prioritized_drop_probability < 1:
@@ -123,7 +125,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			p_sample = type_sum_tree[idx] / tot_priority
 			weight = np.power(p_sample * N, -self._beta, dtype=np.float32)
 
-			batch[self._priority_id] = np.full(batch.count, weight/max_weight)
+			batch['weights'] = np.full(batch.count, weight/max_weight)
 		# Remove from buffer
 		if remove:
 			self._insertion_time_tree[sample_type][idx] = None # O(log)

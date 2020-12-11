@@ -8,6 +8,7 @@ from ray.util.iter import LocalIterator, _NextValueNotReady
 from ray.util.iter_metrics import SharedMetrics
 from ray.rllib.execution.replay_buffer import LocalReplayBuffer
 from ray.rllib.utils.typing import SampleBatchType
+from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
 
 class StoreToReplayBuffer:
@@ -36,28 +37,10 @@ class MixInReplay:
 	number of replay slots.
 	"""
 
-	def __init__(self, local_buffer: LocalReplayBuffer, replay_proportion: float):
-		"""Initialize MixInReplay.
-
-		Args:
-			replay_buffer (Buffer): The replay buffer.
-			replay_proportion (float): The input batch will be returned
-				and an additional number of batches proportional to this value
-				will be added as well.
-
-		Examples:
-			# replay proportion 2:1
-			>>> replay_op = MixInReplay(rollouts, 100, replay_proportion=2)
-			>>> print(next(replay_op))
-			[SampleBatch(<input>), SampleBatch(<replay>), SampleBatch(<rep.>)]
-
-			# replay proportion 0:1, replay disabled
-			>>> replay_op = MixInReplay(rollouts, 100, replay_proportion=0)
-			>>> print(next(replay_op))
-			[SampleBatch(<input>)]
-		"""
+	def __init__(self, local_buffer, replay_proportion, update_replayed_fn=None):
 		self.replay_buffer = local_buffer
 		self.replay_proportion = replay_proportion
+		self.update_replayed_fn = update_replayed_fn
 
 	def __call__(self, sample_batch):
 		output_batches = []
@@ -67,6 +50,14 @@ class MixInReplay:
 				f -= 1
 				replayed_batch = self.replay_buffer.replay()
 				if replayed_batch:
+					if self.update_replayed_fn:
+						if isinstance(replayed_batch, MultiAgentBatch):
+							replayed_batch.policy_batches = {
+								pid:self.update_replayed_fn(batch)
+								for pid, batch in replayed_batch.policy_batches.items()
+							}
+						else:
+							replayed_batch = self.update_replayed_fn(replayed_batch)
 					output_batches.append(replayed_batch)
 		# Put in the experience buffer, after replaying, to avoid double sampling.
 		sample_batch = self.replay_buffer.add_batch(sample_batch)

@@ -19,7 +19,7 @@ CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["lambda"] = .95 # GAE(lambda) parameter. Taking lambda < 1 introduces bias only when the value function is inaccurate.
 CONFIG["clip_param"] = 0.4 # PPO surrogate loss options
-# CONFIG["gamma"] = 0.999
+CONFIG["gamma"] = 0.999
 ##################################
 # For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
@@ -28,8 +28,8 @@ CONFIG["prioritized_replay"] = True
 CONFIG["buffer_options"] = {
 	'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp
 	'priority_aggregation_fn': 'lambda x: np.mean(np.absolute(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
-	'size': 2**9, # "Maximum number of batches stored in the experience buffer."
-	'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
+	'size': 2**8, # Maximum number of batches stored in the experience buffer.
+	'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 	'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
 	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
 	'prioritized_drop_probability': 0.5, # Probability of dropping experience with the lowest priority in the buffer
