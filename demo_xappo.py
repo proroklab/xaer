@@ -19,7 +19,7 @@ CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["lambda"] = .95 # GAE(lambda) parameter. Taking lambda < 1 introduces bias only when the value function is inaccurate.
 CONFIG["clip_param"] = 0.4 # PPO surrogate loss options
-CONFIG["gamma"] = 0.999
+CONFIG["gamma"] = 0.999 # 1: future rewards are more important; 0+epsilon: immediate rewards are more important
 ##################################
 # For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
@@ -32,7 +32,7 @@ CONFIG["buffer_options"] = {
 	'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 	'beta': None, # Parameter that regulates a mechanism for computing importance sampling.
 	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-	'prioritized_drop_probability': 0.5, # Probability of dropping experience with the lowest priority in the buffer
+	'prioritized_drop_probability': 0, # Probability of dropping experience with the lowest priority in the buffer
 	'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
 }

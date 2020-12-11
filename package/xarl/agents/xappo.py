@@ -27,16 +27,16 @@ XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
 	DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 	{
 		"replay_proportion": 1, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
-		"learning_starts": 1000, # How many batches to sample before learning starts.
+		"learning_starts": 100, # How many batches to sample before learning starts.
 		"prioritized_replay": True,
 		"buffer_options": {
-			'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, advantages, rewards, prev_rewards, action_logp
+			'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp
 			'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
-			'size': 2**9, # "Maximum number of batches stored in the experience buffer."
-			'alpha': 0.5, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
+			'size': 2**8, # "Maximum number of batches stored in the experience buffer."
+			'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
 			'beta': None, # Parameter that regulates a mechanism for computing importance sampling. Not needed in PPO.
 			'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-			'prioritized_drop_probability': 0.5, # Probability of dropping experience with the lowest priority in the buffer
+			'prioritized_drop_probability': 0, # Probability of dropping experience with the lowest priority in the buffer
 			'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 			'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
 		},
@@ -116,7 +116,6 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 							   sample_batch[SampleBatch.ACTIONS][-1],
 							   sample_batch[SampleBatch.REWARDS][-1],
 							   *next_state)
-	importance_weights_id = policy.config["buffer_options"]["priority_id"]
 	if policy.config["gae_with_vtrace"]:
 		sample_batch = compute_gae_v_advantages(sample_batch, last_r, policy.config["gamma"], policy.config["lambda"])
 	else:
