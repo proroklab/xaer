@@ -42,7 +42,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 		def gen_replay():
 			while True:
-				yield self.replay()
+				yield MultiAgentBatch.concat_samples(self.replay())
 
 		ParallelIteratorWorker.__init__(self, gen_replay, False)
 
@@ -92,32 +92,31 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 							self.replay_buffers[policy_id].add(s, batch_type)
 		return batch
 
-	@staticmethod
-	def gen_replay(replay_buffer):
-		while True:
-			yield replay_buffer.sample()
-
 	def can_replay(self):
 		return self.num_added >= self.replay_starts
 
-	def replay(self, replay_size=None):
+	def replay(self, replay_size=None, filter_unique=True):
+		def gen_sample(replay_buffer):
+			while True:
+				yield replay_buffer.sample()
 		if not self.can_replay():
 			return None
 		if replay_size is None:
 			replay_size = self.replay_batch_size
 
 		with self.replay_timer:
-			samples = {}
-			transitions_max_count = 0
+			batch_list = [{} for _ in range(replay_size)]
 			for policy_id, replay_buffer in self.replay_buffers.items():
-				batch_iter = self.gen_replay(replay_buffer) # generate new batches
-				# batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
+				batch_iter = gen_sample(replay_buffer) # generate new batches
+				if filter_unique:
+					batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
 				batch_iter = islice(batch_iter, replay_size) # take the first n batches
-				batch_list = list(batch_iter)
-				samples[policy_id] = concat_batch = SampleBatch.concat_samples(batch_list) # add current batch
-				if concat_batch.count > transitions_max_count:
-					transitions_max_count = concat_batch.count
-			return MultiAgentBatch(samples, transitions_max_count)
+				for i,batch in enumerate(batch_iter):
+					batch_list[i][policy_id] = batch
+		return [
+			MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
+			for samples in batch_list
+		] 
 
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:

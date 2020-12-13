@@ -25,7 +25,7 @@ GAINS = "gains"
 
 XAPPO_EXTRA_OPTIONS = {
 	"replay_proportion": 2, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
-	# "clip_param": 0.4, # PPO surrogate loss options; normally is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
+	"clip_param": 0.2, # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
 	"learning_starts": 100, # How many batches to sample before learning starts.
 	"prioritized_replay": True,
 	"buffer_options": {
@@ -41,8 +41,8 @@ XAPPO_EXTRA_OPTIONS = {
 	},
 	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
 	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
-	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False.
-	"gae_with_vtrace": True, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
+	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
+	"gae_with_vtrace": False, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
 }
 XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
 	DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo

@@ -12,19 +12,19 @@ from environments import *
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-v0"
 # SELECT_ENV = "CescoDrive-v2"
-# SELECT_ENV = "AlexDrive-v0"
-SELECT_ENV = "GridDrive-v1"
+SELECT_ENV = "AlexDrive-v0"
+# SELECT_ENV = "GridDrive-v1"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["lambda"] = .95 # GAE(lambda) parameter. Taking lambda < 1 introduces bias only when the value function is inaccurate.
-CONFIG["gamma"] = 0.999 # 1: future rewards are more important; 0+epsilon: immediate rewards are more important
-# CONFIG["clip_param"] = 0.4 # PPO surrogate loss options; normally is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
+# CONFIG["gamma"] = 0.99 # Default is 0.99 - 1: future rewards are more important; 0+epsilon: immediate rewards are more important.
+CONFIG["clip_param"] = 0.2 # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
 # CONFIG["rollout_fragment_length"] = 50 # The maximum (it is not also the minimum only when 'batch_mode' == 'complete_episodes') size of a single batch, in terms of state transitions. Default is 50.
 # CONFIG["train_batch_size"] = 500 # The size of a batch of batches used for training, in terms of state transitions. Default is 500.
 ##################################
 # For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
-CONFIG["replay_proportion"] = 2 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
+CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 CONFIG["learning_starts"] = 100 # How many batches to sample before learning starts.
 CONFIG["prioritized_replay"] = True
 CONFIG["buffer_options"] = {
@@ -41,7 +41,7 @@ CONFIG["buffer_options"] = {
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_multiple_types" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
 CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 CONFIG["vtrace"] = False # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False.
-CONFIG["gae_with_vtrace"] = True # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
+CONFIG["gae_with_vtrace"] = False # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
 
 ####################################################################################
 ####################################################################################

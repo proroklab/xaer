@@ -20,13 +20,13 @@ CONFIG["prioritized_replay"] = True
 CONFIG["buffer_options"] = {
 	'priority_id': "weights", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'weights'. One of the following: rewards, prev_rewards, weights.
 	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
-	'size': 50000, # Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+	# 'size': 2**13, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 	'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 	'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
 	'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
 	'prioritized_drop_probability': 0.5, # Probability of dropping the batch having the lowest priority in the buffer.
 	'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-	'prioritised_cluster_sampling': False, # Whether to select which cluster to replay in a prioritised fashion.
+	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
 }
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_multiple_types" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
 CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.

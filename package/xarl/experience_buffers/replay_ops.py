@@ -21,11 +21,11 @@ class StoreToReplayBuffer:
 def Replay(local_buffer):
 	def gen_replay(_):
 		while True:
-			item = local_buffer.replay()
-			if item is None:
+			batch_list = local_buffer.replay()
+			if batch_list is None:
 				yield _NextValueNotReady()
 			else:
-				yield item
+				yield MultiAgentBatch.concat_samples(batch_list)
 	return LocalIterator(gen_replay, SharedMetrics())
 
 class MixInReplay:
@@ -43,22 +43,25 @@ class MixInReplay:
 		self.update_replayed_fn = update_replayed_fn
 
 	def __call__(self, sample_batch):
+		def get_updated_batch(batch):
+			if isinstance(batch, MultiAgentBatch):
+				batch.policy_batches = {
+					k:self.update_replayed_fn(v)
+					for k,v in batch.policy_batches.items()
+				}
+				return batch
+			return self.update_replayed_fn(batch)
 		output_batches = []
 		if self.replay_buffer.can_replay():
 			f = self.replay_proportion
-			while random.random() < f:
-				f -= 1
-				replayed_batch = self.replay_buffer.replay()
-				if replayed_batch:
-					if self.update_replayed_fn:
-						if isinstance(replayed_batch, MultiAgentBatch):
-							replayed_batch.policy_batches = {
-								pid:self.update_replayed_fn(batch)
-								for pid, batch in replayed_batch.policy_batches.items()
-							}
-						else:
-							replayed_batch = self.update_replayed_fn(replayed_batch)
-					output_batches.append(replayed_batch)
+			times_to_replay = f//1
+			if times_to_replay!=f and random.random() < f - times_to_replay:
+				times_to_replay += 1
+			if times_to_replay > 0:
+				batch_list = self.replay_buffer.replay(replay_size=int(times_to_replay), filter_unique=True)
+				if self.update_replayed_fn:
+					batch_list = list(map(get_updated_batch, batch_list))
+				output_batches += batch_list
 		# Put in the experience buffer, after replaying, to avoid double sampling.
 		sample_batch = self.replay_buffer.add_batch(sample_batch)
 		output_batches.append(sample_batch)
