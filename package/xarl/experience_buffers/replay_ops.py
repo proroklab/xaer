@@ -22,7 +22,7 @@ def Replay(local_buffer):
 	def gen_replay(_):
 		while True:
 			batch_list = local_buffer.replay()
-			if batch_list is None:
+			if not batch_list:
 				yield _NextValueNotReady()
 			else:
 				yield MultiAgentBatch.concat_samples(batch_list)
