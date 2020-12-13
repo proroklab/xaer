@@ -51,18 +51,14 @@ class MixInReplay:
 				}
 				return batch
 			return self.update_replayed_fn(batch)
-		output_batches = []
+		# Put in the experience buffer
+		sample_batch = self.replay_buffer.add_batch(sample_batch) # allow for duplicates in output_batches
+		output_batches = [sample_batch]
 		if self.replay_buffer.can_replay():
-			f = self.replay_proportion
-			times_to_replay = f//1
-			if times_to_replay!=f and random.random() < f - times_to_replay:
-				times_to_replay += 1
-			if times_to_replay > 0:
-				batch_list = self.replay_buffer.replay(replay_size=int(times_to_replay), filter_unique=True)
+			n = np.random.poisson(self.replay_proportion)
+			if n > 0:
+				batch_list = self.replay_buffer.replay(replay_size=n, filter_unique=False) # allow for duplicates in output_batches
 				if self.update_replayed_fn:
 					batch_list = list(map(get_updated_batch, batch_list))
 				output_batches += batch_list
-		# Put in the experience buffer, after replaying, to avoid double sampling.
-		sample_batch = self.replay_buffer.add_batch(sample_batch)
-		output_batches.append(sample_batch)
 		return output_batches
