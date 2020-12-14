@@ -57,7 +57,7 @@ class MixInReplay:
 		if self.replay_buffer.can_replay():
 			n = np.random.poisson(self.replay_proportion)
 			if n > 0:
-				batch_list = self.replay_buffer.replay(replay_size=n, filter_unique=False) # allow for duplicates in output_batches
+				batch_list = self.replay_buffer.replay(replay_size=n, filter_duplicates=False) # allow for duplicates in output_batches
 				if self.update_replayed_fn:
 					batch_list = list(map(get_updated_batch, batch_list))
 				output_batches += batch_list
