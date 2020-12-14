@@ -23,28 +23,30 @@ from xarl.utils.misc import accumulate
 IMPORTANCE_WEIGHTS = "importance_weights"
 GAINS = "gains"
 
+XAPPO_EXTRA_OPTIONS = {
+	"replay_proportion": 2, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
+	"clip_param": 0.2, # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
+	"learning_starts": 100, # How many batches to sample before learning starts.
+	"prioritized_replay": True,
+	"buffer_options": {
+		'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
+		'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
+		'size': 2**8, # Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
+		'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
+		'beta': None, # Parameter that regulates a mechanism for computing importance sampling; PPO probably does not need it.
+		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
+		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
+		'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
+		'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
+	},
+	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
+	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
+	"gae_with_vtrace": False, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
+}
 XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
 	DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
-	{
-		"replay_proportion": 1, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
-		"learning_starts": 100, # How many batches to sample before learning starts.
-		"prioritized_replay": True,
-		"buffer_options": {
-			'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp
-			'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
-			'size': 2**8, # "Maximum number of batches stored in the experience buffer."
-			'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
-			'beta': None, # Parameter that regulates a mechanism for computing importance sampling. Not needed in PPO.
-			'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
-			'prioritized_drop_probability': 0, # Probability of dropping experience with the lowest priority in the buffer
-			'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
-			'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
-		},
-		"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types
-		"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes' otherwise it can also be 'truncate_episodes'
-		"vtrace": False, # Formula for computing the advantage: batch_mode==complete_episodes implies vtrace==False
-		"gae_with_vtrace": True, # Formula for computing the advantage: combines GAE with V-Tracing
-	},
+	XAPPO_EXTRA_OPTIONS,
 	_allow_unknown_configs=True
 )
 

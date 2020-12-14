@@ -10,8 +10,8 @@ from xarl.agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
-SELECT_ENV = "CescoDrive-v2"
-# SELECT_ENV = "AlexDrive-v0"
+# SELECT_ENV = "CescoDrive-v2"
+SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
@@ -20,10 +20,10 @@ CONFIG["prioritized_replay"] = True
 CONFIG["buffer_options"] = {
 	'priority_id': "weights", # What batch column to use for prioritisation. One of the following: rewards, prev_rewards, weights
 	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch's priority
-	'size': 50000, # "Maximum number of batches stored in the experience buffer."
-	'alpha': 0.6, # "How much prioritization is used (0 - no prioritization, 1 - full prioritization)."
+	# 'size': 50000, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+	'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 	'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
-	'epsilon': 1e-6, # Epsilon to add to the TD errors when updating priorities.
+	'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
 	'prioritized_drop_probability': 0.5, # Probability of dropping experience with the lowest priority in the buffer
 	'global_distribution_matching': False, # "If True, then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far."
 	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion
