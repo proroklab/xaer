@@ -18,7 +18,7 @@ class RoadGrid:
 		self.height = y_dim
 		self.max_speed = max_speed
 
-		self.road_culture = MediumRoadCulture()
+		self.road_culture = HardRoadCulture()
 		self.agent.set_culture(self.road_culture)
 		self.road_culture.initialise_random_agent(self.agent)
 
