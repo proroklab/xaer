@@ -6,8 +6,8 @@ import numpy as np
 
 class GridDriveV0(gym.Env):
 	GRID_DIMENSION				= 30
-	MEDIUM_OBS_ROAD_FEATURES 	= 6  # Number of binary ROAD features in Medium Culture
-	MEDIUM_OBS_CAR_FEATURES 	= 1  # Number of binary CAR features in Medium Culture (excl. speed)
+	MEDIUM_OBS_ROAD_FEATURES 	= 10  # Number of binary ROAD features in Medium Culture
+	MEDIUM_OBS_CAR_FEATURES 	= 5  # Number of binary CAR features in Medium Culture (excl. speed)
 	MAX_SPEED 					= 100
 	
 	def __init__(self):
