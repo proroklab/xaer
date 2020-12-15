@@ -25,7 +25,7 @@ GAINS = "gains"
 
 XAPPO_EXTRA_OPTIONS = {
 	"replay_proportion": 2, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
-	"clip_param": 0.2, # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
+	# "clip_param": 0.2, # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
 	"learning_starts": 100, # How many batches to sample before learning starts.
 	"prioritized_replay": True,
 	"buffer_options": {

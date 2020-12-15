@@ -42,7 +42,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 		def gen_replay():
 			while True:
-				yield MultiAgentBatch.concat_samples(self.replay())
+				yield MultiAgentBatch.concat_samples(self.replay(filter_duplicates=False))
 
 		ParallelIteratorWorker.__init__(self, gen_replay, False)
 
