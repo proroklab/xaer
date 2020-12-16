@@ -59,7 +59,7 @@ def plot(logs, figure_file):
 	# Populate axes
 	for log_id in range(log_count):
 		log = logs[log_id]
-		name = log["name"][:10]
+		name = log["name"]#[:10]
 		data = log["data"]
 		length = log["length"]
 		if length < 2:
@@ -149,11 +149,13 @@ def plot(logs, figure_file):
 	print("Plot figure saved in ", figure_file)
 	figure = None
 
-def plot_files(log_files, figure_file):
+def plot_files(url_list, name_list, figure_file, max_length=None):
 	logs = []
-	for fname in log_files:
-		length, line_example = get_length_and_line_example(fname)
-		logs.append({'name': fname, 'data': parse(fname), 'length':length, 'line_example':line_example})
+	for url,name in zip(url_list,name_list):
+		length, line_example = get_length_and_line_example(url)
+		if max_length:
+			length = max_length
+		logs.append({'name': name, 'data': parse(url, length), 'length':length, 'line_example':line_example})
 	plot(logs, figure_file)
 	
 def get_length_and_line_example(file):
@@ -183,9 +185,11 @@ def parse_line(line,i=0):
 	})
 	return (step, obj)
 	
-def parse(log_fname):
+def parse(log_fname, max_i=None):
 	with open(log_fname, 'r') as logfile:
 		for i, line in enumerate(logfile):
+			if max_i and i > max_i:
+				return
 			try:
 				yield parse_line(line,i)
 			except Exception as e:
