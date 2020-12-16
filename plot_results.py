@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import plot_lib as plt
+import xarl.utils.plot_lib as plt
 import argparse
 
 parser = argparse.ArgumentParser(description='draw plots')
