@@ -4,6 +4,7 @@ import numpy as np
 import platform
 from more_itertools import unique_everseen
 from itertools import islice
+import copy
 
 # Import ray before psutil will make sure we use psutil's bundled version
 import ray  # noqa F401
@@ -30,7 +31,9 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		learning_starts=1000, 
 		replay_sequence_length=None,
 		replay_batch_size=1,
+		update_only_sampled_cluster=True,
 	):
+		self.update_only_sampled_cluster = update_only_sampled_cluster
 		self.replay_batch_size = replay_batch_size
 		self.replay_sequence_length = replay_sequence_length
 		if replay_sequence_length and replay_sequence_length > 1:
@@ -73,7 +76,12 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					self.num_added += 1
 					if isinstance(batch_type,(tuple,list)):
 						for sub_batch_type in batch_type:
-							self.replay_buffers[policy_id].add(b, sub_batch_type)
+							if self.update_only_sampled_cluster:
+								b_copy = b.copy()
+								b_copy['infos'] = copy.deepcopy(b_copy['infos'])
+								self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
+							else:
+								self.replay_buffers[policy_id].add(b, sub_batch_type)
 					else:
 						self.replay_buffers[policy_id].add(b, batch_type)
 				else:
@@ -87,7 +95,12 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 							s_infos["batch_index"] = {}
 						if isinstance(batch_type,(tuple,list)):
 							for sub_batch_type in batch_type:
-								self.replay_buffers[policy_id].add(s, sub_batch_type)
+								if self.update_only_sampled_cluster:
+									s_copy = s.copy()
+									s_copy['infos'] = copy.deepcopy(s_copy['infos'])
+									self.replay_buffers[policy_id].add(s_copy, sub_batch_type)
+								else:
+									self.replay_buffers[policy_id].add(s, sub_batch_type)
 						else:
 							self.replay_buffers[policy_id].add(s, batch_type)
 		return batch
@@ -121,14 +134,9 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:
 			for policy_id, new_batch in prio_dict.items():
-				type_id = new_batch['infos'][0]["batch_type"]
 				new_priority = self.replay_buffers[policy_id].get_batch_priority(new_batch)
-				if isinstance(type_id,(tuple,list)):
-					for sub_type_id in type_id:
-						batch_index = new_batch['infos'][0]["batch_index"][sub_type_id]
-						self.replay_buffers[policy_id].update_priority(new_priority, batch_index, sub_type_id)
-				else:
-					batch_index = new_batch['infos'][0]["batch_index"][type_id]
+				# print(new_batch['infos'][0]["batch_index"])
+				for type_id,batch_index in new_batch['infos'][0]["batch_index"].items():
 					self.replay_buffers[policy_id].update_priority(new_priority, batch_index, type_id)
 
 	def stats(self, debug=False):

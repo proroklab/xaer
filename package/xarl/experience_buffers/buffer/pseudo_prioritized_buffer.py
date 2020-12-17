@@ -6,7 +6,7 @@ from xarl.experience_buffers.buffer.buffer import Buffer
 from xarl.utils.segment_tree import SumSegmentTree, MinSegmentTree
 
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling')
+	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_sample_simplest_unknown_task')
 	
 	def __init__(self, 
 		priority_id,
@@ -18,6 +18,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		prioritized_drop_probability=0.5, 
 		global_distribution_matching=False, 
 		prioritised_cluster_sampling=True, 
+		sample_simplest_unknown_task=False,
 	): # O(1)
 		self._priority_id = priority_id
 		self._priority_aggregation_fn = eval(priority_aggregation_fn)
@@ -28,6 +29,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
 		self._prioritised_cluster_sampling = prioritised_cluster_sampling
+		self._sample_simplest_unknown_task = sample_simplest_unknown_task
 		self._it_capacity = 1
 		while self._it_capacity < size:
 			self._it_capacity *= 2
@@ -93,9 +95,12 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def sample_cluster(self):
 		if self._prioritised_cluster_sampling:
-			type_priority = list(map(lambda x: x.sum(scaled=False), self._sample_priority_tree))
-			worse_type_priority = min(type_priority)
-			type_cumsum = np.cumsum(list(map(lambda x: x-worse_type_priority, type_priority))) # O(|self.type_keys|)
+			type_priority = np.array(list(map(lambda x: x.sum(scaled=False), self._sample_priority_tree)))
+			if self._sample_simplest_unknown_task:
+				avg_type_priority = np.mean(type_priority)
+				type_priority = -np.absolute(type_priority-avg_type_priority) # the closer to the average, the higher the priority: the hardest tasks will be tackled last
+			worst_type_priority = np.min(type_priority)
+			type_cumsum = np.cumsum(type_priority-worst_type_priority) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
 			sample_type,_ = next(filter(lambda x: x[-1] >= type_mass, enumerate(type_cumsum))) # O(|self.type_keys|)
 			type_id = self.type_keys[sample_type]

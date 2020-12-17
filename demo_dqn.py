@@ -16,6 +16,8 @@ SELECT_ENV = "GridDrive-v1"
 CONFIG = DQN_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["batch_mode"] = "complete_episodes" # Whether to rollout "complete_episodes" or "truncate_episodes" to `rollout_fragment_length` length unrolls. Episode truncation guarantees evenly sized batches, but increases variance as the reward-to-go will need to be estimated at truncation boundaries.
+CONFIG["double_q"] = True # Default is True. A Double Deep Q-Network, or Double DQN utilises Double Q-learning to reduce overestimation by decomposing the max operation in the target into action selection and action evaluation. We evaluate the greedy policy according to the online network, but we use the target network to estimate its value.
+CONFIG["dueling"] = True # Default is True. This algorithm splits the Q-values in two different parts, the value function V(s) and the advantage function A(s, a). This change is helpful, because sometimes it is unnecessary to know the exact value of each action, so just learning the state-value function can be enough in some cases.
 
 ####################################################################################
 ####################################################################################

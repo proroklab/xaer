@@ -13,6 +13,7 @@ def get_clustered_replay_buffer(config, replay_batch_size=1, replay_sequence_len
 		learning_starts=config["learning_starts"], 
 		replay_batch_size=replay_batch_size,
 		replay_sequence_length=replay_sequence_length,
+		update_only_sampled_cluster=config["update_only_sampled_cluster"],
 	)
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme

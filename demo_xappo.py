@@ -12,14 +12,14 @@ from environments import *
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-v0"
 # SELECT_ENV = "CescoDrive-v2"
-SELECT_ENV = "AlexDrive-v0"
-# SELECT_ENV = "GridDrive-v1"
+# SELECT_ENV = "AlexDrive-v0"
+SELECT_ENV = "GridDrive-v2"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 CONFIG["lambda"] = .95 # GAE(lambda) parameter. Taking lambda < 1 introduces bias only when the value function is inaccurate.
 # CONFIG["gamma"] = 0.99 # Default is 0.99 - 1: future rewards are more important; 0+epsilon: immediate rewards are more important.
-CONFIG["clip_param"] = 0.2 # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
+# CONFIG["clip_param"] = 0.2 # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
 # CONFIG["rollout_fragment_length"] = 50 # The maximum (it is not also the minimum only when 'batch_mode' == 'complete_episodes') size of a single batch, in terms of state transitions. Default is 50.
 # CONFIG["train_batch_size"] = 500 # The size of a batch of batches used for training, in terms of state transitions. Default is 500.
 ##################################
@@ -38,6 +38,7 @@ CONFIG["buffer_options"] = {
 	'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
 	'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
 	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
+	'sample_simplest_unknown_task': True, # Whether to sample the simplest unknown task (the one with the cluster priority closest to the average cluster priority) with higher probability. It requires prioritised_cluster_sampling==True.
 }
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_multiple_types" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
 CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.

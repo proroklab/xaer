@@ -12,15 +12,15 @@ from environments import *
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-v0"
 # SELECT_ENV = "CescoDrive-v2"
-SELECT_ENV = "AlexDrive-v0"
-# SELECT_ENV = "GridDrive-v1"
+# SELECT_ENV = "AlexDrive-v0"
+SELECT_ENV = "GridDrive-v2"
 
 CONFIG = APPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 # For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 CONFIG["lambda"] = .95 # GAE(lambda) parameter
 # CONFIG["gamma"] = 0.99 # Default is 0.99 - 1: future rewards are more important; 0+epsilon: immediate rewards are more important.
-CONFIG["clip_param"] = 0.2 # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
+# CONFIG["clip_param"] = 0.2 # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
 
 CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 CONFIG["batch_mode"] = "complete_episodes" # Whether to rollout "complete_episodes" or "truncate_episodes" to `rollout_fragment_length` length unrolls. Episode truncation guarantees evenly sized batches, but increases variance as the reward-to-go will need to be estimated at truncation boundaries.

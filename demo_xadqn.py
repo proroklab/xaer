@@ -15,6 +15,8 @@ SELECT_ENV = "GridDrive-v2"
 
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
+CONFIG["double_q"] = True # Default is True. A Double Deep Q-Network, or Double DQN utilises Double Q-learning to reduce overestimation by decomposing the max operation in the target into action selection and action evaluation. We evaluate the greedy policy according to the online network, but we use the target network to estimate its value.
+CONFIG["dueling"] = True # Default is True. This algorithm splits the Q-values in two different parts, the value function V(s) and the advantage function A(s, a). This change is helpful, because sometimes it is unnecessary to know the exact value of each action, so just learning the state-value function can be enough in some cases.
 # For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
 CONFIG["prioritized_replay"] = True
 CONFIG["filter_duplicated_batches_when_replaying"] = False # Whether to remove duplicated batches from a replay batch (n.b. the batch size will remain the same, new unique batches will be sampled until the expected size is reached).
@@ -27,7 +29,8 @@ CONFIG["buffer_options"] = {
 	'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
 	'prioritized_drop_probability': 0.5, # Probability of dropping the batch having the lowest priority in the buffer.
 	'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-	'prioritised_cluster_sampling': False, # Whether to select which cluster to replay in a prioritised fashion.
+	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
+	'sample_simplest_unknown_task': True, # Whether to sample the simplest unknown task (the one with the cluster priority closest to the average cluster priority) with higher probability. It requires prioritised_cluster_sampling==True.
 }
 CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_multiple_types" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
 CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.

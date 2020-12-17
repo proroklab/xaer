@@ -39,8 +39,10 @@ XAPPO_EXTRA_OPTIONS = {
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
 		'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
 		'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
+		'sample_simplest_unknown_task': True, # Whether to sample the simplest unknown task (the one with the cluster priority closest to the average cluster priority) with higher probability. It requires prioritised_cluster_sampling==True.
 	},
 	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
+	"update_only_sampled_cluster": True, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True makes learning faster, but causes a slighlty higher memory consumption.
 	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
 	"gae_with_vtrace": False, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
