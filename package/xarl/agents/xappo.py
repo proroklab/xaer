@@ -28,6 +28,7 @@ XAPPO_EXTRA_OPTIONS = {
 	# "clip_param": 0.2, # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
 	"learning_starts": 100, # How many batches to sample before learning starts.
 	"prioritized_replay": True,
+	"filter_duplicated_batches_when_replaying": False, # Whether to remove duplicated batches from a replay batch (n.b. the batch size will remain the same, new unique batches will be sampled until the expected size is reached).
 	"buffer_options": {
 		'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
 		'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
@@ -191,6 +192,7 @@ def xappo_execution_plan(workers, config):
 			local_buffer=local_replay_buffer,
 			replay_proportion=config["replay_proportion"],
 			update_replayed_fn=update_replayed_fn,
+			filter_duplicates=config["filter_duplicated_batches_when_replaying"],
 		)) \
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))

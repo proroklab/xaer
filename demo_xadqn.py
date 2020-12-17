@@ -17,6 +17,7 @@ CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
 # For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
 CONFIG["prioritized_replay"] = True
+CONFIG["filter_duplicated_batches_when_replaying"] = False # Whether to remove duplicated batches from a replay batch (n.b. the batch size will remain the same, new unique batches will be sampled until the expected size is reached).
 CONFIG["buffer_options"] = {
 	'priority_id': "weights", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'weights'. One of the following: rewards, prev_rewards, weights.
 	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.

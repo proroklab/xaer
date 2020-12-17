@@ -27,6 +27,7 @@ CONFIG["clip_param"] = 0.2 # PPO surrogate loss options; default is 0.4. The hig
 CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 CONFIG["learning_starts"] = 100 # How many batches to sample before learning starts.
 CONFIG["prioritized_replay"] = True
+CONFIG["filter_duplicated_batches_when_replaying"] = False # Whether to remove duplicated batches from a replay batch (n.b. the batch size will remain the same, new unique batches will be sampled until the expected size is reached).
 CONFIG["buffer_options"] = {
 	'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
 	'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
