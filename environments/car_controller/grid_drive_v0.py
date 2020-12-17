@@ -9,11 +9,9 @@ class GridDriveV0(gym.Env):
 	MEDIUM_OBS_ROAD_FEATURES 	= 10  # Number of binary ROAD features in Medium Culture
 	MEDIUM_OBS_CAR_FEATURES 	= 5  # Number of binary CAR features in Medium Culture (excl. speed)
 	MAX_SPEED 					= 100
+	MAX_STEP					= 2**7
 	
 	def __init__(self):
-		# Initialising grid
-		self.grid = None
-
 		# Replace here in case culture changes.
 		OBS_ROAD_FEATURES	 = self.MEDIUM_OBS_ROAD_FEATURES
 		OBS_CAR_FEATURES	 = self.MEDIUM_OBS_CAR_FEATURES
@@ -26,9 +24,12 @@ class GridDriveV0(gym.Env):
 			gym.spaces.MultiDiscrete([self.GRID_DIMENSION, self.GRID_DIMENSION])  # Position
 		])
 		self.step_counter = 0
+		self.keep_grid = False
 
 	def reset(self):
-		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.MAX_SPEED)
+		if not self.keep_grid:
+			self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.MAX_SPEED)
+		self.keep_grid = False
 		self.step_counter = 0
 		return self.get_state()
 
@@ -45,4 +46,5 @@ class GridDriveV0(gym.Env):
 		reward, explanation = self.grid.move_agent(direction, speed, with_exploratory_bonus=True)
 		self.step_counter += 1
 		state = self.get_state()
-		return [state, reward, self.step_counter >= 2**7, {'explanation': explanation}]
+		is_terminal_step = self.step_counter >= self.MAX_STEP #or reward < 0
+		return [state, reward, is_terminal_step, {'explanation': explanation}]

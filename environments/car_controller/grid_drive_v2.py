@@ -2,7 +2,7 @@
 from environments.car_controller.grid_drive_v0 import GridDriveV0
 import gym
 
-class GridDriveV1(GridDriveV0):
+class GridDriveV2(GridDriveV0):
 	def __init__(self):
 		super().__init__()
 		# Direction (N, S, W, E) + Speed [0-200]
@@ -14,5 +14,7 @@ class GridDriveV1(GridDriveV0):
 		reward, explanation = self.grid.move_agent(direction, speed, with_exploratory_bonus=False)
 		self.step_counter += 1
 		state = self.get_state()
-		is_terminal_state = self.step_counter >= self.MAX_STEP
-		return [state, reward, is_terminal_state, {'explanation': explanation}]
+		is_terminal_step = self.step_counter >= self.MAX_STEP or reward < 0
+		if reward < 0:
+			self.keep_grid = True
+		return [state, reward, is_terminal_step, {'explanation': explanation}]

@@ -21,3 +21,6 @@ register_env("GridDrive-v0", lambda config: GridDriveV0())
 
 from environments.car_controller.grid_drive_v1 import GridDriveV1
 register_env("GridDrive-v1", lambda config: GridDriveV1())
+
+from environments.car_controller.grid_drive_v2 import GridDriveV2
+register_env("GridDrive-v2", lambda config: GridDriveV2())

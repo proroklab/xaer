@@ -21,6 +21,7 @@ class RoadGrid:
 		self.road_culture = HardRoadCulture()
 		self.agent.set_culture(self.road_culture)
 		self.road_culture.initialise_random_agent(self.agent)
+		self.inaccessible = tuple([0] * (len(self.road_culture.properties) + 1))
 
 		self.initialise_random_grid()
 
@@ -61,12 +62,11 @@ class RoadGrid:
 
 	def neighbour_features(self):
 		# Start with order NORTH, SOUTH, EAST, WEST.
-		inaccessible = [0] * (len(self.road_culture.properties) + 1)
 		x, y = self.agent_position
-		north_features = self.cells[x][y + 1].binary_features() if self.within_bounds((x, y + 1)) else inaccessible
-		south_features = self.cells[x][y - 1].binary_features() if self.within_bounds((x, y - 1)) else inaccessible
-		east_features  = self.cells[x + 1][y].binary_features() if self.within_bounds((x + 1, y)) else inaccessible
-		west_features  = self.cells[x - 1][y].binary_features() if self.within_bounds((x - 1, y)) else inaccessible
+		north_features = self.cells[x][y + 1].binary_features() if self.within_bounds((x, y + 1)) else self.inaccessible
+		south_features = self.cells[x][y - 1].binary_features() if self.within_bounds((x, y - 1)) else self.inaccessible
+		east_features  = self.cells[x + 1][y].binary_features() if self.within_bounds((x + 1, y)) else self.inaccessible
+		west_features  = self.cells[x - 1][y].binary_features() if self.within_bounds((x - 1, y)) else self.inaccessible
 
 		total_features = north_features + south_features + east_features + west_features
 		return total_features

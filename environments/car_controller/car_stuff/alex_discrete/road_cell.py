@@ -1,3 +1,4 @@
+import numpy as np
 
 class RoadCell:
     def __init__(self, i, j):
@@ -13,25 +14,27 @@ class RoadCell:
 
     def culture_properties(self):
         if self.road_culture is None:
-            return
+            return None
         return self.road_culture.__dict__.get("properties", None)
 
-    def binary_features(self):
-        features = [1]
-        for prop in sorted(self.culture_properties().keys()):
-            features.append(0 if self[prop] is False else 1)
-        return features
+    def binary_features(self): # O(1)
+        return self.features
 
     def set_culture(self, culture):
         self.road_culture = culture
         if self.culture_properties() is None:
             print("RoadCell::set_culture: Culture {} has no properties.".format(culture.name))
             return
-        for property, default_value in self.culture_properties().items():
-            self.__setattr__(property, default_value)
+        self.sorted_properties = sorted(self.culture_properties().keys())
+        for property_, default_value in self.culture_properties().items():
+            self.assign_property_value(property_, default_value)
 
-    def assign_property_value(self, property, value):
-        if hasattr(self, property) is False:
-            print("RoadCell::assign_property_value: Property {} not found within road cell.".format(property))
-            return
-        self.__setattr__(property, value)
+    def assign_property_value(self, property_, value):
+        # if hasattr(self, property_) is False:
+        #     print("RoadCell::assign_property_value: Property {} not found within road cell.".format(property_))
+        #     return
+        self.__setattr__(property_, value)
+        self.features = tuple([1] + [
+            0 if self[prop] is False else 1
+            for prop in self.sorted_properties
+        ])
