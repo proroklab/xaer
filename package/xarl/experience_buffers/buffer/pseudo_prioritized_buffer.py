@@ -96,12 +96,14 @@ class PseudoPrioritizedBuffer(Buffer):
 	def sample_cluster(self):
 		if self._prioritised_cluster_sampling:
 			type_priority = np.array(list(map(lambda x: x.sum(scaled=False), self._sample_priority_tree)))
-			if self._sample_simplest_unknown_task:
+			if self._sample_simplest_unknown_task == 'average':
 				avg_type_priority = np.mean(type_priority)
-				# type_priority_above_avg = type_priority[type_priority>avg_type_priority]
-				# best_after_mean = np.min(type_priority_above_avg) if type_priority_above_avg.size > 0 else type_priority[0]
-				# type_priority = -np.absolute(type_priority-best_after_mean) # the closer to the best_after_mean, the higher the priority: the hardest tasks will be tackled last
 				type_priority = -np.absolute(type_priority-avg_type_priority) # the closer to the average, the higher the priority: the hardest tasks will be tackled last
+			elif self._sample_simplest_unknown_task == 'above_average':
+				avg_type_priority = np.mean(type_priority)
+				type_priority_above_avg = type_priority[type_priority>avg_type_priority]
+				best_after_mean = np.min(type_priority_above_avg) if type_priority_above_avg.size > 0 else type_priority[0]
+				type_priority = -np.absolute(type_priority-best_after_mean) # the closer to the best_after_mean, the higher the priority: the hardest tasks will be tackled last
 			worst_type_priority = np.min(type_priority)
 			type_cumsum = np.cumsum(type_priority-worst_type_priority) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
