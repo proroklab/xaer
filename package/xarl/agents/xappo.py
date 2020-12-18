@@ -42,7 +42,7 @@ XAPPO_EXTRA_OPTIONS = {
 		'sample_simplest_unknown_task': True, # Whether to sample the simplest unknown task (the one with the cluster priority closest to the average cluster priority) with higher probability. It requires prioritised_cluster_sampling==True.
 	},
 	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
-	"update_only_sampled_cluster": False, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True makes learning faster, but causes a slighlty higher memory consumption.
+	"update_only_sampled_cluster": False, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption.
 	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
 	"gae_with_vtrace": False, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.

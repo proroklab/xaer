@@ -98,6 +98,9 @@ class PseudoPrioritizedBuffer(Buffer):
 			type_priority = np.array(list(map(lambda x: x.sum(scaled=False), self._sample_priority_tree)))
 			if self._sample_simplest_unknown_task:
 				avg_type_priority = np.mean(type_priority)
+				# type_priority_above_avg = type_priority[type_priority>avg_type_priority]
+				# best_after_mean = np.min(type_priority_above_avg) if type_priority_above_avg.size > 0 else type_priority[0]
+				# type_priority = -np.absolute(type_priority-best_after_mean) # the closer to the best_after_mean, the higher the priority: the hardest tasks will be tackled last
 				type_priority = -np.absolute(type_priority-avg_type_priority) # the closer to the average, the higher the priority: the hardest tasks will be tackled last
 			worst_type_priority = np.min(type_priority)
 			type_cumsum = np.cumsum(type_priority-worst_type_priority) # O(|self.type_keys|)
@@ -133,8 +136,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			batch['weights'] = np.full(batch.count, weight/max_weight)
 		# Remove from buffer
 		if remove:
-			self._insertion_time_tree[sample_type][idx] = None # O(log)
-			self._drop_priority_tree[sample_type][idx] = None # O(log)
+			if self._prioritized_drop_probability < 1:
+				self._insertion_time_tree[sample_type][idx] = None # O(log)
+			if self._prioritized_drop_probability > 0:
+				self._drop_priority_tree[sample_type][idx] = None # O(log)
 			type_sum_tree[idx] = None # O(log)
 		return batch
 

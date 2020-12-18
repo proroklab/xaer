@@ -10,6 +10,7 @@ class GridDriveV0(gym.Env):
 	MEDIUM_OBS_CAR_FEATURES 	= 5  # Number of binary CAR features in Medium Culture (excl. speed)
 	MAX_SPEED 					= 100
 	MAX_STEP					= 2**7
+	EXPLORATORY_BONUS			= False
 	
 	def __init__(self):
 		# Replace here in case culture changes.
@@ -28,9 +29,11 @@ class GridDriveV0(gym.Env):
 
 	def reset(self):
 		if not self.keep_grid:
-			self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.MAX_SPEED)
+			self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION)
 		self.keep_grid = False
 		self.step_counter = 0
+		if self.EXPLORATORY_BONUS:
+			self.visited_positions = set()
 		return self.get_state()
 
 	def get_state(self):
@@ -43,7 +46,19 @@ class GridDriveV0(gym.Env):
 	def step(self, action_vector):
 		direction 	= action_vector[0]
 		speed 		= action_vector[1]
-		reward, explanation = self.grid.move_agent(direction, speed, with_exploratory_bonus=True)
+		if self.EXPLORATORY_BONUS:
+			self.visited_positions.add(self.grid.agent_position)
+		motion_explanation = self.grid.move_agent(direction, speed)
+		if motion_explanation:
+			reward = -1
+			explanation = motion_explanation
+		else: # Got ticket.
+			reward = speed/self.MAX_SPEED
+			explanation = ['OK']
+			if self.EXPLORATORY_BONUS and self.grid.agent_position not in self.visited_positions:
+				# Check if not repeating previously-visited cells.
+				reward += speed/self.MAX_SPEED
+				explanation.append("EXTRA: This is a new cell.")
 		self.step_counter += 1
 		state = self.get_state()
 		is_terminal_step = self.step_counter >= self.MAX_STEP #or reward < 0

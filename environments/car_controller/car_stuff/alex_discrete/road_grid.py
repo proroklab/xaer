@@ -9,14 +9,12 @@ EAST  = 2
 WEST  = 3
 
 class RoadGrid:
-	def __init__(self, x_dim, y_dim, max_speed):
+	def __init__(self, x_dim, y_dim):
 		self.agent = RoadAgent()
 		self.agent_position = (0, 0)
 		self.cells = []
-		self.visited_positions = set()
 		self.width = x_dim
 		self.height = y_dim
-		self.max_speed = max_speed
 
 		self.road_culture = HardRoadCulture()
 		self.agent.set_culture(self.road_culture)
@@ -175,16 +173,16 @@ class RoadGrid:
 		return motion_validated, explanation_list
 
 
-	def move_agent(self, direction, speed, with_exploratory_bonus=True):
+	def move_agent(self, direction, speed):
 		"""
 		Attempts to move an agent to a neighbouring cell.
 		:param speed: commanded speed to traverse next cell
 		:param direction: 0 == NORTH, 1 == SOUTH, 2 == EAST, 3 == WEST
 		:return: False if move is illegal. Integer-valued reward if move is valid.
 		"""
-		if self.agent_position is False:
-			print("RoadGrid::move_agent: Agent not found!")
-			return False
+		# if self.agent_position is False:
+		# 	print("RoadGrid::move_agent: Agent not found!")
+		# 	return False
 
 		dest_x, dest_y = self.agent_position
 		if   direction == NORTH:
@@ -197,31 +195,13 @@ class RoadGrid:
 			dest_x -= 1
 
 		if not self.within_bounds((dest_x, dest_y)):
-			return -1, "FAIL: Out of bounds!"
+			return ["FAIL: Out of bounds!"]
 
-		reward = 0
-
-		if with_exploratory_bonus:
-			self.visited_positions.add(self.agent_position)
+		self.agent_position = (dest_x, dest_y)
 		self.agent.assign_property_value("Speed", speed)
 
 		motion, explanation_list = self.run_dialogue(self.cells[dest_x][dest_y], self.agent, explanation_type="compact")
-		if motion:  # If the argument "I will not get a ticket" is validated.
-			reward += speed/self.max_speed
-		else:  # Got ticket.
-			reward += -1
-
-		if with_exploratory_bonus:
-			# Check if not repeating previously-visited cells.
-			if (dest_x, dest_y) not in self.visited_positions:
-				reward += speed/self.max_speed
-				explanation_list.append("EXTRA: This is a new cell.")
-			else:
-				explanation_list.append("EXTRA: This is a repeated cell.")
-		# explanation = ' / '.join(sorted(explanation_list))
-
-		self.agent_position = (dest_x, dest_y)
-		return reward, explanation_list
-
-
+		if not motion:  # If the agent can move
+			return explanation_list
+		return None
 
