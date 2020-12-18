@@ -6,7 +6,7 @@ class GridDriveV1(GridDriveV0):
 	def __init__(self):
 		super().__init__()
 		# Direction (N, S, W, E) + Speed [0-200]
-		self.action_space	   = gym.spaces.Discrete(4*self.MAX_SPEED)
+		self.action_space	   = gym.spaces.Discrete((self.DIRECTIONS-1)*self.MAX_SPEED+1)
 
 	def step(self, action_vector):
 		direction 	= action_vector//self.MAX_SPEED

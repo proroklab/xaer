@@ -20,7 +20,7 @@ class RoadGrid:
 		self.road_culture = HardRoadCulture()
 		self.agent.set_culture(self.road_culture)
 		self.road_culture.initialise_random_agent(self.agent)
-		self.inaccessible = tuple([0] * (len(self.road_culture.properties) + 1))
+		# self.inaccessible = tuple([0] * (len(self.road_culture.properties) + 1))
 
 		self.initialise_random_grid()
 
@@ -48,15 +48,22 @@ class RoadGrid:
 		x, y = coord
 		neighbours = []
 		if neighbourhood_type == 'von_neumann':
-			if self.within_bounds((x - 1, y)): neighbours.append((x - 1, y))  # Left
-			if self.within_bounds((x + 1, y)): neighbours.append((x + 1, y))  # Right
-			if self.within_bounds((x, y - 1)): neighbours.append((x, y - 1))  # Up
-			if self.within_bounds((x, y + 1)): neighbours.append((x, y + 1))  # Down
+			# if self.within_bounds((x - 1, y)): neighbours.append((x - 1, y))  # Left
+			# if self.within_bounds((x + 1, y)): neighbours.append((x + 1, y))  # Right
+			# if self.within_bounds((x, y - 1)): neighbours.append((x, y - 1))  # Up
+			# if self.within_bounds((x, y + 1)): neighbours.append((x, y + 1))  # Down
+			neighbours += [
+				((x - 1)%self.height, y), # Left
+				((x + 1)%self.height, y), # Right
+				(x, (y - 1)%self.width), # Up
+				(x, (y + 1)%self.width), # Down
+			]
 		elif neighbourhood_type == 'moore':
 			for i in range(-1, 2):
 				for j in range(-1, 2):
 					if i == j == 0: continue
-					if self.within_bounds((x + i, y + j)): neighbours.append((x + i, y + j))
+					# if self.within_bounds((x + i, y + j)): neighbours.append((x + i, y + j))
+					neighbours.append(((x + i)%self.height, (y + j)%self.width))
 		else:
 			print("RoadGrid::neighbours_of: This neighbourhood type is not supported.")
 			return None
@@ -65,10 +72,10 @@ class RoadGrid:
 	def neighbour_features(self):
 		# Start with order NORTH, SOUTH, EAST, WEST.
 		x, y = self.agent_position
-		north_features = self.cells[x][y + 1].binary_features() if self.within_bounds((x, y + 1)) else self.inaccessible
-		south_features = self.cells[x][y - 1].binary_features() if self.within_bounds((x, y - 1)) else self.inaccessible
-		east_features  = self.cells[x + 1][y].binary_features() if self.within_bounds((x + 1, y)) else self.inaccessible
-		west_features  = self.cells[x - 1][y].binary_features() if self.within_bounds((x - 1, y)) else self.inaccessible
+		north_features = self.cells[x][(y + 1)%self.width].binary_features() #if self.within_bounds((x, y + 1)) else self.inaccessible
+		south_features = self.cells[x][(y - 1)%self.width].binary_features() #if self.within_bounds((x, y - 1)) else self.inaccessible
+		east_features  = self.cells[(x + 1)%self.height][y].binary_features() #if self.within_bounds((x + 1, y)) else self.inaccessible
+		west_features  = self.cells[(x - 1)%self.height][y].binary_features() #if self.within_bounds((x - 1, y)) else self.inaccessible
 
 		total_features = north_features + south_features + east_features + west_features
 		return total_features
@@ -197,9 +204,11 @@ class RoadGrid:
 			dest_x += 1
 		elif direction == WEST:
 			dest_x -= 1
+		dest_x %= self.width # infinite grid
+		dest_y %= self.height # infinite grid
 
-		if not self.within_bounds((dest_x, dest_y)):
-			return ["FAIL: Out of bounds!"]
+		# if not self.within_bounds((dest_x, dest_y)):
+		# 	return "FAIL: Out of bounds!"
 
 		self.agent_position = (dest_x, dest_y)
 		self.agent.assign_property_value("Speed", speed)
