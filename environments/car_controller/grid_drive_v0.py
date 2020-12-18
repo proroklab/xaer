@@ -44,14 +44,14 @@ class GridDriveV0(gym.Env):
 		]
 
 	def step(self, action_vector):
+		self.step_counter += 1
 		direction, speed = action_vector
 		if direction==self.DIRECTIONS-1: # Terminal action, useful when all neighbours cannot be crossed
 			reward = 0
-			explanation = 'Terminal action'
+			explanation = ['Terminal action']
 			is_terminal_step = True
 		else:
 			motion_explanation = self.grid.move_agent(direction, speed)
-			self.step_counter += 1
 			is_terminal_step = self.step_counter >= self.MAX_STEP #or reward < 0
 			x, y = self.grid.agent_position
 			if motion_explanation:
@@ -59,9 +59,9 @@ class GridDriveV0(gym.Env):
 				explanation = motion_explanation
 			elif self.visited_cells[x][y]>0:
 				reward = 0
-				explanation = 'Old cell'
+				explanation = ['Old cell']
 			else: # Got ticket in new cell
 				reward = (speed+1)/self.MAX_SPEED # in (0,1]
-				explanation = 'OK'
+				explanation = ['OK']
 			self.visited_cells[x][y] = 1 # do it aftwer checking positions
 		return [self.get_state(), reward, is_terminal_step, {'explanation': explanation}]
