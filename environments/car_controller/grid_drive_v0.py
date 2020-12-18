@@ -24,17 +24,15 @@ class GridDriveV0(gym.Env):
 			gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION]),  # Visited Cells
 		])
 		self.step_counter = 0
-		self.keep_grid = False
 
 	def reset(self):
 		self.visited_cells = np.zeros((self.GRID_DIMENSION, self.GRID_DIMENSION), dtype=np.int8)
-		if not self.keep_grid:
+		if self.step_counter >= self.MAX_STEP:
 			self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION)
+			self.step_counter = 0
 		self.grid.set_random_position()
 		x,y = self.grid.agent_position
 		self.visited_cells[x][y] = 1
-		self.keep_grid = False
-		self.step_counter = 0
 		return self.get_state()
 
 	def get_state(self):
