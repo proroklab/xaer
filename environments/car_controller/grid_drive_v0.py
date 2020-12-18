@@ -44,8 +44,7 @@ class GridDriveV0(gym.Env):
 		]
 
 	def step(self, action_vector):
-		direction 	= action_vector[0]
-		speed 		= action_vector[1]
+		direction, speed = action_vector
 		if self.EXPLORATORY_BONUS:
 			self.visited_positions.add(self.grid.agent_position)
 		motion_explanation = self.grid.move_agent(direction, speed)
@@ -53,7 +52,7 @@ class GridDriveV0(gym.Env):
 			reward = -1
 			explanation = motion_explanation
 		else: # Got ticket.
-			reward = speed/self.MAX_SPEED
+			reward = speed/self.MAX_SPEED # in [0,1]
 			explanation = ['OK']
 			if self.EXPLORATORY_BONUS and self.grid.agent_position not in self.visited_positions:
 				# Check if not repeating previously-visited cells.
