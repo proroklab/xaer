@@ -27,7 +27,7 @@ class GridDriveV0(gym.Env):
 
 	def reset(self):
 		self.visited_cells = np.zeros((self.GRID_DIMENSION, self.GRID_DIMENSION), dtype=np.int8)
-		if self.step_counter >= self.MAX_STEP:
+		if self.step_counter%self.MAX_STEP == 0:
 			self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION)
 			self.step_counter = 0
 		self.grid.set_random_position()
