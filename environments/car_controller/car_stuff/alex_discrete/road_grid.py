@@ -2,6 +2,7 @@
 from environments.car_controller.car_stuff.alex_discrete.road_cell import RoadCell
 from environments.car_controller.car_stuff.alex_discrete.road_agent import RoadAgent
 from environments.car_controller.car_stuff.alex_discrete.road_cultures import *
+from random import randrange
 
 NORTH = 0
 SOUTH = 1
@@ -22,6 +23,9 @@ class RoadGrid:
 		self.inaccessible = tuple([0] * (len(self.road_culture.properties) + 1))
 
 		self.initialise_random_grid()
+
+	def set_random_position(self):
+		self.agent_position = (randrange(0,self.width), randrange(0,self.height))
 
 	def within_bounds(self, coord):
 		"""

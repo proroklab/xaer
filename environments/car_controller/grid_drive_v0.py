@@ -30,6 +30,7 @@ class GridDriveV0(gym.Env):
 	def reset(self):
 		if not self.keep_grid:
 			self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION)
+		self.grid.set_random_position()
 		self.keep_grid = False
 		self.step_counter = 0
 		if self.EXPLORATORY_BONUS:
@@ -52,12 +53,13 @@ class GridDriveV0(gym.Env):
 			reward = -1
 			explanation = motion_explanation
 		else: # Got ticket.
-			reward = speed/self.MAX_SPEED # in [0,1]
-			explanation = ['OK']
 			if self.EXPLORATORY_BONUS and self.grid.agent_position not in self.visited_positions:
 				# Check if not repeating previously-visited cells.
-				reward += speed/self.MAX_SPEED
-				explanation.append("EXTRA: This is a new cell.")
+				reward = 2*speed/self.MAX_SPEED # in [0,2]
+				explanation = ["New cell"]
+			else:
+				reward = speed/self.MAX_SPEED # in [0,1]
+				explanation = ['OK']
 		self.step_counter += 1
 		state = self.get_state()
 		is_terminal_step = self.step_counter >= self.MAX_STEP #or reward < 0
