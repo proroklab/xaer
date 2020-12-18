@@ -156,10 +156,7 @@ def xadqn_execution_plan(workers, config):
 	# (1) Generate rollouts and store them in our local replay buffer. Calling
 	# next() on store_op drives this.
 	store_op = rollouts \
-		.for_each(lambda batch: batch.split_by_episode()) \
-		.flatten() \
-		.for_each(lambda episode: assign_types_to_episode([episode], clustering_scheme)) \
-		.flatten() \
+		.for_each(lambda batch: assign_types(batch, clustering_scheme, config["replay_sequence_length"])) \
 		.for_each(StoreToReplayBuffer(local_buffer=local_replay_buffer))
 
 	# (2) Read and train on experiences from the replay buffer. Every batch

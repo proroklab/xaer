@@ -4,6 +4,7 @@ from xarl.experience_buffers.replay_buffer import LocalReplayBuffer
 from xarl.experience_buffers.clustering_scheme import *
 from ray.rllib.execution.learner_thread import LearnerThread, get_learner_stats
 from ray.rllib.execution.multi_gpu_learner import TFMultiGPULearner, get_learner_stats as get_gpu_learner_stats
+from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
 def get_clustered_replay_buffer(config, replay_batch_size=1, replay_sequence_length=None):
 	assert config["batch_mode"] == "complete_episodes" or not eval(config["clustering_scheme"]).batch_type_is_based_on_episode_type, f"This algorithm requires 'complete_episodes' as batch_mode when 'clustering_scheme' is {config['clustering_scheme']}"
@@ -18,14 +19,18 @@ def get_clustered_replay_buffer(config, replay_batch_size=1, replay_sequence_len
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme
 
-def assign_types_to_episode(episode, clustering_scheme):
-	episode_type = clustering_scheme.get_episode_type(episode)
-	# print(episode_type)
-	for batch in episode:
-		batch_type = clustering_scheme.get_batch_type(batch, episode_type)
-		batch["infos"][0]['batch_type'] = batch_type
-		batch["infos"][0]['batch_index'] = {}
-	return episode
+def assign_types(batch, clustering_scheme, replay_sequence_length):
+	batch_list = []
+	for episode in batch.split_by_episode():
+		sub_batch_list = episode.timeslices(replay_sequence_length)
+		episode_type = clustering_scheme.get_episode_type(sub_batch_list)
+		# print(episode_type)
+		for sub_batch in sub_batch_list:
+			sub_batch_type = clustering_scheme.get_batch_type(sub_batch, episode_type)
+			sub_batch["infos"][0]['batch_type'] = sub_batch_type
+			sub_batch["infos"][0]['batch_index'] = {}
+		batch_list += sub_batch_list
+	return SampleBatch.concat_samples(batch_list)
 
 class BatchLearnerThread(LearnerThread):
 	def step(self):

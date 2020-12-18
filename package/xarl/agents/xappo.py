@@ -185,10 +185,8 @@ def xappo_execution_plan(workers, config):
 	# Augment with replay and concat to desired train batch size.
 	train_batches = rollouts \
 		.for_each(lambda batch: batch.decompress_if_needed()) \
-		.for_each(lambda batch: batch.split_by_episode()) \
-		.flatten() \
-		.for_each(lambda episode: episode.timeslices(config["rollout_fragment_length"])) \
-		.for_each(lambda episode: assign_types_to_episode(episode, clustering_scheme)) \
+		.for_each(lambda batch: assign_types(batch, clustering_scheme, config["rollout_fragment_length"])) \
+		.for_each(lambda batch: batch.timeslices(config["rollout_fragment_length"])) \
 		.flatten() \
 		.for_each(MixInReplay(
 			local_buffer=local_replay_buffer,
