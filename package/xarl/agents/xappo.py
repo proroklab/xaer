@@ -186,7 +186,6 @@ def xappo_execution_plan(workers, config):
 	train_batches = rollouts \
 		.for_each(lambda batch: batch.decompress_if_needed()) \
 		.for_each(lambda batch: assign_types(batch, clustering_scheme, config["rollout_fragment_length"])) \
-		.for_each(lambda batch: batch.timeslices(config["rollout_fragment_length"])) \
 		.flatten() \
 		.for_each(MixInReplay(
 			local_buffer=local_replay_buffer,

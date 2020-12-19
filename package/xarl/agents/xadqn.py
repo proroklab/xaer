@@ -155,9 +155,13 @@ def xadqn_execution_plan(workers, config):
 	# We execute the following steps concurrently:
 	# (1) Generate rollouts and store them in our local replay buffer. Calling
 	# next() on store_op drives this.
-	store_op = rollouts \
-		.for_each(lambda batch: assign_types(batch, clustering_scheme, config["replay_sequence_length"])) \
-		.for_each(StoreToReplayBuffer(local_buffer=local_replay_buffer))
+	def store_batch(batch):
+		sub_batch_list = assign_types(batch, clustering_scheme, config["replay_sequence_length"])
+		store = StoreToReplayBuffer(local_buffer=local_replay_buffer)
+		for sub_batch in sub_batch_list:
+			store(sub_batch)
+		return batch
+	store_op = rollouts.for_each(store_batch)
 
 	# (2) Read and train on experiences from the replay buffer. Every batch
 	# returned from the LocalReplay() iterator is passed to TrainOneStep to

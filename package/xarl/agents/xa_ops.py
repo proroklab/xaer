@@ -30,7 +30,7 @@ def assign_types(batch, clustering_scheme, replay_sequence_length):
 			sub_batch["infos"][0]['batch_type'] = sub_batch_type
 			sub_batch["infos"][0]['batch_index'] = {}
 		batch_list += sub_batch_list
-	return SampleBatch.concat_samples(batch_list)
+	return batch_list
 
 class BatchLearnerThread(LearnerThread):
 	def step(self):

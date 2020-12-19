@@ -72,37 +72,17 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
 		with self.add_batch_timer:
 			for policy_id, b in batch.policy_batches.items():
-				if not self.replay_sequence_length:
-					self.num_added += 1
-					if isinstance(batch_type,(tuple,list)):
-						for sub_batch_type in batch_type:
-							if self.update_only_sampled_cluster:
-								b_copy = b.copy()
-								b_copy['infos'] = copy.deepcopy(b_copy['infos'])
-								self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
-							else:
-								self.replay_buffers[policy_id].add(b, sub_batch_type)
-					else:
-						self.replay_buffers[policy_id].add(b, batch_type)
-				else:
-					b_infos = b['infos'][0]
-					for s in b.timeslices(self.replay_sequence_length):
-						self.num_added += 1
-						s_infos = s['infos'][0]
-						if "batch_type" not in s_infos:
-							s_infos["batch_type"] = batch_type
-						if "batch_index" not in s_infos:
-							s_infos["batch_index"] = {}
-						if isinstance(batch_type,(tuple,list)):
-							for sub_batch_type in batch_type:
-								if self.update_only_sampled_cluster:
-									s_copy = s.copy()
-									s_copy['infos'] = copy.deepcopy(s_copy['infos'])
-									self.replay_buffers[policy_id].add(s_copy, sub_batch_type)
-								else:
-									self.replay_buffers[policy_id].add(s, sub_batch_type)
+				self.num_added += 1
+				if isinstance(batch_type,(tuple,list)):
+					for sub_batch_type in batch_type:
+						if self.update_only_sampled_cluster:
+							b_copy = b.copy()
+							b_copy['infos'] = copy.deepcopy(b_copy['infos'])
+							self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
 						else:
-							self.replay_buffers[policy_id].add(s, batch_type)
+							self.replay_buffers[policy_id].add(b, sub_batch_type)
+				else:
+					self.replay_buffers[policy_id].add(b, batch_type)
 		return batch
 
 	def can_replay(self):
