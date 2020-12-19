@@ -213,8 +213,6 @@ class RoadGrid:
 		self.agent_position = (dest_x, dest_y)
 		self.agent.assign_property_value("Speed", speed)
 
-		motion, explanation_list = self.run_dialogue(self.cells[dest_x][dest_y], self.agent, explanation_type="compact")
-		if not motion:  # If the agent can move
-			return explanation_list # return a sort of pertinent positive: minimally sufficient changes to apply for moving correctly
-		return None
+		can_move, explanation_list = self.run_dialogue(self.cells[dest_x][dest_y], self.agent, explanation_type="compact")
+		return can_move, explanation_list
 
