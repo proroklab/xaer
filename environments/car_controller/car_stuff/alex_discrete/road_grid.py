@@ -80,6 +80,14 @@ class RoadGrid:
 		total_features = north_features + south_features + east_features + west_features
 		return total_features
 
+	def get_features(self):
+		return [
+			[
+				e.binary_features()
+				for e in row
+			]
+			for row in self.cells
+		]
 
 	def initialise_random_grid(self):
 		"""
@@ -182,7 +190,6 @@ class RoadGrid:
 			]
 
 		return motion_validated, explanation_list
-
 
 	def move_agent(self, direction, speed):
 		"""

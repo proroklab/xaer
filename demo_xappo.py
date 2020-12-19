@@ -13,7 +13,7 @@ from environments import *
 # SELECT_ENV = "ToyExample-v0"
 # SELECT_ENV = "CescoDrive-v2"
 # SELECT_ENV = "AlexDrive-v0"
-SELECT_ENV = "GridDrive-v2"
+SELECT_ENV = "GridDrive-v1"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"

@@ -11,7 +11,7 @@ from xarl.agents.xadqn import DQNTrainer as DQNTrainer_ExplainedVar
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
-SELECT_ENV = "GridDrive-v2"
+SELECT_ENV = "GridDrive-v1"
 
 CONFIG = DQN_DEFAULT_CONFIG.copy()
 CONFIG["log_level"] = "WARN"
