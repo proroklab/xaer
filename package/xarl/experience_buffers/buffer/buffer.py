@@ -3,10 +3,11 @@ from random import choice
 from collections import deque
 
 class Buffer(object):
-	__slots__ = ('size','types','batches','type_values','type_keys')
+	__slots__ = ('cluster_size','global_size','types','batches','type_values','type_keys')
 	
-	def __init__(self, size):
-		self.size = size
+	def __init__(self, cluster_size, global_size):
+		self.cluster_size = min(cluster_size,global_size) if global_size else cluster_size
+		self.global_size = global_size
 		self.clean()
 		
 	def clean(self):
@@ -21,7 +22,7 @@ class Buffer(object):
 		self.types[type_id] = len(self.types)
 		self.type_values.append(self.types[type_id])
 		self.type_keys.append(type_id)
-		self.batches.append(deque(maxlen=self.size))
+		self.batches.append(deque(maxlen=self.cluster_size))
 		return True
 		
 	def set(self, buffer):
@@ -51,12 +52,18 @@ class Buffer(object):
 		return len(self.batches[type_])
 		
 	def id_is_full(self, type_id):
-		return self.has(self.size, self.get_type(type_id))
+		return self.has(self.cluster_size, self.get_type(type_id))
 		
-	def is_full(self, type_=None):
+	def is_full_cluster(self, type_=None):
 		if type_ is None:
-			return self.has(self.size*len(self.types))
-		return self.has(self.size, type_)
+			return self.has(self.cluster_size*len(self.types))
+		return self.has(self.cluster_size, type_)
+
+	def is_full_buffer(self):
+		return self.has(self.global_size) if self.global_size else False
+
+	def is_full(self, type_=None):
+		return self.is_full_cluster(type_) or self.is_full_buffer()
 		
 	def is_empty(self, type_=None):
 		return not self.has_atleast(1, type_)

@@ -6,12 +6,13 @@ from xarl.experience_buffers.buffer.buffer import Buffer
 from xarl.utils.segment_tree import SumSegmentTree, MinSegmentTree
 
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_sample_simplest_unknown_task')
+	__slots__ = ('removed_type_idx_dict','_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_sample_simplest_unknown_task')
 	
 	def __init__(self, 
 		priority_id,
 		priority_aggregation_fn,
-		size=50000, 
+		cluster_size=50000, 
+		global_size=50000, 
 		alpha=0.6, 
 		beta=0.4, 
 		epsilon=1e-4,
@@ -31,9 +32,9 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._prioritised_cluster_sampling = prioritised_cluster_sampling
 		self._sample_simplest_unknown_task = sample_simplest_unknown_task
 		self._it_capacity = 1
-		while self._it_capacity < size:
+		while self._it_capacity < cluster_size:
 			self._it_capacity *= 2
-		super().__init__(size)
+		super().__init__(cluster_size, global_size)
 		
 	def set(self, buffer): # O(1)
 		assert isinstance(buffer, PseudoPrioritizedBuffer)
@@ -44,14 +45,16 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._sample_priority_tree = []
 		self._drop_priority_tree = []
 		self._insertion_time_tree = []
+		self.removed_type_idx_dict = {}
 			
 	def _add_type_if_not_exist(self, type_id): # O(1)
 		if type_id in self.types: # check it to avoid double insertion
 			return False
-		self.types[type_id] = len(self.types)
-		self.type_values.append(self.types[type_id])
+		self.types[type_id] = sample_type = len(self.types)
+		self.type_values.append(sample_type)
 		self.type_keys.append(type_id)
 		self.batches.append([])
+		self.removed_type_idx_dict[sample_type] = []
 		self._sample_priority_tree.append(SumSegmentTree(self._it_capacity))
 		self._drop_priority_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
 		self._insertion_time_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
@@ -63,20 +66,55 @@ class PseudoPrioritizedBuffer(Buffer):
 	def get_priority(self, idx, type_id):
 		sample_type = self.get_type(type_id)
 		return self._sample_priority_tree[sample_type][idx]
+
+	def get_batch(self, idx, type_id):
+		sample_type = self.get_type(type_id)
+		return self.batches[sample_type][idx]
+
+	def set_batch(self, idx, type_id, batch):
+		sample_type = self.get_type(type_id)
+		self.batches[sample_type][idx] = batch
+
+	def remove_batch(self, sample_type, idx): # O(log)
+		if self._prioritized_drop_probability > 0:
+			self._drop_priority_tree[sample_type][idx] = None # O(log)
+		if self._prioritized_drop_probability < 1:
+			self._insertion_time_tree[sample_type][idx] = None # O(log)
+		self._sample_priority_tree[sample_type][idx] = None # O(log)
+		self.batches[sample_type][idx] = None # O(1)
+
+	def remove_less_important_batches(self, sample_type_list):
+		type_idx_dict = {}
+		for sample_type in sample_type_list:
+			if random() <= self._prioritized_drop_probability: # Remove the batch with lowest priority
+				_,idx = self._drop_priority_tree[sample_type].min() # O(1)
+			else:
+				_,idx = self._insertion_time_tree[sample_type].min() # O(1)
+			self.remove_batch(sample_type, idx)
+			type_idx_dict[sample_type] = idx
+		return type_idx_dict
 		
 	def add(self, batch, type_id=0): # O(log)
 		self._add_type_if_not_exist(type_id)
 		sample_type = self.get_type(type_id)
 		type_batch = self.batches[sample_type]
-		if self.is_full(sample_type): # full buffer
-			if random() <= self._prioritized_drop_probability: # Remove the batch with lowest priority
-				_,idx = self._drop_priority_tree[sample_type].min() # O(1)
-			else: # Remove the oldest batch
-				_,idx = self._insertion_time_tree[sample_type].min() # O(1)
+		if self.is_full_buffer(): # full buffer
+			type_idx_dict = self.remove_less_important_batches(self.type_values)
+			idx = type_idx_dict[sample_type]
+			type_batch[idx] = batch
+			del type_idx_dict[sample_type]
+			for k,v in type_idx_dict.items():
+				self.removed_type_idx_dict[k].append(v)
+		elif self.is_full_cluster(sample_type): # full buffer
+			idx = self.remove_less_important_batches([sample_type])[sample_type]
 			type_batch[idx] = batch
 		else: # add new element to buffer
-			idx = len(type_batch)
-			type_batch.append(batch)
+			if self.removed_type_idx_dict[sample_type]:
+				idx = self.removed_type_idx_dict[sample_type].pop()
+				type_batch[idx] = batch
+			else:
+				idx = len(type_batch)
+				type_batch.append(batch)
 		batch_infos = batch['infos'][0]
 		assert "batch_index" in batch_infos, "Something wrong!"
 		batch_infos["batch_index"][type_id] = idx
@@ -138,11 +176,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			batch['weights'] = np.full(batch.count, weight/max_weight)
 		# Remove from buffer
 		if remove:
-			if self._prioritized_drop_probability < 1:
-				self._insertion_time_tree[sample_type][idx] = None # O(log)
-			if self._prioritized_drop_probability > 0:
-				self._drop_priority_tree[sample_type][idx] = None # O(log)
-			type_sum_tree[idx] = None # O(log)
+			self.remove_batch(sample_type, idx)
 		return batch
 
 	def get_batch_priority(self, batch):

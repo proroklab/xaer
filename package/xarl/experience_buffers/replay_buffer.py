@@ -66,6 +66,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	def add_batch(self, batch):
 		# Make a copy so the replay buffer doesn't pin plasma memory.
 		batch = batch.copy()
+		batch['infos'] = copy.deepcopy(batch['infos'])
 		batch_type = batch['infos'][0]["batch_type"]
 		# Handle everything as if multiagent
 		if isinstance(batch, SampleBatch):
@@ -115,9 +116,12 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		with self.update_priorities_timer:
 			for policy_id, new_batch in prio_dict.items():
 				new_priority = self.replay_buffers[policy_id].get_batch_priority(new_batch)
-				# print(new_batch['infos'][0]["batch_index"])
+				# Make a copy so the replay buffer doesn't pin plasma memory.
+				new_batch = new_batch.copy()
+				new_batch['infos'] = copy.deepcopy(new_batch['infos'])
 				for type_id,batch_index in new_batch['infos'][0]["batch_index"].items():
 					self.replay_buffers[policy_id].update_priority(new_priority, batch_index, type_id)
+					self.replay_buffers[policy_id].set_batch(batch_index, type_id, new_batch)
 
 	def stats(self, debug=False):
 		stat = {

@@ -31,7 +31,8 @@ CONFIG["filter_duplicated_batches_when_replaying"] = False # Whether to remove d
 CONFIG["buffer_options"] = {
 	'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
 	'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
-	'size': 2**8, # Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
+	'cluster_size': 2**8, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+	'global_size': None, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 	'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 	'beta': None, # Parameter that regulates a mechanism for computing importance sampling; PPO probably does not need it.
 	'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
