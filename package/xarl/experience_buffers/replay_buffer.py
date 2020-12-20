@@ -5,6 +5,7 @@ import platform
 from more_itertools import unique_everseen
 from itertools import islice
 import copy
+import threading 
 
 # Import ray before psutil will make sure we use psutil's bundled version
 import ray  # noqa F401
@@ -29,25 +30,15 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		prioritized_replay=True,
 		buffer_options=None, 
 		learning_starts=1000, 
-		replay_sequence_length=None,
-		replay_batch_size=1,
 		update_only_sampled_cluster=True,
 	):
 		self.update_only_sampled_cluster = update_only_sampled_cluster
-		self.replay_batch_size = replay_batch_size
-		self.replay_sequence_length = replay_sequence_length
-		if replay_sequence_length and replay_sequence_length > 1:
-			self.replay_batch_size = int(max(1, replay_batch_size // replay_sequence_length))
-			logger.info("Since replay_sequence_length={} and replay_batch_size={}, we will replay {} sequences at a time.".format(replay_sequence_length, replay_batch_size, self.replay_batch_size))
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
 		self.replay_starts = learning_starts
+		self._buffer_lock = threading.Lock() 
 
-		def gen_replay():
-			while True:
-				yield MultiAgentBatch.concat_samples(self.replay(filter_duplicates=False))
-
-		ParallelIteratorWorker.__init__(self, gen_replay, False)
+		ParallelIteratorWorker.__init__(self, None, False)
 
 		def new_buffer():
 			return PseudoPrioritizedBuffer(**self.buffer_options) if self.prioritized_replay else Buffer(self.buffer_options['size'])
@@ -72,41 +63,41 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		if isinstance(batch, SampleBatch):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
 		with self.add_batch_timer:
-			for policy_id, b in batch.policy_batches.items():
-				self.num_added += 1
-				if isinstance(batch_type,(tuple,list)):
-					for sub_batch_type in batch_type:
-						if self.update_only_sampled_cluster:
-							b_copy = b.copy()
-							b_copy['infos'] = copy.deepcopy(b_copy['infos'])
-							self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
-						else:
-							self.replay_buffers[policy_id].add(b, sub_batch_type)
-				else:
-					self.replay_buffers[policy_id].add(b, batch_type)
-		return batch
+			with self._buffer_lock:
+				for policy_id, b in batch.policy_batches.items():
+					self.num_added += 1
+					if isinstance(batch_type,(tuple,list)):
+						for sub_batch_type in batch_type:
+							if self.update_only_sampled_cluster:
+								b_copy = b.copy()
+								b_copy['infos'] = copy.deepcopy(b_copy['infos'])
+								self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
+							else:
+								self.replay_buffers[policy_id].add(b, sub_batch_type)
+					else:
+						self.replay_buffers[policy_id].add(b, batch_type)
+			return batch
 
 	def can_replay(self):
 		return self.num_added >= self.replay_starts
 
-	def replay(self, replay_size=None, filter_duplicates=True):
+	def replay(self, replay_size=1, filter_duplicates=True):
 		def gen_sample(replay_buffer):
 			while True:
 				yield replay_buffer.sample()
 		if not self.can_replay():
 			return None
-		if replay_size is None:
-			replay_size = self.replay_batch_size
 
 		with self.replay_timer:
-			batch_list = [{} for _ in range(replay_size)]
-			for policy_id, replay_buffer in self.replay_buffers.items():
-				batch_iter = gen_sample(replay_buffer) # generate new batches
-				if filter_duplicates:
-					batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
-				batch_iter = islice(batch_iter, replay_size) # take the first n batches
-				for i,batch in enumerate(batch_iter):
-					batch_list[i][policy_id] = batch
+			with self._buffer_lock:
+				batch_list = [{} for _ in range(replay_size)]
+				for policy_id, replay_buffer in self.replay_buffers.items():
+					batch_iter = gen_sample(replay_buffer) # generate new batches
+					if filter_duplicates:
+						batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
+					batch_iter = islice(batch_iter, replay_size) # take the first n batches
+					for i,batch in enumerate(batch_iter):
+						batch_list[i][policy_id] = batch
 		return [
 			MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 			for samples in batch_list
@@ -114,14 +105,13 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:
-			for policy_id, new_batch in prio_dict.items():
-				new_priority = self.replay_buffers[policy_id].get_batch_priority(new_batch)
-				# Make a copy so the replay buffer doesn't pin plasma memory.
-				new_batch = new_batch.copy()
-				new_batch['infos'] = copy.deepcopy(new_batch['infos'])
-				for type_id,batch_index in new_batch['infos'][0]["batch_index"].items():
-					self.replay_buffers[policy_id].update_priority(new_priority, batch_index, type_id)
-					self.replay_buffers[policy_id].set_batch(batch_index, type_id, new_batch)
+			with self._buffer_lock:
+				for policy_id, new_batch in prio_dict.items():
+					# Make a copy so the replay buffer doesn't pin plasma memory.
+					new_batch = new_batch.copy()
+					new_batch['infos'] = copy.deepcopy(new_batch['infos'])
+					for type_id,batch_index in new_batch['infos'][0]["batch_index"].items():
+						self.replay_buffers[policy_id].update_priority(new_batch, batch_index, type_id)
 
 	def stats(self, debug=False):
 		stat = {

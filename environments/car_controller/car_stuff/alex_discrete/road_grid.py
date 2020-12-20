@@ -172,9 +172,9 @@ class RoadGrid:
 
 		# Building the explanation.
 
-		explanation_list = []
 		if explanation_type == "verbose":
 			turn = 0
+			explanation_list = []
 			for argument_list in dialogue_history:
 				argument_explanation = "CON: " if turn % 2 else "PRO: "
 				argument_explanation += ' / '.join(sorted((
@@ -184,7 +184,7 @@ class RoadGrid:
 				turn += 1
 				explanation_list.append(argument_explanation)
 		else:
-			explanation_list += [
+			explanation_list = [
 				AF.argument(argument_id).descriptive_text
 				for argument_id in last_argument[winner]
 			]

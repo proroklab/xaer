@@ -18,14 +18,15 @@ class StoreToReplayBuffer:
 	def __call__(self, batch: SampleBatchType):
 		return self.local_actor.add_batch(batch)
 
-def Replay(local_buffer, filter_duplicates=False):
+def Replay(local_buffer, replay_batch_size=1, filter_duplicates=False):
 	def gen_replay(_):
 		while True:
-			batch_list = local_buffer.replay(filter_duplicates=filter_duplicates)
+			batch_list = local_buffer.replay(replay_size=replay_batch_size, filter_duplicates=filter_duplicates)
 			if not batch_list:
 				yield _NextValueNotReady()
 			else:
-				yield MultiAgentBatch.concat_samples(batch_list)
+				for batch in batch_list:
+					yield batch
 	return LocalIterator(gen_replay, SharedMetrics())
 
 class MixInReplay:

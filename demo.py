@@ -11,15 +11,13 @@ from environments import *
 def get_algorithm_by_name(alg_name):
 	if alg_name == 'dqn':
 		from ray.rllib.agents.dqn.dqn import DQNTrainer, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
-		from xarl.agents.xadqn import DQNTrainer as DQNTrainer_ExplainedVar
-		return DQN_DEFAULT_CONFIG.copy(), DQNTrainer_ExplainedVar
+		return DQN_DEFAULT_CONFIG.copy(), DQNTrainer
 	if alg_name == 'xadqn':
 		from xarl.agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
 		return XADQN_DEFAULT_CONFIG.copy(), XADQNTrainer
 	if alg_name == 'ddpg':
 		from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAULT_CONFIG
-		from xarl.agents.xaddpg import DDPGTrainer as DDPGTrainer_ExplainedVar
-		return DDPG_DEFAULT_CONFIG.copy(), DDPGTrainer_ExplainedVar
+		return DDPG_DEFAULT_CONFIG.copy(), DDPGTrainer
 	if alg_name == 'xaddpg':
 		from xarl.agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
 		return XADDPG_DEFAULT_CONFIG.copy(), XADDPGTrainer

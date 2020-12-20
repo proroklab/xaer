@@ -77,9 +77,8 @@ class SegmentTree(object):
 		if self._value[idx] == self._neutral_element:
 			if val:
 				self.inserted_elements += 1
-		else:
-			if not val:
-				self.inserted_elements -= 1
+		elif not val:
+			self.inserted_elements -= 1
 		self._value[idx] = val if val else self._neutral_element
 		idx //= 2
 		while idx >= 1:

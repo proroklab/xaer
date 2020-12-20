@@ -6,14 +6,12 @@ from ray.rllib.execution.learner_thread import LearnerThread, get_learner_stats
 from ray.rllib.execution.multi_gpu_learner import TFMultiGPULearner, get_learner_stats as get_gpu_learner_stats
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
-def get_clustered_replay_buffer(config, replay_batch_size=1, replay_sequence_length=None):
+def get_clustered_replay_buffer(config):
 	assert config["batch_mode"] == "complete_episodes" or not eval(config["clustering_scheme"]).batch_type_is_based_on_episode_type, f"This algorithm requires 'complete_episodes' as batch_mode when 'clustering_scheme' is {config['clustering_scheme']}"
 	local_replay_buffer = LocalReplayBuffer(
 		prioritized_replay=config["prioritized_replay"],
 		buffer_options=config["buffer_options"], 
 		learning_starts=config["learning_starts"], 
-		replay_batch_size=replay_batch_size,
-		replay_sequence_length=replay_sequence_length,
 		update_only_sampled_cluster=config["update_only_sampled_cluster"],
 	)
 	clustering_scheme = eval(config["clustering_scheme"])()

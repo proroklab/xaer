@@ -39,13 +39,13 @@ class GridDriveV0(gym.Env):
 		return self.get_state()
 
 	def get_state(self):
-		return [
+		return (
 			self.grid_features, 
 			np.array(self.grid.agent.binary_features(), dtype=np.int8),
 			np.array(self.grid.agent_position, dtype=np.int64),
 			self.visited_cells,
 			np.array([self.found_initial_state], dtype=np.int8),
-		]
+		)
 
 	def step(self, action_vector):
 		self.step_counter += 1
