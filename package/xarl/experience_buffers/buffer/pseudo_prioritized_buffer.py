@@ -61,7 +61,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		return True
 	
 	def normalize_priority(self, priority): # O(1)
-		return np.sign(priority)*np.power(np.absolute(priority) + (self._epsilon if self._beta is not None else 0.), self._alpha, dtype=np.float32)
+		# always add self._epsilon so that there is no priority equal to the neutral value of a SumSegmentTree
+		return np.sign(priority)*np.power(np.absolute(priority) + self._epsilon, self._alpha, dtype=np.float32)
 
 	def get_priority(self, idx, type_id):
 		sample_type = self.get_type(type_id)
@@ -83,9 +84,18 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._sample_priority_tree[sample_type][idx] = None # O(log)
 		self.batches[sample_type][idx] = None # O(1)
 
+	def count(self, type_=None):
+		if type_ is None:
+			if len(self.batches) == 0:
+				return 0
+			return sum(t.inserted_elements for t in self._sample_priority_tree)
+		return self._sample_priority_tree[type_].inserted_elements
+
 	def remove_less_important_batches(self, sample_type_list):
 		type_idx_dict = {}
 		for sample_type in sample_type_list:
+			if not self.has_atleast(2, sample_type): # avoid empty clusters
+				continue
 			if random() <= self._prioritized_drop_probability: # Remove the batch with lowest priority
 				_,idx = self._drop_priority_tree[sample_type].min() # O(1)
 			else:
@@ -98,17 +108,14 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._add_type_if_not_exist(type_id)
 		sample_type = self.get_type(type_id)
 		type_batch = self.batches[sample_type]
-		if self.is_full_buffer(): # full buffer
-			type_idx_dict = self.remove_less_important_batches(self.type_values)
-			idx = type_idx_dict[sample_type]
-			type_batch[idx] = batch
-			del type_idx_dict[sample_type]
-			for k,v in type_idx_dict.items():
-				self.removed_type_idx_dict[k].append(v)
-		elif self.is_full_cluster(sample_type): # full buffer
+		if self.is_full_cluster(sample_type): # full buffer
 			idx = self.remove_less_important_batches([sample_type])[sample_type]
 			type_batch[idx] = batch
 		else: # add new element to buffer
+			if self.is_full_buffer(): # full buffer, remove from the biggest cluster
+				type_idx_dict = self.remove_less_important_batches([max(self.type_values, key=self.count)])
+				for k,v in type_idx_dict.items():
+					self.removed_type_idx_dict[k].append(v)
 			if self.removed_type_idx_dict[sample_type]:
 				idx = self.removed_type_idx_dict[sample_type].pop()
 				type_batch[idx] = batch
@@ -145,6 +152,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			worst_type_priority = np.min(type_priority)
 			type_cumsum = np.cumsum(type_priority-worst_type_priority) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
+			# print(type_mass, type_cumsum)
 			sample_type,_ = next(filter(lambda x: x[-1] >= type_mass, enumerate(type_cumsum))) # O(|self.type_keys|)
 			type_id = self.type_keys[sample_type]
 		else:
@@ -167,6 +175,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			tot_priority = type_sum_tree.sum(scaled=False)
 			N = type_sum_tree.inserted_elements
 
+			# print(min_priority, tot_priority)
 			p_min = min_priority / tot_priority
 			max_weight = np.power(p_min * N, -self._beta, dtype=np.float32)
 
