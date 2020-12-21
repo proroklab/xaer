@@ -16,8 +16,7 @@ from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
-from xarl.agents.xa_ops import *
-from xarl.experience_buffers.replay_ops import MixInReplay
+from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types
 from xarl.utils.misc import accumulate
 
 IMPORTANCE_WEIGHTS = "importance_weights"
@@ -164,11 +163,7 @@ def xappo_get_policy_class(config):
 	# return XAPPOTFPolicy
 
 def xappo_execution_plan(workers, config):
-	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(
-		config,
-		replay_batch_size=1,
-		replay_sequence_length=None,
-	)
+	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 	local_worker = workers.local_worker()
 
@@ -179,8 +174,10 @@ def xappo_execution_plan(workers, config):
 					continue
 				policy = local_worker.policy_map[pid]
 				samples.policy_batches[pid] = xappo_postprocess_trajectory(policy, batch)
+			local_replay_buffer.update_priorities(samples.policy_batches)
 		else:
 			samples = xappo_postprocess_trajectory(local_worker.policy_map[DEFAULT_POLICY_ID], samples)
+			local_replay_buffer.update_priorities({DEFAULT_POLICY_ID:samples})
 		return samples
 
 	# Augment with replay and concat to desired train batch size.
@@ -198,7 +195,7 @@ def xappo_execution_plan(workers, config):
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
 
 	# Start the learner thread.
-	learner_thread = xa_make_learner_thread(local_worker, config)
+	learner_thread = make_learner_thread(local_worker, config)
 	learner_thread.start()
 
 	# This sub-flow sends experiences to the learner.
@@ -210,19 +207,7 @@ def xappo_execution_plan(workers, config):
 				learner_thread, workers,
 				broadcast_interval=config["broadcast_interval"]))
 
-	# This sub-flow updates the steps trained counter based on learner output.
-	def update_priorities(item):
-		if config.get("prioritized_replay"):
-			samples, info_dict = item
-			prio_dict = {}
-			for policy_id, info in info_dict.items():
-				batch = samples.policy_batches[policy_id]
-				prio_dict[policy_id] = batch
-			local_replay_buffer.update_priorities(prio_dict)
-		return item
 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
-		.for_each(update_priorities) \
-		.for_each(lambda x: (x[0].count, x[1])) \
 		.for_each(record_steps_trained)
 
 	merged_op = Concurrently([enqueue_op, dequeue_op], mode="async", output_indexes=[1])

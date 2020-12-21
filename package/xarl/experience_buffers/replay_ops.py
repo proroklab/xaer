@@ -6,10 +6,35 @@ from itertools import islice
 
 from ray.util.iter import LocalIterator, _NextValueNotReady
 from ray.util.iter_metrics import SharedMetrics
-from ray.rllib.execution.replay_buffer import LocalReplayBuffer
 from ray.rllib.utils.typing import SampleBatchType
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
+from xarl.experience_buffers.replay_buffer import LocalReplayBuffer
+from xarl.experience_buffers.clustering_scheme import *
+
+def get_clustered_replay_buffer(config):
+	assert config["batch_mode"] == "complete_episodes" or not eval(config["clustering_scheme"]).batch_type_is_based_on_episode_type, f"This algorithm requires 'complete_episodes' as batch_mode when 'clustering_scheme' is {config['clustering_scheme']}"
+	local_replay_buffer = LocalReplayBuffer(
+		prioritized_replay=config["prioritized_replay"],
+		buffer_options=config["buffer_options"], 
+		learning_starts=config["learning_starts"], 
+		update_only_sampled_cluster=config["update_only_sampled_cluster"],
+	)
+	clustering_scheme = eval(config["clustering_scheme"])()
+	return local_replay_buffer, clustering_scheme
+
+def assign_types(batch, clustering_scheme, replay_sequence_length):
+	batch_list = []
+	for episode in batch.split_by_episode():
+		sub_batch_list = episode.timeslices(replay_sequence_length)
+		episode_type = clustering_scheme.get_episode_type(sub_batch_list)
+		# print(episode_type)
+		for sub_batch in sub_batch_list:
+			sub_batch_type = clustering_scheme.get_batch_type(sub_batch, episode_type)
+			sub_batch["infos"][0]['batch_type'] = sub_batch_type
+			sub_batch["infos"][0]['batch_index'] = {}
+		batch_list += sub_batch_list
+	return batch_list
 
 class StoreToReplayBuffer:
 	def __init__(self, local_buffer: LocalReplayBuffer = None):

@@ -76,7 +76,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 								self.replay_buffers[policy_id].add(b, sub_batch_type)
 					else:
 						self.replay_buffers[policy_id].add(b, batch_type)
-			return batch
+		return batch
 
 	def can_replay(self):
 		return self.num_added >= self.replay_starts

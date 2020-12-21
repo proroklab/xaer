@@ -19,10 +19,10 @@ class GridDriveV0(gym.Env):
 		# Direction (N, S, W, E) + Speed [0-MAX_SPEED]
 		self.action_space	   = gym.spaces.MultiDiscrete([self.DIRECTIONS, self.MAX_SPEED])
 		self.observation_space = gym.spaces.Tuple([ # Current Observation
-				gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, OBS_ROAD_FEATURES]), 	# Features representing the grid
+			gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, OBS_ROAD_FEATURES]), 	# Features representing the grid
 			gym.spaces.MultiBinary(OBS_CAR_FEATURES),  # Car features
 			gym.spaces.MultiDiscrete([self.GRID_DIMENSION, self.GRID_DIMENSION]),  # Current Position
-				gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION]),  # Visited Cells
+			gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION]),  # Visited Cells
 		])
 		self.step_counter = 0
 		self.culture = HardRoadCulture({

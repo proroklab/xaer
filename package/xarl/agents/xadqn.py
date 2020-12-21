@@ -14,8 +14,7 @@ from ray.rllib.utils.torch_ops import explained_variance as torch_explained_vari
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
 from ray.rllib.policy.sample_batch import SampleBatch
 
-from xarl.agents.xa_ops import *
-from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay
+from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types
 
 XADQN_EXTRA_OPTIONS = {
 	"prioritized_replay": True,
@@ -57,14 +56,12 @@ def xadqn_execution_plan(workers, config):
 		samples, info_dict = item
 		if config.get("prioritized_replay"):
 			priority_id = config["buffer_options"]["priority_id"]
-			prio_dict = {}
 			for policy_id, info in info_dict.items():
 				td_error = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))
 				batch = samples.policy_batches[policy_id]
 				if priority_id == "weights":
 					batch[priority_id] = td_error
-				prio_dict[policy_id] = batch
-			local_replay_buffer.update_priorities(prio_dict)
+			local_replay_buffer.update_priorities(samples.policy_batches)
 		return info_dict
 
 	rollouts = ParallelRollouts(workers, mode="bulk_sync")
