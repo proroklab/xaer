@@ -9,8 +9,10 @@ import random
 #####################
 
 class EasyRoadCulture(Culture):
-    def __init__(self):
+    def __init__(self, complexity_options=None):
         super().__init__()
+        if complexity_options is None:
+            complexity_options = {}
         self.name = "Easy Road Culture"
         # Properties of the culture with their default values go in self.properties.
         self.properties = {"Motorway": False,
@@ -95,7 +97,9 @@ class EasyRoadCulture(Culture):
 #######################
 
 class MediumRoadCulture(Culture):
-    def __init__(self):
+    def __init__(self, complexity_options=None):
+        if complexity_options is None:
+            complexity_options = {}
         self.ids = {}
         super().__init__()
         self.name = "Hard Road Culture"
@@ -277,7 +281,11 @@ class MediumRoadCulture(Culture):
 #####################
 
 class HardRoadCulture(Culture):
-    def __init__(self):
+    def __init__(self, complexity_options=None):
+        if complexity_options is None:
+            complexity_options = {}
+        self.roadworks_ratio = complexity_options.get('roadworks_ratio',1/2)
+        self.congestion_charge_ratio = complexity_options.get('congestion_charge_ratio',1/2)
         self.ids = {}
         super().__init__()
         self.name = "Hard Road Culture"
@@ -471,31 +479,31 @@ class HardRoadCulture(Culture):
         Receives an empty RoadCell and initialises properties with acceptable random values.
         :param road: uninitialised RoadCell.
         """
-        motorway = random.choice([True, False])
+        motorway = True if random.random() <= 1/2 else False
         road.assign_property_value("Motorway", motorway)
 
-        stop_sign = random.choice([True, False])
+        stop_sign = True if random.random() <= 1/2 else False
         road.assign_property_value("Stop Sign", stop_sign)
 
-        school = random.choice([True, False])
+        school = True if random.random() <= 1/2 else False
         road.assign_property_value("School", school)
 
-        single_lane = random.choice([True, False])
+        single_lane = True if random.random() <= 1/2 else False
         road.assign_property_value("Single Lane", single_lane)
 
-        town_road = random.choice([True, False])
+        town_road = True if random.random() <= 1/2 else False
         road.assign_property_value("Town Road", town_road)
 
-        roadworks = False if np.random.randint(0, 4) != 0 else True
+        roadworks = True if random.random() <= self.roadworks_ratio else False
         road.assign_property_value("Roadworks", roadworks)
 
-        accident = False if np.random.randint(0, 4) != 0 else True
+        accident = True if random.random() <= 1/8 else False
         road.assign_property_value("Accident", accident)
 
-        heavy_rain = random.choice([True, False])
+        heavy_rain = True if random.random() <= 1/2 else False
         road.assign_property_value("Heavy Rain", heavy_rain)
 
-        congestion_charge = random.choice([True, False])
+        congestion_charge = True if random.random() <= self.congestion_charge_ratio else False
         road.assign_property_value("Congestion Charge", congestion_charge)
 
     def initialise_random_agent(self, agent: RoadAgent):
@@ -503,19 +511,19 @@ class HardRoadCulture(Culture):
         Receives an empty RoadAgent and initialises properties with acceptable random values.
         :param agent: uninitialised RoadAgent.
         """
-        tasked_emergency_vehicle = False if np.random.randint(0, 5) != 0 else True
-        agent.assign_property_value("Emergency Vehicle", tasked_emergency_vehicle)
+        emergency_vehicle = True if random.random() <= 1/5 else False
+        agent.assign_property_value("Emergency Vehicle", emergency_vehicle)
 
-        heavy_vehicle = False if np.random.randint(0, 4) != 0 else True
+        heavy_vehicle = True if random.random() <= 1/4 else False
         agent.assign_property_value("Heavy Vehicle", heavy_vehicle)
 
-        worker_vehicle = False if np.random.randint(0, 3) != 0 else True
+        worker_vehicle = True if random.random() <= 1/3 else False
         agent.assign_property_value("Worker Vehicle", worker_vehicle)
 
-        tasked = random.choice([True, False])
+        tasked = True if random.random() <= 1/2 else False
         agent.assign_property_value("Tasked", tasked)
 
-        paid_charge = random.choice([True, False])
+        paid_charge = True if random.random() <= 1/2 else False
         agent.assign_property_value("Paid Charge", paid_charge)
 
         speed = np.random.randint(0, 120)

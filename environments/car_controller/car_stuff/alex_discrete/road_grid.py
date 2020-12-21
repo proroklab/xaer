@@ -1,7 +1,6 @@
 # import numpy as np
 from environments.car_controller.car_stuff.alex_discrete.road_cell import RoadCell
 from environments.car_controller.car_stuff.alex_discrete.road_agent import RoadAgent
-from environments.car_controller.car_stuff.alex_discrete.road_cultures import *
 from random import randrange
 
 NORTH = 0
@@ -10,14 +9,14 @@ EAST  = 2
 WEST  = 3
 
 class RoadGrid:
-	def __init__(self, x_dim, y_dim):
+	def __init__(self, x_dim, y_dim, culture):
 		self.agent = RoadAgent()
 		self.agent_position = (0, 0)
 		self.cells = []
 		self.width = x_dim
 		self.height = y_dim
 
-		self.road_culture = HardRoadCulture()
+		self.road_culture = culture
 		self.agent.set_culture(self.road_culture)
 		self.road_culture.initialise_random_agent(self.agent)
 		# self.inaccessible = tuple([0] * (len(self.road_culture.properties) + 1))
