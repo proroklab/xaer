@@ -6,9 +6,9 @@ from environments.car_controller.car_stuff.alex_discrete.road_cultures import Ea
 
 
 class GridDriveV0(gym.Env):
-	GRID_DIMENSION				= 30
+	GRID_DIMENSION				= 15
 	MAX_SPEED 					= 120
-	MAX_STEP					= 2**7
+	MAX_STEP					= 2**5
 	DIRECTIONS					= 4 # N,S,W,E
 	
 	def __init__(self):
