@@ -24,16 +24,29 @@ class GridDriveV0(gym.Env):
 			gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, OBS_ROAD_FEATURES+2]), # Features representing the grid + visited cells + current position
 		])
 		self.step_counter = 0
-		self.culture = HardRoadCulture({
-			'roadworks_ratio': 1/8,
-			'congestion_charge_ratio': 1/8,
+		self.culture = HardRoadCulture(road_options={
+			'motorway': 1/2,
+        	'stop_sign': 1/2,
+        	'school': 1/2,
+        	'single_lane': 1/2,
+        	'town_road': 1/2,
+        	'roadworks': 1/8,
+        	'accident': 1/8,
+        	'heavy_rain': 1/2,
+        	'congestion_charge': 1/8,
+		}, agent_options={
+			'emergency_vehicle': 1/5,
+			'heavy_vehicle': 1/4,
+			'worker_vehicle': 1/3,
+			'tasked': 1/2,
+			'paid_charge': 1/2,
+			'speed': self.MAX_SPEED,
 		})
 
 	def reset(self):
-		if self.step_counter%self.MAX_STEP == 0:
-			self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.culture)
-			self.grid_features = np.array(self.grid.get_features(), dtype=np.int8)
-			self.step_counter = 0
+		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.culture)
+		self.grid_features = np.array(self.grid.get_features(), dtype=np.int8)
+		self.step_counter = 0
 		self.grid_view = np.concatenate([
 			self.grid_features,
 			np.zeros((self.GRID_DIMENSION, self.GRID_DIMENSION, 2), dtype=np.int8), # current position + visited cells
