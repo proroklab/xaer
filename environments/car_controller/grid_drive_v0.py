@@ -18,22 +18,26 @@ class GridDriveV0(gym.Env):
 
 		# Direction (N, S, W, E) + Speed [0-MAX_SPEED]
 		self.action_space	   = gym.spaces.MultiDiscrete([self.DIRECTIONS, self.MAX_SPEED])
-		self.observation_space = gym.spaces.Tuple([ # Current Observation
-			gym.spaces.MultiBinary(OBS_ROAD_FEATURES * self.DIRECTIONS), # Neighbourhood view
-			gym.spaces.MultiBinary(OBS_CAR_FEATURES),  # Car features
-			gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, OBS_ROAD_FEATURES+2]), # Features representing the grid + visited cells + current position
-		])
+		self.observation_space = gym.spaces.Dict({
+			"cnn": gym.spaces.Dict({
+				"grid": gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, OBS_ROAD_FEATURES+2]), # Features representing the grid + visited cells + current position
+			}),
+			"fc": gym.spaces.Dict({
+				"neighbours": gym.spaces.MultiBinary(OBS_ROAD_FEATURES * self.DIRECTIONS), # Neighbourhood view
+				"agent": gym.spaces.MultiBinary(OBS_CAR_FEATURES), # Car features
+			}),
+		})
 		self.step_counter = 0
 		self.culture = HardRoadCulture(road_options={
 			'motorway': 1/2,
-        	'stop_sign': 1/2,
-        	'school': 1/2,
-        	'single_lane': 1/2,
-        	'town_road': 1/2,
-        	'roadworks': 1/8,
-        	'accident': 1/8,
-        	'heavy_rain': 1/2,
-        	'congestion_charge': 1/8,
+			'stop_sign': 1/2,
+			'school': 1/2,
+			'single_lane': 1/2,
+			'town_road': 1/2,
+			'roadworks': 1/8,
+			'accident': 1/8,
+			'heavy_rain': 1/2,
+			'congestion_charge': 1/8,
 		}, agent_options={
 			'emergency_vehicle': 1/5,
 			'heavy_vehicle': 1/4,
@@ -57,11 +61,15 @@ class GridDriveV0(gym.Env):
 		return self.get_state()
 
 	def get_state(self):
-		return (
-			np.array(self.grid.neighbour_features(), dtype=np.int8), 
-			np.array(self.grid.agent.binary_features(), dtype=np.int8),
-			self.grid_view,
-		)
+		return {
+			"cnn": {
+				"grid": self.grid_view,
+			},
+			"fc": {
+				"neighbours": np.array(self.grid.neighbour_features(), dtype=np.int8), 
+				"agent": np.array(self.grid.agent.binary_features(), dtype=np.int8),
+			},
+		}
 
 	def step(self, action_vector):
 		self.step_counter += 1

@@ -39,21 +39,13 @@ CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. e
 ####################################################################################
 ####################################################################################
 
-# from ray.rllib.models import ModelCatalog
-
-# # Register the models to use.
-# if CONFIG["framework"] == "torch":
-# 	from ray.rllib.models.torch.visionnet import VisionNetwork as TorchVisionNetwork
-# 	vision_network = TorchVisionNetwork
-# else:
-# 	from ray.rllib.models.tf.visionnet import VisionNetwork as TFVisionNetwork
-# 	vision_network = TFVisionNetwork
-# ModelCatalog.register_custom_model("vision_network", vision_network)
-# CONFIG["model"] = {
-# 	"custom_model": "vision_network", # Each policy can have a different configuration (including custom model).
-# 	"dim": 15, 
-# 	"conv_filters": [[16, [4, 4], 2], [32, [4, 4], 2], [512, [11, 11], 1]],
-# }
+from xarl.models.xadqn import AdaptiveDistributionalQTFModel
+from ray.rllib.models import ModelCatalog
+# Register the models to use.
+ModelCatalog.register_custom_model("custom_network", AdaptiveDistributionalQTFModel)
+CONFIG["model"] = {
+	"custom_model": "custom_network", # Each policy can have a different configuration (including custom model).
+}
 
 ####################################################################################
 ####################################################################################
@@ -67,7 +59,8 @@ agent = XADQNTrainer(CONFIG, env=SELECT_ENV)
 # Inspect the trained policy and model, to see the results of training in detail
 policy = agent.get_policy()
 model = policy.model
-print(model.base_model.summary())
+print(model.q_value_head.summary())
+print(model.heads_model.summary())
 
 # Train a policy. The following code runs 30 iterations and that’s generally enough to begin to see improvements in the “Taxi-v3” problem
 # results = []
