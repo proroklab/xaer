@@ -570,7 +570,7 @@ class HardRoadCulture(Culture):
 
 		# 6
 		self.AF.add_attack(ID["stop_sign_above_0"], ID["no_ticket"])
-		self.AF.add_attack(ID["tasked_emergency_vehicle"], ID["school_road_above_20"])
+		self.AF.add_attack(ID["tasked_emergency_vehicle"], ID["stop_sign_above_0"])
 
 		# 7
 		self.AF.add_attack(ID["accident_below_20"], ID["no_ticket"])
