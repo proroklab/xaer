@@ -52,17 +52,6 @@ def xadqn_execution_plan(workers, config):
 	if replay_sequence_length and replay_sequence_length > 1:
 		replay_batch_size = int(max(1, replay_batch_size // replay_sequence_length))
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
-	def update_priorities(item):
-		samples, info_dict = item
-		if config.get("prioritized_replay"):
-			priority_id = config["buffer_options"]["priority_id"]
-			for policy_id, info in info_dict.items():
-				td_error = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))
-				batch = samples.policy_batches[policy_id]
-				if priority_id == "weights":
-					batch[priority_id] = td_error
-			local_replay_buffer.update_priorities(samples.policy_batches)
-		return info_dict
 
 	rollouts = ParallelRollouts(workers, mode="bulk_sync")
 
@@ -80,9 +69,27 @@ def xadqn_execution_plan(workers, config):
 	# (2) Read and train on experiences from the replay buffer. Every batch
 	# returned from the LocalReplay() iterator is passed to TrainOneStep to
 	# take a SGD step, and then we decide whether to update the target network.
+	def update_priorities(item):
+		samples, info_dict = item
+		if not config.get("prioritized_replay"):
+			return info_dict
+		priority_id = config["buffer_options"]["priority_id"]
+		if priority_id == "weights":
+			for policy_id, info in info_dict.items():
+				td_error = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))
+				samples.policy_batches[policy_id][priority_id] = td_error
+		# IMPORTANT: split train-batch into replay-batches before updating priorities
+		policy_batch_list = []
+		for policy_id, batch in samples.policy_batches.items():
+			for i,sub_batch in enumerate(batch.timeslices(replay_sequence_length)):
+				if i >= len(policy_batch_list):
+					policy_batch_list.append({})
+				policy_batch_list[i][policy_id] = sub_batch
+		for policy_batch in policy_batch_list:
+			local_replay_buffer.update_priorities(policy_batch)
+		return info_dict
 	post_fn = config.get("before_learn_on_batch") or (lambda b, *a: b)
 	replay_op = Replay(local_buffer=local_replay_buffer, replay_batch_size=replay_batch_size, filter_duplicates=config["filter_duplicated_batches_when_replaying"]) \
-		.combine(ConcatBatches(min_batch_size=replay_batch_size)) \
 		.for_each(lambda x: post_fn(x, workers, config)) \
 		.for_each(TrainOneStep(workers)) \
 		.for_each(update_priorities) \

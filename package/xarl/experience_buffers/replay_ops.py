@@ -2,7 +2,6 @@ from typing import List
 import random
 import numpy as np
 from more_itertools import unique_everseen
-from itertools import islice
 
 from ray.util.iter import LocalIterator, _NextValueNotReady
 from ray.util.iter_metrics import SharedMetrics
@@ -50,8 +49,7 @@ def Replay(local_buffer, replay_batch_size=1, filter_duplicates=False):
 			if not batch_list:
 				yield _NextValueNotReady()
 			else:
-				for batch in batch_list:
-					yield batch
+				yield MultiAgentBatch.concat_samples(batch_list)
 	return LocalIterator(gen_replay, SharedMetrics())
 
 class MixInReplay:
