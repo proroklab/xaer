@@ -39,12 +39,12 @@ CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. e
 ####################################################################################
 ####################################################################################
 
-from xarl.models.xadqn import AdaptiveDistributionalQTFModel
+from xarl.models.dqn import AdaptiveDistributionalQTFModel
 from ray.rllib.models import ModelCatalog
 # Register the models to use.
-ModelCatalog.register_custom_model("custom_network", AdaptiveDistributionalQTFModel)
+ModelCatalog.register_custom_model("adaptive_multihead_network", AdaptiveDistributionalQTFModel)
 CONFIG["model"] = {
-	"custom_model": "custom_network", # Each policy can have a different configuration (including custom model).
+	"custom_model": "adaptive_multihead_network",
 }
 
 ####################################################################################
