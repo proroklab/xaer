@@ -156,7 +156,7 @@ class SumSegmentTree(SegmentTree):
 			tot -= self.min_tree.min()*self.inserted_elements
 		return tot
 
-	def find_prefixsum_idx(self, prefixsum_fn, scaled_prefix=True): # O(log)
+	def find_prefixsum_idx(self, prefixsum_fn): # O(log)
 		"""Find the highest index `i` in the array such that
 			sum(arr[0] + arr[1] + ... + arr[i - i]) <= prefixsum
 		if array values are probabilities, this function
@@ -173,11 +173,14 @@ class SumSegmentTree(SegmentTree):
 		"""
 		if self.inserted_elements == 1:
 			return 0
+		scaled_prefix = self.min_tree.min() < 0
 		mass = self.sum(scaled=scaled_prefix) # O(1)
 		if scaled_prefix: # Use it in case of negative elements in the sumtree, they would break the tree invariant
 			minimum = min(self._neutral_element,self.min_tree.min()) # O(1)
 			summed_elements = self._capacity
 		prefixsum = prefixsum_fn(mass)
+		# prefixsum = np.clip(prefixsum, 0, mass)
+		# print(prefixsum,mass)
 		assert 0 <= prefixsum <= mass + 1e-5
 		idx = 1
 		# While non-leaf (first half of tree).
