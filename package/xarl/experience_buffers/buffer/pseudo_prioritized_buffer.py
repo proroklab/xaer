@@ -61,7 +61,7 @@ class PseudoPrioritizedBuffer(Buffer):
 	
 	def normalize_priority(self, priority): # O(1)
 		# always add self._epsilon so that there is no priority equal to the neutral value of a SumSegmentTree
-		return np.sign(priority)*np.power(np.absolute(priority), self._alpha, dtype=np.float32) + self._epsilon
+		return np.sign(priority)*(np.absolute(priority) + self._epsilon)**self._alpha
 
 	def get_priority(self, idx, type_id):
 		sample_type = self.get_type(type_id)
@@ -113,24 +113,20 @@ class PseudoPrioritizedBuffer(Buffer):
 		sample_type = self.get_type(type_id)
 		type_batch = self.batches[sample_type]
 		idx = None
-		if self.is_full_cluster(sample_type): # full buffer
-			# self.remove_less_important_batches([sample_type])
-			idx = self.get_less_important_batch(sample_type)
-		elif self.is_full_buffer(): # full buffer, remove from the biggest cluster
+		if self.is_full_buffer(): # full buffer, remove from the biggest cluster
 			biggest_cluster = max(self.type_values, key=self.count)
 			if sample_type == biggest_cluster:
 				idx = self.get_less_important_batch(sample_type)
 			else:
 				self.remove_less_important_batches([biggest_cluster])
+		elif self.is_full_cluster(sample_type): # full buffer
+			# self.remove_less_important_batches([sample_type])
+			idx = self.get_less_important_batch(sample_type)
 		if idx is None: # add new element to buffer
 			idx = len(type_batch)
 			type_batch.append(batch)
-		# else:
-		# 	type_batch[idx] = batch
-		batch_infos = batch['infos'][0]
-		assert "batch_index" in batch_infos, "Something wrong!"
-		batch_infos["batch_index"][type_id] = idx
-		if self._beta is not None: # Add default weights
+		batch['infos'][0]["batch_index"][type_id] = idx
+		if self._beta is not None and 'weights' not in batch: # Add default weights
 			batch['weights'] = np.ones(batch.count, dtype=np.float32)
 		# batch["batch_types"] = np.array([type_id]*batch.count)
 		# Set insertion time
@@ -141,8 +137,8 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
 		self.update_priority(batch, idx, type_id) # add batch
-		assert not self.global_size or self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
-		assert not self.global_size or sum(len(b) for b in self.batches) <= self.global_size, 'Memory leak in replay buffer; v2'
+		# assert not self.global_size or self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
+		# assert not self.global_size or sum(len(b) for b in self.batches) <= self.global_size, 'Memory leak in replay buffer; v2'
 		return idx, type_id
 
 	def sample_cluster(self):
@@ -166,31 +162,27 @@ class PseudoPrioritizedBuffer(Buffer):
 			sample_type = self.get_type(type_id)
 		return type_id, sample_type
 
-	def sample(self, remove=False): # O(log)
+	def sample(self, n=1, remove=False): # O(log)
 		type_id, sample_type = self.sample_cluster()
 		type_sum_tree = self._sample_priority_tree[sample_type]
-		idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
 		type_batch = self.batches[sample_type]
-		idx = np.clip(idx, 0,len(type_batch)-1)
-		batch = type_batch[idx]
-		# Update weights
 		if self._beta is not None: # Update weights
 			min_priority = type_sum_tree.min_tree.min()
 			assert min_priority > 0, "min_priority > 0, if beta is not None"
-			tot_priority = type_sum_tree.sum(scaled=False)
-			N = type_sum_tree.inserted_elements
-
-			p_min = min_priority / tot_priority
-			max_weight = np.power(p_min * N, -self._beta, dtype=np.float32)
-
-			p_sample = type_sum_tree[idx] / tot_priority
-			weight = np.power(p_sample * N, -self._beta, dtype=np.float32)
-
-			batch['weights'] = np.full(batch.count, weight/max_weight)
-		# Remove from buffer
-		if remove:
-			self.remove_batch(sample_type, idx)
-		return batch#.copy().decompress_if_needed()
+		batch_list = []
+		for _ in range(n):
+			idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
+			#idx = np.clip(idx, 0,len(type_batch)-1)
+			batch = type_batch[idx]
+			# Update weights
+			if self._beta is not None: # Update weights
+				weight = (min_priority / type_sum_tree[idx])**self._beta
+				batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
+			# Remove from buffer
+			if remove is True:
+				self.remove_batch(sample_type, idx)
+			batch_list.append(batch)
+		return batch_list
 
 	def get_batch_priority(self, batch):
 		return self._priority_aggregation_fn(batch[self._priority_id])

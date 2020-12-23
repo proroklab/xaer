@@ -23,7 +23,6 @@ CONFIG.update({
 	"learning_starts": 1500,
 	"grad_clip": None,
 	# "framework": "torch",
-	'buffer_size': 50000, # Size of the experience buffer. Default 50000
 	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	#######################
 	"filter_duplicated_batches_when_replaying": False, # Whether to remove duplicated batches from a replay batch (n.b. the batch size will remain the same, new unique batches will be sampled until the expected size is reached).

@@ -84,7 +84,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	def replay(self, replay_size=1, filter_duplicates=True):
 		def gen_sample(replay_buffer):
 			while True:
-				yield replay_buffer.sample()
+				for b in replay_buffer.sample(replay_size):
+					yield b
 		if not self.can_replay():
 			return None
 
