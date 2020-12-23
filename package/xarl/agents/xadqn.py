@@ -18,7 +18,6 @@ from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_
 
 XADQN_EXTRA_OPTIONS = {
 	"prioritized_replay": True,
-	"filter_duplicated_batches_when_replaying": False, # Whether to remove duplicated batches from a replay batch (n.b. the batch size will remain the same, new unique batches will be sampled until the expected size is reached).
 	"buffer_options": {
 		'priority_id': "weights", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'weights'. One of the following: rewards, prev_rewards, weights.
 		'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
@@ -94,7 +93,7 @@ def xadqn_execution_plan(workers, config):
 			local_replay_buffer.update_priorities(policy_batch)
 		return info_dict
 	post_fn = config.get("before_learn_on_batch") or (lambda b, *a: b)
-	replay_op = Replay(local_buffer=local_replay_buffer, replay_batch_size=replay_batch_size, filter_duplicates=config["filter_duplicated_batches_when_replaying"]) \
+	replay_op = Replay(local_buffer=local_replay_buffer, replay_batch_size=replay_batch_size) \
 		.for_each(lambda x: post_fn(x, workers, config)) \
 		.for_each(TrainOneStep(workers)) \
 		.for_each(update_priorities) \

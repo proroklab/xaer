@@ -19,7 +19,7 @@ CONFIG.update({
 	},
 	"rollout_fragment_length": 1,
 	"train_batch_size": 256,
-	"learning_starts": 1500,
+	# "learning_starts": 1500,
 	"grad_clip": None,
 	# "framework": "torch",
 	'buffer_size': 50000, # Size of the experience buffer. Default 50000

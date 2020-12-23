@@ -42,14 +42,14 @@ class StoreToReplayBuffer:
 	def __call__(self, batch: SampleBatchType):
 		return self.local_actor.add_batch(batch)
 
-def Replay(local_buffer, replay_batch_size=1, filter_duplicates=False):
+def Replay(local_buffer, replay_batch_size=1):
 	def gen_replay(_):
 		while True:
-			batch_list = local_buffer.replay(replay_size=replay_batch_size, filter_duplicates=filter_duplicates)
+			batch_list = local_buffer.replay_n_concatenate(replay_size=replay_batch_size)
 			if not batch_list:
 				yield _NextValueNotReady()
 			else:
-				yield MultiAgentBatch.concat_samples(batch_list)
+				yield batch_list
 	return LocalIterator(gen_replay, SharedMetrics())
 
 class MixInReplay:
@@ -61,11 +61,10 @@ class MixInReplay:
 	number of replay slots.
 	"""
 
-	def __init__(self, local_buffer, replay_proportion, update_replayed_fn=None, filter_duplicates=False):
+	def __init__(self, local_buffer, replay_proportion, update_replayed_fn=None):
 		self.replay_buffer = local_buffer
 		self.replay_proportion = replay_proportion
 		self.update_replayed_fn = update_replayed_fn
-		self.filter_duplicates = filter_duplicates
 
 	def __call__(self, sample_batch):
 		def get_updated_batch(batch):
@@ -82,7 +81,7 @@ class MixInReplay:
 		if self.replay_buffer.can_replay():
 			n = np.random.poisson(self.replay_proportion)
 			if n > 0:
-				batch_list = self.replay_buffer.replay(replay_size=n, filter_duplicates=self.filter_duplicates) # allow for duplicates in output_batches
+				batch_list = self.replay_buffer.replay(replay_size=n) # allow for duplicates in output_batches
 				if self.update_replayed_fn:
 					batch_list = list(map(get_updated_batch, batch_list))
 				output_batches += batch_list

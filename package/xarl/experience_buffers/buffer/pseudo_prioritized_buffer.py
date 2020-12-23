@@ -172,7 +172,9 @@ class PseudoPrioritizedBuffer(Buffer):
 		batch_list = []
 		for _ in range(n):
 			idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
-			#idx = np.clip(idx, 0,len(type_batch)-1)
+			# print('a',idx, type_sum_tree.inserted_elements, len(type_batch))
+			# idx = np.clip(idx, 0,len(type_batch)-1)
+			# print('b',idx)
 			batch = type_batch[idx]
 			# Update weights
 			if self._beta is not None: # Update weights

@@ -81,28 +81,32 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	def can_replay(self):
 		return self.num_added >= self.replay_starts
 
-	def replay(self, replay_size=1, filter_duplicates=True):
-		def gen_sample(replay_buffer):
-			while True:
-				for b in replay_buffer.sample(replay_size):
-					yield b
+	def replay(self, replay_size=1):
 		if not self.can_replay():
 			return None
 
 		with self.replay_timer:
-			with self._buffer_lock:
-				batch_list = [{} for _ in range(replay_size)]
-				for policy_id, replay_buffer in self.replay_buffers.items():
-					batch_iter = gen_sample(replay_buffer) # generate new batches
-					if filter_duplicates:
-						batch_iter = unique_everseen(batch_iter, key=lambda x:sorted(x['infos'][0]["batch_index"].items())) # skip duplicates
-					batch_iter = islice(batch_iter, replay_size) # take the first n batches
-					for i,batch in enumerate(batch_iter):
-						batch_list[i][policy_id] = batch
-		return [
+			batch_list = [{} for _ in range(replay_size)]
+			for policy_id, replay_buffer in self.replay_buffers.items():
+				with self._buffer_lock:
+					batch_iter = replay_buffer.sample(replay_size)
+				for i,batch in enumerate(batch_iter):
+					batch_list[i][policy_id] = batch
+		return (
 			MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 			for samples in batch_list
-		] 
+		)
+
+	def replay_n_concatenate(self, replay_size=1):
+		if not self.can_replay():
+			return None
+
+		with self.replay_timer:
+			samples = {}
+			with self._buffer_lock:
+				for policy_id, replay_buffer in self.replay_buffers.items():
+					samples[policy_id] = SampleBatch.concat_samples(replay_buffer.sample(replay_size))
+			return MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:
