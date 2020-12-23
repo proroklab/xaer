@@ -13,10 +13,29 @@ from environments import *
 SELECT_ENV = "GridDrive-v1"
 
 CONFIG = DQN_DEFAULT_CONFIG.copy()
-CONFIG["log_level"] = "WARN"
-CONFIG["batch_mode"] = "complete_episodes" # Whether to rollout "complete_episodes" or "truncate_episodes" to `rollout_fragment_length` length unrolls. Episode truncation guarantees evenly sized batches, but increases variance as the reward-to-go will need to be estimated at truncation boundaries.
-# CONFIG["double_q"] = True # Default is True. A Double Deep Q-Network, or Double DQN utilises Double Q-learning to reduce overestimation by decomposing the max operation in the target into action selection and action evaluation. We evaluate the greedy policy according to the online network, but we use the target network to estimate its value.
-# CONFIG["dueling"] = True # Default is True. This algorithm splits the Q-values in two different parts, the value function V(s) and the advantage function A(s, a). This change is helpful, because sometimes it is unnecessary to know the exact value of each action, so just learning the state-value function can be enough in some cases.
+CONFIG.update({
+	"model": {
+		"custom_model": "adaptive_multihead_network",
+	},
+	"rollout_fragment_length": 1,
+	"train_batch_size": 256,
+	"learning_starts": 1500,
+	"grad_clip": None,
+	# "framework": "torch",
+	'buffer_size': 50000, # Size of the experience buffer. Default 50000
+	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+})
+
+####################################################################################
+####################################################################################
+
+from xarl.models.dqn import TFAdaptiveMultiHeadDQN
+from ray.rllib.models import ModelCatalog
+# Register the models to use.
+ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
+CONFIG["model"] = {
+	"custom_model": "adaptive_multihead_network",
+}
 
 ####################################################################################
 ####################################################################################
@@ -29,9 +48,10 @@ ray.init(ignore_reinit_error=True)
 agent = DQNTrainer(CONFIG, env=SELECT_ENV)
 
 # Inspect the trained policy and model, to see the results of training in detail
-# policy = agent.get_policy()
-# model = policy.model
-# print(model.base_model.summary())
+policy = agent.get_policy()
+model = policy.model
+print(model.q_value_head.summary())
+print(model.heads_model.summary())
 
 # Train a policy. The following code runs 30 iterations and that’s generally enough to begin to see improvements in the “Taxi-v3” problem
 # results = []

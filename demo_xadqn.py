@@ -14,35 +14,43 @@ from environments import *
 SELECT_ENV = "GridDrive-v1"
 
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
-CONFIG["log_level"] = "WARN"
-CONFIG["double_q"] = True # Default is True. A Double Deep Q-Network, or Double DQN utilises Double Q-learning to reduce overestimation by decomposing the max operation in the target into action selection and action evaluation. We evaluate the greedy policy according to the online network, but we use the target network to estimate its value.
-CONFIG["dueling"] = True # Default is True. This algorithm splits the Q-values in two different parts, the value function V(s) and the advantage function A(s, a). This change is helpful, because sometimes it is unnecessary to know the exact value of each action, so just learning the state-value function can be enough in some cases.
-# For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
-CONFIG["prioritized_replay"] = True
-CONFIG["filter_duplicated_batches_when_replaying"] = False # Whether to remove duplicated batches from a replay batch (n.b. the batch size will remain the same, new unique batches will be sampled until the expected size is reached).
-CONFIG["buffer_options"] = {
-	'priority_id': "weights", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'weights'. One of the following: rewards, prev_rewards, weights.
-	'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
-	'cluster_size': 50000, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-	'global_size': 50000, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-	'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
-	'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
-	'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
-	'prioritized_drop_probability': 0.5, # Probability of dropping the batch having the lowest priority in the buffer.
-	'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
-	'sample_simplest_unknown_task': 'above_average', # Whether to sample the simplest unknown task with higher probability. Two options: 'average': the one with the cluster priority closest to the average cluster priority; 'above_average': the one with the cluster priority closest to the cluster with the smallest priority greater than the average cluster priority. It requires prioritised_cluster_sampling==True.
-}
-CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_multiple_types" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
-CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+CONFIG.update({
+	"model": {
+		"custom_model": "adaptive_multihead_network",
+	},
+	"rollout_fragment_length": 1,
+	"train_batch_size": 256,
+	"learning_starts": 1500,
+	"grad_clip": None,
+	# "framework": "torch",
+	'buffer_size': 50000, # Size of the experience buffer. Default 50000
+	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	#######################
+	"filter_duplicated_batches_when_replaying": False, # Whether to remove duplicated batches from a replay batch (n.b. the batch size will remain the same, new unique batches will be sampled until the expected size is reached).
+	"update_only_sampled_cluster": True, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
+	"buffer_options": {
+		'priority_id': "weights", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'weights'. One of the following: rewards, prev_rewards, weights.
+		'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
+		'cluster_size': 50000, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': 50000, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
+		'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
+		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
+		'prioritized_drop_probability': 0.5, # Probability of dropping the batch having the lowest priority in the buffer.
+		'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
+		'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
+		'sample_simplest_unknown_task': 'above_average', # Whether to sample the simplest unknown task with higher probability. Two options: 'average': the one with the cluster priority closest to the average cluster priority; 'above_average': the one with the cluster priority closest to the cluster with the smallest priority greater than the average cluster priority. It requires prioritised_cluster_sampling==True.
+	},
+	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
+})
 
 ####################################################################################
 ####################################################################################
 
-from xarl.models.dqn import AdaptiveDistributionalQTFModel
+from xarl.models.dqn import TFAdaptiveMultiHeadDQN
 from ray.rllib.models import ModelCatalog
 # Register the models to use.
-ModelCatalog.register_custom_model("adaptive_multihead_network", AdaptiveDistributionalQTFModel)
+ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
 CONFIG["model"] = {
 	"custom_model": "adaptive_multihead_network",
 }

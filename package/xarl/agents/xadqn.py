@@ -81,7 +81,12 @@ def xadqn_execution_plan(workers, config):
 		# IMPORTANT: split train-batch into replay-batches before updating priorities
 		policy_batch_list = []
 		for policy_id, batch in samples.policy_batches.items():
-			for i,sub_batch in enumerate(batch.timeslices(replay_sequence_length)):
+			sub_batch_iter = (
+				sub_batch 
+				for episode_batch in batch.split_by_episode()
+				for sub_batch in episode_batch.timeslices(replay_sequence_length)
+			) if replay_sequence_length > 1 else batch.timeslices(replay_sequence_length)
+			for i,sub_batch in enumerate(sub_batch_iter):
 				if i >= len(policy_batch_list):
 					policy_batch_list.append({})
 				policy_batch_list[i][policy_id] = sub_batch

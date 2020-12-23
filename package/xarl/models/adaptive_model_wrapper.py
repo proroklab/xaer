@@ -1,8 +1,11 @@
 from ray.rllib.utils.framework import try_import_tf
-from ray.rllib.models.tf.misc import normc_initializer
+from ray.rllib.utils.framework import get_activation_fn, try_import_torch
+from ray.rllib.models.tf.misc import normc_initializer as tf_normc_initializer
+from ray.rllib.models.torch.misc import normc_initializer as torch_normc_initializer
 import gym
 
 tf1, tf, tfv = try_import_tf()
+torch, nn = try_import_torch()
 
 def get_tf_heads_model(obs_space, num_outputs):
 	if 'cnn' in obs_space.original_space.spaces:
@@ -12,9 +15,9 @@ def get_tf_heads_model(obs_space, num_outputs):
 		]
 		cnn_layers = [
 			tf.keras.Sequential(name=f"cnn_layer{i}", layers=[
-				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv1',  filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.relu, kernel_initializer=normc_initializer(1.0)),
-				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv2',  filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.relu, kernel_initializer=normc_initializer(1.0)),
-				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv3',  filters=64, kernel_size=4, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=normc_initializer(1.0)),
+				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv1',  filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_normc_initializer(1.0)),
+				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv2',  filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_normc_initializer(1.0)),
+				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv3',  filters=64, kernel_size=4, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_normc_initializer(1.0)),
 			])(layer)
 			for i,layer in enumerate(cnn_inputs)
 		]
@@ -38,7 +41,7 @@ def get_tf_heads_model(obs_space, num_outputs):
 				num_outputs, 
 				name=f"fc_layer{i}", 
 				activation=tf.nn.relu, 
-				kernel_initializer=normc_initializer(1.0)
+				kernel_initializer=tf_normc_initializer(1.0)
 			)(layer)
 			for i,layer in enumerate(fc_layers)
 		]
@@ -58,7 +61,7 @@ def get_tf_heads_model(obs_space, num_outputs):
 			num_outputs, 
 			name="fc_layer", 
 			activation=tf.nn.relu, 
-			kernel_initializer=normc_initializer(1.0)
+			kernel_initializer=tf_normc_initializer(1.0)
 		)(inputs)
 		return inputs, layer
 

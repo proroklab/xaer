@@ -94,27 +94,39 @@ class PseudoPrioritizedBuffer(Buffer):
 			return sum(t.inserted_elements for t in self._sample_priority_tree)
 		return self._sample_priority_tree[type_].inserted_elements
 
+	def get_less_important_batch(self, sample_type):
+		if random() <= self._prioritized_drop_probability: # Remove the batch with lowest priority
+			_,idx = self._drop_priority_tree[sample_type].min() # O(1)
+		else:
+			_,idx = self._insertion_time_tree[sample_type].min() # O(1)
+		return idx
+
 	def remove_less_important_batches(self, sample_type_list):
 		for sample_type in sample_type_list:
 			# if not self.has_atleast(2, sample_type): # avoid empty clusters
 			# 	continue
-			if random() <= self._prioritized_drop_probability: # Remove the batch with lowest priority
-				_,idx = self._drop_priority_tree[sample_type].min() # O(1)
-			else:
-				_,idx = self._insertion_time_tree[sample_type].min() # O(1)
+			idx = self.get_less_important_batch(sample_type)
 			self.remove_batch(sample_type, idx)
 		
 	def add(self, batch, type_id=0): # O(log)
 		self._add_type_if_not_exist(type_id)
 		sample_type = self.get_type(type_id)
 		type_batch = self.batches[sample_type]
+		idx = None
 		if self.is_full_cluster(sample_type): # full buffer
-			self.remove_less_important_batches([sample_type])
+			# self.remove_less_important_batches([sample_type])
+			idx = self.get_less_important_batch(sample_type)
 		elif self.is_full_buffer(): # full buffer, remove from the biggest cluster
-			self.remove_less_important_batches([max(self.type_values, key=self.count)])
-		# add new element to buffer
-		idx = len(type_batch)
-		type_batch.append(batch)
+			biggest_cluster = max(self.type_values, key=self.count)
+			if sample_type == biggest_cluster:
+				idx = self.get_less_important_batch(sample_type)
+			else:
+				self.remove_less_important_batches([biggest_cluster])
+		if idx is None: # add new element to buffer
+			idx = len(type_batch)
+			type_batch.append(batch)
+		# else:
+		# 	type_batch[idx] = batch
 		batch_infos = batch['infos'][0]
 		assert "batch_index" in batch_infos, "Something wrong!"
 		batch_infos["batch_index"][type_id] = idx
@@ -128,7 +140,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
-		self.update_priority(batch, idx, type_id)
+		self.update_priority(batch, idx, type_id) # add batch
 		assert not self.global_size or self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
 		assert not self.global_size or sum(len(b) for b in self.batches) <= self.global_size, 'Memory leak in replay buffer; v2'
 		return idx, type_id

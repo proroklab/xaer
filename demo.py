@@ -12,13 +12,13 @@ from environments import *
 def get_algorithm_by_name(alg_name):
 	if alg_name == 'dqn':
 		from ray.rllib.agents.dqn.dqn import DQNTrainer, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
-		from xarl.models.dqn import AdaptiveDistributionalQTFModel
-		ModelCatalog.register_custom_model("adaptive_multihead_network", AdaptiveDistributionalQTFModel)
+		from xarl.models.dqn import TFAdaptiveMultiHeadDQN
+		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
 		return DQN_DEFAULT_CONFIG.copy(), DQNTrainer
 	if alg_name == 'xadqn':
 		from xarl.agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
-		from xarl.models.dqn import AdaptiveDistributionalQTFModel
-		ModelCatalog.register_custom_model("adaptive_multihead_network", AdaptiveDistributionalQTFModel)
+		from xarl.models.dqn import TFAdaptiveMultiHeadDQN
+		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
 		return XADQN_DEFAULT_CONFIG.copy(), XADQNTrainer
 	if alg_name == 'ddpg':
 		from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAULT_CONFIG
