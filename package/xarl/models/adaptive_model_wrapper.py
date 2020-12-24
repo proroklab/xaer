@@ -56,7 +56,7 @@ def get_tf_heads_model(obs_space, num_outputs):
 		final_layer = tf.keras.layers.Flatten()(final_layer)
 		return cnn_inputs+fc_inputs, final_layer
 	else:
-		inputs = tf.keras.layers.Input(shape=obs_space.shape, name="observation")
+		inputs = tf.keras.layers.Input(shape=obs_space.shape)
 		layer = tf.keras.layers.Dense(
 			num_outputs, 
 			name="fc_layer", 

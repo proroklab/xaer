@@ -1,6 +1,3 @@
-########################
-# XADQN's Model
-########################
 from ray.rllib.agents.dqn.distributional_q_tf_model import DistributionalQTFModel
 from ray.rllib.agents.dqn.dqn_torch_model import DQNTorchModel
 from xarl.models.adaptive_model_wrapper import get_tf_heads_model, get_heads_input, tf, torch

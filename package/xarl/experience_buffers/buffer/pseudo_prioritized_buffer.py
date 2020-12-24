@@ -61,7 +61,7 @@ class PseudoPrioritizedBuffer(Buffer):
 	
 	def normalize_priority(self, priority): # O(1)
 		# always add self._epsilon so that there is no priority equal to the neutral value of a SumSegmentTree
-		return np.sign(priority)*np.absolute(priority)**self._alpha + self._epsilon
+		return np.sign(priority)*(np.absolute(priority)**self._alpha + self._epsilon)
 
 	def get_priority(self, idx, type_id):
 		sample_type = self.get_type(type_id)
@@ -137,8 +137,9 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
 		self.update_priority(batch, idx, type_id) # add batch
-		# assert not self.global_size or self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
-		# assert not self.global_size or sum(len(b) for b in self.batches) <= self.global_size, 'Memory leak in replay buffer; v2'
+		if self.global_size:
+			assert self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
+			assert super().count() <= self.global_size, 'Memory leak in replay buffer; v2'
 		return idx, type_id
 
 	def sample_cluster(self):

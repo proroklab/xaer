@@ -15,9 +15,6 @@ SELECT_ENV = "GridDrive-v1"
 
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	"model": {
-		"custom_model": "adaptive_multihead_network",
-	},
 	"rollout_fragment_length": 1,
 	"train_batch_size": 256,
 	# "learning_starts": 1500,

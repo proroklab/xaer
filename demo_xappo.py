@@ -16,34 +16,47 @@ from environments import *
 SELECT_ENV = "GridDrive-v1"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
-CONFIG["log_level"] = "WARN"
-CONFIG["lambda"] = .95 # GAE(lambda) parameter. Taking lambda < 1 introduces bias only when the value function is inaccurate.
-# CONFIG["gamma"] = 0.99 # Default is 0.99 - 1: future rewards are more important; 0+epsilon: immediate rewards are more important.
-# CONFIG["clip_param"] = 0.2 # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
-# CONFIG["rollout_fragment_length"] = 50 # The maximum (it is not also the minimum only when 'batch_mode' == 'complete_episodes') size of a single batch, in terms of state transitions. Default is 50.
-# CONFIG["train_batch_size"] = 500 # The size of a batch of batches used for training, in terms of state transitions. Default is 500.
-##################################
-# For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
-CONFIG["replay_proportion"] = 1 # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
-CONFIG["learning_starts"] = 100 # How many batches to sample before learning starts.
-CONFIG["prioritized_replay"] = True
-CONFIG["buffer_options"] = {
-	'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
-	'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
-	'cluster_size': 2**8, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-	'global_size': None, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-	'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
-	'beta': None, # Parameter that regulates a mechanism for computing importance sampling; PPO probably does not need it.
-	'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
-	'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
-	'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-	'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
-	'sample_simplest_unknown_task': 'above_average', # Whether to sample the simplest unknown task with higher probability. Two options: 'average': the one with the cluster priority closest to the average cluster priority; 'above_average': the one with the cluster priority closest to the cluster with the smallest priority greater than the average cluster priority. It requires prioritised_cluster_sampling==True.
+CONFIG.update({
+	"lambda": .95, # GAE(lambda) parameter. Taking lambda < 1 introduces bias only when the value function is inaccurate.
+	# "gamma"] = 0.99 # Default is 0.99 - 1: future rewards are more important; 0+epsilon: immediate rewards are more important.
+	# "clip_param"] = 0.2 # PPO surrogate loss options; default is 0.4. The higher it is, the higher the chances of catastrophic forgetting.
+	# "rollout_fragment_length"] = 50 # The maximum (it is not also the minimum only when 'batch_mode' == 'complete_episodes') size of a single batch, in terms of state transitions. Default is 50.
+	# "train_batch_size"] = 500 # The size of a batch of batches used for training, in terms of state transitions. Default is 500.
+	##################################
+	# For more config options, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
+	"replay_proportion": 1, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
+	"learning_starts": 100, # How many batches to sample before learning starts.
+	"prioritized_replay": True,
+	"buffer_options": {
+		'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
+		'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
+		'cluster_size': 2**8, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': None, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
+		'beta': None, # Parameter that regulates a mechanism for computing importance sampling; PPO probably does not need it.
+		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
+		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
+		'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
+		'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
+		'sample_simplest_unknown_task': 'above_average', # Whether to sample the simplest unknown task with higher probability. Two options: 'average': the one with the cluster priority closest to the average cluster priority; 'above_average': the one with the cluster priority closest to the cluster with the smallest priority greater than the average cluster priority. It requires prioritised_cluster_sampling==True.
+	},
+	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
+	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False.
+	"gae_with_vtrace": False, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
+})
+
+####################################################################################
+####################################################################################
+
+from xarl.models.appo import TFAdaptiveMultiHeadAPPO
+from ray.rllib.models import ModelCatalog
+# Register the models to use.
+ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadAPPO)
+CONFIG["model"] = {
+	"custom_model": "adaptive_multihead_network",
 }
-CONFIG["clustering_scheme"] = "moving_best_extrinsic_reward_with_multiple_types" # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
-CONFIG["batch_mode"] = "complete_episodes" # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
-CONFIG["vtrace"] = False # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False.
-CONFIG["gae_with_vtrace"] = False # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
+
 
 ####################################################################################
 ####################################################################################

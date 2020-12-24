@@ -114,9 +114,9 @@ class SegmentTree(object):
 		# reduction-values).
 		idx += self._capacity
 		if self._value[idx] == self._neutral_element:
-			if val:
+			if val is not None:
 				self.inserted_elements += 1
-		elif not val:
+		elif val is None:
 			self.inserted_elements -= 1
 		self._value[idx] = val if val else self._neutral_element
 
@@ -173,7 +173,7 @@ class SumSegmentTree(SegmentTree):
 		"""
 		if self.inserted_elements == 1:
 			return 0
-		scaled_prefix = self.min_tree.min() < 0
+		scaled_prefix = self.min_tree.min() < 0 # O(1)
 		mass = self.sum(scaled=scaled_prefix) # O(1)
 		if scaled_prefix: # Use it in case of negative elements in the sumtree, they would break the tree invariant
 			minimum = min(self._neutral_element,self.min_tree.min()) # O(1)
