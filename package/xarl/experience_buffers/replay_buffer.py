@@ -55,26 +55,29 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		return platform.node()
 
 	def add_batch(self, batch):
-		# Make a copy so the replay buffer doesn't pin plasma memory.
-		# batch = batch.copy()
-		# batch['infos'] = copy.deepcopy(batch['infos'])
 		batch_type = batch['infos'][0]["batch_type"]
+		has_multiple_types = isinstance(batch_type,(tuple,list))
+		if not self.update_only_sampled_cluster or not has_multiple_types: # Make a copy so the replay buffer doesn't pin plasma memory.
+			batch = batch.copy()
+			batch['infos'] = copy.deepcopy(batch['infos'])
 		# Handle everything as if multiagent
 		if isinstance(batch, SampleBatch):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
 		with self.add_batch_timer:
-			with self._buffer_lock:
-				for policy_id, b in batch.policy_batches.items():
-					self.num_added += 1
-					if isinstance(batch_type,(tuple,list)):
-						for sub_batch_type in batch_type:
-							if self.update_only_sampled_cluster:
-								b_copy = b.copy()
-								b_copy['infos'] = copy.deepcopy(b_copy['infos'])
+			for policy_id, b in batch.policy_batches.items():
+				self.num_added += 1
+				if has_multiple_types:
+					for sub_batch_type in batch_type:
+						if self.update_only_sampled_cluster:
+							b_copy = b.copy()
+							b_copy['infos'] = copy.deepcopy(b_copy['infos'])
+							with self._buffer_lock:
 								self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
-							else:
+						else:
+							with self._buffer_lock:
 								self.replay_buffers[policy_id].add(b, sub_batch_type)
-					else:
+				else:
+					with self._buffer_lock:
 						self.replay_buffers[policy_id].add(b, batch_type)
 		return batch
 
@@ -112,9 +115,6 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		with self.update_priorities_timer:
 			with self._buffer_lock:
 				for policy_id, new_batch in prio_dict.items():
-					# Make a copy so the replay buffer doesn't pin plasma memory.
-					# new_batch = new_batch.copy()
-					# new_batch['infos'] = copy.deepcopy(new_batch['infos'])
 					for type_id,batch_index in new_batch['infos'][0]["batch_index"].items():
 						self.replay_buffers[policy_id].update_priority(new_batch, batch_index, type_id)
 

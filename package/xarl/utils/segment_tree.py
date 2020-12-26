@@ -114,11 +114,12 @@ class SegmentTree(object):
 		# reduction-values).
 		idx += self._capacity
 		if self._value[idx] == self._neutral_element:
-			if val is not None:
-				self.inserted_elements += 1
+			if val is None:
+				return
+			self.inserted_elements += 1
 		elif val is None:
 			self.inserted_elements -= 1
-		self._value[idx] = val if val else self._neutral_element
+		self._value[idx] = val if val is not None else self._neutral_element
 
 		# Recalculate all affected reduction values (in "first half" of tree).
 		idx = idx >> 1  # Divide by 2 (faster than division).

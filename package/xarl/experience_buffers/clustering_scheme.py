@@ -31,7 +31,7 @@ class extrinsic_reward(none):
 		# 	print("Adding new batch with reward: extrinsic {}, intrinsic {}".format(batch_extrinsic_reward, batch_intrinsic_reward))
 		#=======================================================================
 		batch_type = 'positive' if batch_extrinsic_reward > 0 else 'negative'
-		return (episode_type,batch_type)
+		return '{}-{}'.format(episode_type,batch_type)
 
 class moving_best_extrinsic_reward(extrinsic_reward):
 	def __init__(self):
@@ -54,7 +54,7 @@ class moving_best_extrinsic_reward_with_type(moving_best_extrinsic_reward):
 		# less_frequent_explanation = min(explanation_counter.items(), key=lambda x:x[-1])[0]
 		# most_frequent_explanation = max(explanation_counter.items(), key=lambda x:x[-1])[0]
 		# batch_type = '-'.join([most_frequent_explanation,less_frequent_explanation])
-		return (episode_type,batch_type)
+		return '{}-{}'.format(episode_type,batch_type)
 
 class moving_best_extrinsic_reward_with_multiple_types(moving_best_extrinsic_reward):
 	batch_type_is_list = True
@@ -63,7 +63,7 @@ class moving_best_extrinsic_reward_with_multiple_types(moving_best_extrinsic_rew
 		explanation_iter = map(lambda x: x if isinstance(x,(list,tuple)) else [x], explanation_iter)
 		explanation_iter = itertools.chain(*explanation_iter)
 		explanation_iter = unique_everseen(explanation_iter)
-		explanation_iter = map(lambda x:(episode_type,x), explanation_iter)
+		explanation_iter = map(lambda x:'{}-{}'.format(episode_type,x), explanation_iter)
 		explanation_list = tuple(explanation_iter)
 		# print(explanation_list)
 		return explanation_list

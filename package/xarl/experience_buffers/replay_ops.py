@@ -67,14 +67,6 @@ class MixInReplay:
 		self.update_replayed_fn = update_replayed_fn
 
 	def __call__(self, sample_batch):
-		def get_updated_batch(batch):
-			if isinstance(batch, MultiAgentBatch):
-				batch.policy_batches = {
-					k:self.update_replayed_fn(v)
-					for k,v in batch.policy_batches.items()
-				}
-				return batch
-			return self.update_replayed_fn(batch)
 		# Put in the experience buffer
 		sample_batch = self.replay_buffer.add_batch(sample_batch) # allow for duplicates in output_batches
 		output_batches = [sample_batch]
@@ -83,6 +75,6 @@ class MixInReplay:
 			if n > 0:
 				batch_list = self.replay_buffer.replay(replay_size=n) # allow for duplicates in output_batches
 				if self.update_replayed_fn:
-					batch_list = list(map(get_updated_batch, batch_list))
+					batch_list = list(map(self.update_replayed_fn, batch_list))
 				output_batches += batch_list
 		return output_batches

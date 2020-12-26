@@ -19,8 +19,8 @@ class Buffer(object):
 	def _add_type_if_not_exist(self, type_id): # private method
 		if type_id in self.types: # check it to avoid double insertion
 			return False
-		self.types[type_id] = len(self.types)
-		self.type_values.append(self.types[type_id])
+		self.types[type_id] = sample_type = len(self.type_keys)
+		self.type_values.append(sample_type)
 		self.type_keys.append(type_id)
 		self.batches.append(deque(maxlen=self.cluster_size))
 		return True

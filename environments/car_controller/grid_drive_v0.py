@@ -48,6 +48,7 @@ class GridDriveV0(gym.Env):
 		})
 
 	def reset(self):
+		# if self.step_counter%self.MAX_STEP == 0:
 		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.culture)
 		self.grid_features = np.array(self.grid.get_features(), dtype=np.int8)
 		self.step_counter = 0
