@@ -106,9 +106,10 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 
 		with self.replay_timer:
 			samples = {}
-			with self._buffer_lock:
-				for policy_id, replay_buffer in self.replay_buffers.items():
-					samples[policy_id] = SampleBatch.concat_samples(replay_buffer.sample(replay_size))
+			for policy_id, replay_buffer in self.replay_buffers.items():
+				with self._buffer_lock:
+					batch_iter = replay_buffer.sample(replay_size)
+				samples[policy_id] = SampleBatch.concat_samples(batch_iter)
 			return MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 
 	def update_priorities(self, prio_dict):
