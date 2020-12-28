@@ -30,22 +30,25 @@ XAPPO_EXTRA_OPTIONS = {
 	"buffer_options": {
 		'priority_id': GAINS, # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
 		'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
-		'cluster_size': 2**8, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-		'global_size': None, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'cluster_size': 2**8, # Default 2**8, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': None, # Default None. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': None, # Parameter that regulates a mechanism for computing importance sampling; PPO probably does not need it.
 		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
+		'update_insertion_time_when_sampling': False, # Whether to update the insertion time batches to the time of sampling. It requires prioritized_drop_probability < 1. In DQN default is False.
 		'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
 		'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
-		'sample_simplest_unknown_task': 'average', # Whether to sample the simplest unknown task with higher probability. Two options: 'average': the one with the cluster priority closest to the average cluster priority; 'above_average': the one with the cluster priority closest to the cluster with the smallest priority greater than the average cluster priority. It requires prioritised_cluster_sampling==True.
+		'sample_simplest_unknown_task': 'above_average', # Whether to sample the simplest unknown task with higher probability. Two options: 'average': the one with the cluster priority closest to the average cluster priority; 'above_average': the one with the cluster priority closest to the cluster with the smallest priority greater than the average cluster priority. It requires prioritised_cluster_sampling==True.
 	},
 	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
-	"update_only_sampled_cluster": True, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
+	"update_only_sampled_cluster": False, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
 	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
 	"gae_with_vtrace": False, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
 }
+# The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
+# Having update_only_sampled_cluster==True is good when update_insertion_time_when_sampling==True and prioritized_drop_probability==0.
 XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
 	DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 	XAPPO_EXTRA_OPTIONS,
@@ -144,22 +147,24 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 	return sample_batch
 
 XAPPOTFPolicy = AsyncPPOTFPolicy.with_updates(
+	name="XAPPOTFPolicy",
 	extra_action_fetches_fn=vf_preds_fetches,
 	postprocess_fn=xappo_postprocess_trajectory,
 )
 XAPPOTorchPolicy = AsyncPPOTorchPolicy.with_updates(
+	name="XAPPOTorchPolicy",
 	extra_action_out_fn=vf_preds_fetches,
 	postprocess_fn=xappo_postprocess_trajectory,
 )
 
-########################
-# XAPPO's Execution Plan
-########################
-
 def xappo_get_policy_class(config):
 	if config["framework"] == "torch":
 		return XAPPOTorchPolicy
-	# return XAPPOTFPolicy
+	return XAPPOTFPolicy
+
+########################
+# XAPPO's Execution Plan
+########################
 
 def xappo_execution_plan(workers, config):
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)

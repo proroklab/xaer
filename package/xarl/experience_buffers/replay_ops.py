@@ -42,10 +42,10 @@ class StoreToReplayBuffer:
 	def __call__(self, batch: SampleBatchType):
 		return self.local_actor.add_batch(batch)
 
-def Replay(local_buffer, replay_batch_size=1):
+def Replay(local_buffer, replay_batch_size=1, cluster_overview_size=1):
 	def gen_replay(_):
 		while True:
-			batch_list = local_buffer.replay_n_concatenate(replay_size=replay_batch_size)
+			batch_list = local_buffer.replay_n_concatenate(batch_count=replay_batch_size, cluster_overview_size=cluster_overview_size)
 			if not batch_list:
 				yield _NextValueNotReady()
 			else:
@@ -73,7 +73,7 @@ class MixInReplay:
 		if self.replay_buffer.can_replay():
 			n = np.random.poisson(self.replay_proportion)
 			if n > 0:
-				batch_list = self.replay_buffer.replay(replay_size=n) # allow for duplicates in output_batches
+				batch_list = self.replay_buffer.replay(batch_count=n) # allow for duplicates in output_batches
 				if self.update_replayed_fn:
 					batch_list = list(map(self.update_replayed_fn, batch_list))
 				output_batches += batch_list

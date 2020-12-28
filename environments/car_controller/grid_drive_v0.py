@@ -86,10 +86,10 @@ class GridDriveV0(gym.Env):
 		else:
 			if self.grid_view[x][y][-2] > 0: # already visited cell
 				reward = 0
-				explanation.append('Old cell')
+				explanation = 'Old cell'
 			else:
 				reward = (speed+1)/self.MAX_SPEED # in (0,1]
-				explanation.append('OK')
+				explanation = 'OK'
 		# do it aftwer checking positions
 		self.grid_view[x][y][-2] = 1 # set current cell as visited
 		self.grid_view[x][y][-1] = 1 # set new position

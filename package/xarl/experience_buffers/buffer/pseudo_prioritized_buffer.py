@@ -8,20 +8,21 @@ import copy
 import uuid
 
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_sample_simplest_unknown_task')
+	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_sample_simplest_unknown_task','_update_insertion_time_when_sampling')
 	
 	def __init__(self, 
 		priority_id,
 		priority_aggregation_fn,
-		cluster_size=50000, 
+		cluster_size=None, 
 		global_size=50000, 
 		alpha=0.6, 
 		beta=0.4, 
-		epsilon=1e-4,
+		epsilon=1e-6,
 		prioritized_drop_probability=0.5, 
 		global_distribution_matching=False, 
 		prioritised_cluster_sampling=True, 
 		sample_simplest_unknown_task=False,
+		update_insertion_time_when_sampling=False,
 	): # O(1)
 		self._priority_id = priority_id
 		self._priority_aggregation_fn = eval(priority_aggregation_fn)
@@ -33,10 +34,11 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._global_distribution_matching = global_distribution_matching
 		self._prioritised_cluster_sampling = prioritised_cluster_sampling
 		self._sample_simplest_unknown_task = sample_simplest_unknown_task
-		self._it_capacity = 1
-		while self._it_capacity < cluster_size:
-			self._it_capacity *= 2
+		self._update_insertion_time_when_sampling = update_insertion_time_when_sampling
 		super().__init__(cluster_size, global_size)
+		self._it_capacity = 1
+		while self._it_capacity < self.cluster_size:
+			self._it_capacity *= 2
 		
 	def set(self, buffer): # O(1)
 		assert isinstance(buffer, PseudoPrioritizedBuffer)
@@ -71,6 +73,8 @@ class PseudoPrioritizedBuffer(Buffer):
 	def remove_batch(self, sample_type, idx): # O(log)
 		last_idx = len(self.batches[sample_type])-1
 		assert idx <= last_idx, 'idx cannot be greater than last_idx'
+		type_id = self.type_keys[sample_type]
+		del self.batches[sample_type][idx]["infos"][0]['batch_index'][type_id]
 		if idx == last_idx:
 			if self._prioritized_drop_probability > 0:
 				self._drop_priority_tree[sample_type][idx] = None # O(log)
@@ -88,7 +92,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._sample_priority_tree[sample_type][idx] = self._sample_priority_tree[sample_type][last_idx] # O(log)
 			self._sample_priority_tree[sample_type][last_idx] = None # O(log)
 			batch = self.batches[sample_type][idx] = self.batches[sample_type].pop()
-			batch["infos"][0]['batch_index'][self.type_keys[sample_type]] = idx
+			batch["infos"][0]['batch_index'][type_id] = idx
 
 	def count(self, type_=None):
 		if type_ is None:
@@ -126,9 +130,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			idx = len(type_batch)
 			type_batch.append(batch)
 		else:
+			del type_batch[idx]["infos"][0]['batch_index'][type_id]
 			type_batch[idx] = batch
 		batch_infos = batch["infos"][0]
-		batch_infos['batch_uid'] = uuid.uuid4().bytes # random unique id
+		batch_infos['batch_uid'] = str(uuid.uuid4()) # random unique id
 		batch_infos['batch_index'][type_id] = idx
 		if self._beta is not None and 'weights' not in batch: # Add default weights
 			batch['weights'] = np.ones(batch.count, dtype=np.float32)
@@ -139,7 +144,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
-		self.update_priority(batch, idx, type_id, check_id=False) # add batch
+		self.update_priority(batch, idx, type_id) # add batch
 		# if self.global_size:
 		# 	assert self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
 		# 	assert super().count() <= self.global_size, 'Memory leak in replay buffer; v2'
@@ -187,6 +192,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			# Remove from buffer
 			if remove is True:
 				self.remove_batch(sample_type, idx)
+			# Set insertion time
+			elif self._update_insertion_time_when_sampling and self._prioritized_drop_probability < 1:
+				# this batch's priority is going to be updated so it makes sense to update its timestamp as well, before it's removed from batch because too old
+				self._insertion_time_tree[sample_type][idx] = (time.time(), idx) # O(log)
 			batch_list.append(batch)
 		return batch_list
 

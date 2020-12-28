@@ -5,7 +5,9 @@ from collections import deque
 class Buffer(object):
 	__slots__ = ('cluster_size','global_size','types','batches','type_values','type_keys')
 	
-	def __init__(self, cluster_size, global_size):
+	def __init__(self, cluster_size=None, global_size=50000):
+		assert cluster_size or global_size, 'At least one of cluster_size or global_size shall be set greater than 0.'
+		if not cluster_size: cluster_size = global_size
 		self.cluster_size = min(cluster_size,global_size) if global_size else cluster_size
 		self.global_size = global_size
 		self.clean()
@@ -78,10 +80,10 @@ class Buffer(object):
 
 	def sample(self, n=1, remove=False):
 		type_ = choice(self.type_values)
-		batch_list = []
-		for _ in range(n):
-			batch = choice(self.batches[type_])
-			if remove:
-				self.batches[type_].remove(batch)
-			batch_list.append(batch)
+		batch_list = [
+			choice(self.batches[type_])
+			for _ in range(n)
+		]
+		if remove:
+			for batch in batch_list: self.batches[type_].remove(batch)
 		return batch_list

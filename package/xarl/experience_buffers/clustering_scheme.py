@@ -14,7 +14,7 @@ class none():
 		return episode_type == 'better'
 
 	def get_episode_type(self, episode):
-		episode_extrinsic_reward = np.sum(episode[-1]["rewards"])
+		episode_extrinsic_reward = sum((e["rewards"] for e in episode))
 		return 'better' if episode_extrinsic_reward > 0 else 'worse' # Best batches = batches that lead to positive extrinsic reward
 
 	def get_batch_type(self, batch, episode_type):
@@ -38,7 +38,7 @@ class moving_best_extrinsic_reward(extrinsic_reward):
 		self.scaler = RunningMeanStd(batch_size=33)
 
 	def get_episode_type(self, episode):
-		episode_extrinsic_reward = np.sum(episode[-1]["rewards"])
+		episode_extrinsic_reward = sum((e["rewards"] for e in episode))
 		self.scaler.update([episode_extrinsic_reward])
 		return 'better' if episode_extrinsic_reward > self.scaler.mean else 'worse'
 		

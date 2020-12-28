@@ -30,7 +30,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		prioritized_replay=True,
 		buffer_options=None, 
 		learning_starts=1000, 
-		update_only_sampled_cluster=True,
+		update_only_sampled_cluster=False,
 	):
 		self.update_only_sampled_cluster = update_only_sampled_cluster
 		self.prioritized_replay = prioritized_replay
@@ -71,28 +71,29 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 						if self.update_only_sampled_cluster:
 							b_copy = b.copy()
 							b_copy['infos'] = copy.deepcopy(b_copy['infos'])
-							with self._buffer_lock:
-								self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
+							with self._buffer_lock: self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
 						else:
-							with self._buffer_lock:
-								self.replay_buffers[policy_id].add(b, sub_batch_type)
+							with self._buffer_lock: self.replay_buffers[policy_id].add(b, sub_batch_type)
 				else:
-					with self._buffer_lock:
-						self.replay_buffers[policy_id].add(b, batch_type)
+					with self._buffer_lock: self.replay_buffers[policy_id].add(b, batch_type)
 		return batch
 
 	def can_replay(self):
 		return self.num_added >= self.replay_starts
 
-	def replay(self, replay_size=1):
+	def replay(self, batch_count=1, cluster_overview_size=1):
 		if not self.can_replay():
 			return None
 
 		with self.replay_timer:
-			batch_list = [{} for _ in range(replay_size)]
+			batch_list = [{} for _ in range(batch_count)]
 			for policy_id, replay_buffer in self.replay_buffers.items():
-				with self._buffer_lock:
-					batch_iter = replay_buffer.sample(replay_size)
+				# batch_iter = replay_buffer.sample(batch_count)
+				batch_iter = []
+				for _ in range(batch_count//cluster_overview_size):
+					with self._buffer_lock: batch_iter += replay_buffer.sample(cluster_overview_size)
+				if batch_count%cluster_overview_size:
+					with self._buffer_lock: batch_iter += replay_buffer.sample(batch_count%cluster_overview_size)
 				for i,batch in enumerate(batch_iter):
 					batch_list[i][policy_id] = batch
 		return (
@@ -100,24 +101,30 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			for samples in batch_list
 		)
 
-	def replay_n_concatenate(self, replay_size=1):
+	def replay_n_concatenate(self, batch_count=1, cluster_overview_size=1):
 		if not self.can_replay():
 			return None
 
 		with self.replay_timer:
 			samples = {}
 			for policy_id, replay_buffer in self.replay_buffers.items():
-				with self._buffer_lock:
-					batch_iter = replay_buffer.sample(replay_size)
+				# batch_iter = replay_buffer.sample(batch_count)
+				batch_iter = []
+				for _ in range(batch_count//cluster_overview_size):
+					with self._buffer_lock: batch_iter += replay_buffer.sample(cluster_overview_size)
+				if batch_count%cluster_overview_size:
+					with self._buffer_lock: batch_iter += replay_buffer.sample(batch_count%cluster_overview_size)
 				samples[policy_id] = SampleBatch.concat_samples(batch_iter)
+			# concatenate after lock is released
+			# for k,v in samples.items():
+			# 	samples[k] = SampleBatch.concat_samples(v)
 			return MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 
 	def update_priorities(self, prio_dict):
 		with self.update_priorities_timer:
-			with self._buffer_lock:
-				for policy_id, new_batch in prio_dict.items():
-					for type_id,batch_index in new_batch['infos'][0]["batch_index"].items():
-						self.replay_buffers[policy_id].update_priority(new_batch, batch_index, type_id)
+			for policy_id, new_batch in prio_dict.items():
+				for type_id,batch_index in new_batch['infos'][0]["batch_index"].items():
+					with self._buffer_lock: self.replay_buffers[policy_id].update_priority(new_batch, batch_index, type_id)
 
 	def stats(self, debug=False):
 		stat = {
