@@ -8,7 +8,7 @@ import copy
 import uuid
 
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_sample_simplest_unknown_task','_update_insertion_time_when_sampling')
+	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling')
 	
 	def __init__(self, 
 		priority_id,
@@ -20,8 +20,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		epsilon=1e-6,
 		prioritized_drop_probability=0.5, 
 		global_distribution_matching=False, 
-		prioritised_cluster_sampling=True, 
-		sample_simplest_unknown_task=False,
+		prioritised_cluster_sampling_strategy='highest',
 		update_insertion_time_when_sampling=False,
 	): # O(1)
 		self._priority_id = priority_id
@@ -32,8 +31,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._epsilon = epsilon # Epsilon to add to the priorities when updating priorities.
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
-		self._prioritised_cluster_sampling = prioritised_cluster_sampling
-		self._sample_simplest_unknown_task = sample_simplest_unknown_task
+		self._prioritised_cluster_sampling = prioritised_cluster_sampling_strategy is not None
+		self._prioritised_cluster_sampling_strategy = prioritised_cluster_sampling_strategy
 		self._update_insertion_time_when_sampling = update_insertion_time_when_sampling
 		super().__init__(cluster_size, global_size)
 		self._it_capacity = 1
@@ -153,10 +152,10 @@ class PseudoPrioritizedBuffer(Buffer):
 	def sample_cluster(self):
 		if self._prioritised_cluster_sampling:
 			type_priority = np.array(tuple(map(lambda x: x.sum(scaled=False), self._sample_priority_tree)), dtype=np.float32)
-			if self._sample_simplest_unknown_task == 'average':
+			if self._prioritised_cluster_sampling_strategy == 'average':
 				avg_type_priority = np.mean(type_priority)
 				type_priority = -np.absolute(type_priority-avg_type_priority) # the closer to the average, the higher the priority: the hardest tasks will be tackled last
-			elif self._sample_simplest_unknown_task == 'above_average':
+			elif self._prioritised_cluster_sampling_strategy == 'above_average':
 				avg_type_priority = np.mean(type_priority)
 				type_priority_above_avg = type_priority[type_priority>avg_type_priority]
 				best_after_mean = np.min(type_priority_above_avg) if type_priority_above_avg.size > 0 else type_priority[0]

@@ -15,24 +15,34 @@ SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	# "rollout_fragment_length": 1,
+	# "train_batch_size": 2**7,
+	# "learning_starts": 1500,
+	# "grad_clip": None,
+	"prioritized_replay": True,
+	"num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
+	# "remote_worker_envs": True, # This will create env instances in Ray actors and step them in parallel. These remote processes introduce communication overheads, so this only helps if your env is very expensive to step / reset.
+	# "num_workers": multiprocessing.cpu_count(),
+	# "training_intensity": 2**4, # default is train_batch_size / rollout_fragment_length
 	# "framework": "torch",
-	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
-	#######################
-	"update_only_sampled_cluster": True, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
+	########################################################
 	"buffer_options": {
 		'priority_id': "td_errors", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
 		'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
-		'cluster_size': 50000, # Default 50000. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-		'global_size': 50000, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		# 'cluster_size': None, # Default None, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': 2**13, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
 		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
-		'prioritized_drop_probability': 0.5, # Probability of dropping the batch having the lowest priority in the buffer.
-		'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-		'prioritised_cluster_sampling': True, # Whether to select which cluster to replay in a prioritised fashion.
-		'sample_simplest_unknown_task': 'average', # Whether to sample the simplest unknown task with higher probability. Two options: 'average': the one with the cluster priority closest to the average cluster priority; 'above_average': the one with the cluster priority closest to the cluster with the smallest priority greater than the average cluster priority. It requires prioritised_cluster_sampling==True.
+		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
+		# 'update_insertion_time_when_sampling': False, # Default is False. Whether to update the insertion time batches to the time of sampling. It requires prioritized_drop_probability < 1. In DQN default is False.
+		'global_distribution_matching': False, # If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
+		'prioritised_cluster_sampling_strategy': 'highest', # Whether to select which cluster to replay in a prioritised fashion. Four options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
 	},
+	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
+	# "cluster_overview_size": None, # cluster_overview_size <= train_batch_size. If None, then it is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled out of it. The closer is to train_batch_size, the faster is the algorithm.
+	# "update_only_sampled_cluster": False, # Default is False. Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
 })
 
 ####################################################################################
