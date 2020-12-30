@@ -133,6 +133,8 @@ def xadqn_execution_plan(workers, config):
 		return info_dict
 	post_fn = config.get("before_learn_on_batch") or (lambda b, *a: b)
 	replay_op = Replay(local_buffer=local_replay_buffer, replay_batch_size=replay_batch_size, cluster_overview_size=cluster_overview_size) \
+		.flatten() \
+		.combine(ConcatBatches(min_batch_size=replay_batch_size)) \
 		.for_each(lambda x: post_fn(x, workers, config)) \
 		.for_each(TrainOneStep(workers)) \
 		.for_each(update_priorities) \

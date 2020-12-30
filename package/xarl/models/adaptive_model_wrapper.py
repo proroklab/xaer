@@ -65,13 +65,13 @@ def get_tf_heads_model(obs_space, num_outputs):
 		)(inputs)
 		return inputs, layer
 
-def get_heads_input(input_dict):
-	cnn_inputs = input_dict["obs"].get("cnn",[])
-	fc_inputs = input_dict["obs"].get("fc",[])
+def get_heads_input(obs):
+	cnn_inputs = obs.get("cnn",[])
+	fc_inputs = obs.get("fc",[])
 	if cnn_inputs or fc_inputs:
 		if isinstance(cnn_inputs,dict):
 			cnn_inputs = list(cnn_inputs.values())
 		if isinstance(fc_inputs,dict):
 			fc_inputs = list(fc_inputs.values())
 		return cnn_inputs + fc_inputs
-	return input_dict["obs"]
+	return obs

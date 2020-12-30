@@ -46,14 +46,13 @@ CONFIG.update({
 ####################################################################################
 ####################################################################################
 
-from xarl.models.appo import TFAdaptiveMultiHeadAPPO
+from xarl.models.appo import TFAdaptiveMultiHeadNet
 from ray.rllib.models import ModelCatalog
 # Register the models to use.
-ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadAPPO)
+ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
 CONFIG["model"] = {
 	"custom_model": "adaptive_multihead_network",
 }
-
 
 ####################################################################################
 ####################################################################################

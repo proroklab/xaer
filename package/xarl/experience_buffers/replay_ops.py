@@ -45,7 +45,7 @@ class StoreToReplayBuffer:
 def Replay(local_buffer, replay_batch_size=1, cluster_overview_size=1):
 	def gen_replay(_):
 		while True:
-			batch_list = local_buffer.replay_n_concatenate(batch_count=replay_batch_size, cluster_overview_size=cluster_overview_size)
+			batch_list = local_buffer.replay(batch_count=replay_batch_size, cluster_overview_size=cluster_overview_size)
 			if not batch_list:
 				yield _NextValueNotReady()
 			else:

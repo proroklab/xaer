@@ -28,13 +28,13 @@ def get_algorithm_by_name(alg_name):
 		return XADDPG_DEFAULT_CONFIG.copy(), XADDPGTrainer
 	if alg_name == 'appo':
 		from ray.rllib.agents.ppo.appo import APPOTrainer, DEFAULT_CONFIG as APPO_DEFAULT_CONFIG
-		from xarl.models.appo import TFAdaptiveMultiHeadAPPO
-		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadAPPO)
+		from xarl.models.appo import TFAdaptiveMultiHeadNet
+		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
 		return APPO_DEFAULT_CONFIG.copy(), APPOTrainer
 	if alg_name == 'xappo':
 		from xarl.agents.xappo import XAPPOTrainer, XAPPO_DEFAULT_CONFIG
-		from xarl.models.appo import TFAdaptiveMultiHeadAPPO
-		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadAPPO)
+		from xarl.models.appo import TFAdaptiveMultiHeadNet
+		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
 		return XAPPO_DEFAULT_CONFIG.copy(), XAPPOTrainer
 
 import sys

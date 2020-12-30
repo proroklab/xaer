@@ -20,7 +20,7 @@ CONFIG.update({
 	"learning_starts": 1500,
 	"grad_clip": None,
 	"prioritized_replay": True,
-	"num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
+	# "num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
 	# "remote_worker_envs": True, # This will create env instances in Ray actors and step them in parallel. These remote processes introduce communication overheads, so this only helps if your env is very expensive to step / reset.
 	# "num_workers": multiprocessing.cpu_count(),
 	# "training_intensity": 2**4, # default is train_batch_size / rollout_fragment_length
