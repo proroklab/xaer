@@ -175,7 +175,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		type_sum_tree = self._sample_priority_tree[sample_type]
 		type_batch = self.batches[sample_type]
 		if self._beta is not None: # Update weights
-			min_priority = type_sum_tree.min_tree.min()
+			min_priority = min(map(lambda x: x.min_tree.min(), self._sample_priority_tree))
+			# min_priority = type_sum_tree.min_tree.min()
 			assert min_priority > 0, "min_priority > 0, if beta is not None"
 		batch_list = []
 		for _ in range(n):
@@ -188,6 +189,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			if self._beta is not None: # Update weights
 				weight = (min_priority / type_sum_tree[idx])**self._beta
 				batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
+				# print(batch['weights'])
 			# Remove from buffer
 			if remove is True:
 				self.remove_batch(sample_type, idx)
