@@ -8,6 +8,8 @@ from environments.car_controller.car_stuff.alex_discrete.road_cultures import Ea
 class GridDriveV0(gym.Env):
 	GRID_DIMENSION				= 15
 	MAX_SPEED 					= 120
+	SPEED_GAP					= 10
+	MAX_GAPPED_SPEED			= MAX_SPEED//SPEED_GAP
 	MAX_STEP					= 2**5
 	DIRECTIONS					= 4 # N,S,W,E
 	
@@ -17,7 +19,7 @@ class GridDriveV0(gym.Env):
 		OBS_CAR_FEATURES	 = 5  # Number of binary CAR features in Hard Culture (excl. speed)
 
 		# Direction (N, S, W, E) + Speed [0-MAX_SPEED]
-		self.action_space	   = gym.spaces.MultiDiscrete([self.DIRECTIONS, self.MAX_SPEED])
+		self.action_space	   = gym.spaces.MultiDiscrete([self.DIRECTIONS, self.MAX_GAPPED_SPEED])
 		self.observation_space = gym.spaces.Dict({
 			"cnn": gym.spaces.Dict({
 				"grid": gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, OBS_ROAD_FEATURES+2]), # Features representing the grid + visited cells + current position
@@ -76,9 +78,10 @@ class GridDriveV0(gym.Env):
 		self.step_counter += 1
 		x, y = self.grid.agent_position
 		self.grid_view[x][y][-1] = 0 # remove old position
-		direction, speed = action_vector
+		direction, gapped_speed = action_vector
+		speed = gapped_speed*self.SPEED_GAP
 		can_move, explanation = self.grid.move_agent(direction, speed)
-		is_terminal_step = self.step_counter >= self.MAX_STEP #or reward < 0
+		is_terminal_step = self.step_counter >= self.MAX_STEP
 		x, y = self.grid.agent_position
 		if not can_move:
 			reward = -(speed+1)/self.MAX_SPEED # in [-1,0)

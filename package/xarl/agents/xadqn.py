@@ -9,7 +9,7 @@ import numpy as np
 from more_itertools import unique_everseen
 from ray.rllib.agents.dqn.dqn import calculate_rr_weights, DQNTrainer, TrainOneStep, UpdateTargetNetwork, Concurrently, StandardMetricsReporting, LEARNER_STATS_KEY, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
 from ray.rllib.agents.dqn.dqn_torch_policy import DQNTorchPolicy, compute_q_values as torch_compute_q_values, torch, F, FLOAT_MIN
-from ray.rllib.agents.dqn.dqn_tf_policy import DQNTFPolicy, compute_q_values as tf_compute_q_values, tf
+from ray.rllib.agents.dqn.dqn_tf_policy import DQNTFPolicy, compute_q_values as tf_compute_q_values, tf, _adjust_nstep
 from ray.rllib.utils.tf_ops import explained_variance as tf_explained_variance
 from ray.rllib.utils.torch_ops import explained_variance as torch_explained_variance
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
@@ -18,17 +18,14 @@ from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_
 from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types
 
 XADQN_EXTRA_OPTIONS = {
-	"rollout_fragment_length": 1,
-	"train_batch_size": 2**8,
-	"learning_starts": 1500,
-	"grad_clip": None,
+	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	"prioritized_replay": True,
-	####################################
+	##########################################
 	"buffer_options": {
 		'priority_id': "td_errors", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
 		'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Default None, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-		'global_size': 2**16, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': 2**15, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': 0.4, # Parameter that regulates a mechanism for computing importance sampling.
 		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
@@ -39,8 +36,7 @@ XADQN_EXTRA_OPTIONS = {
 	},
 	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
 	"cluster_overview_size": None, # cluster_overview_size <= train_batch_size. If None, then it is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled out of it. The closer is to train_batch_size, the faster is the algorithm.
-	"update_only_sampled_cluster": False, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption.
-	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	"update_only_sampled_cluster": True, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XADQN_DEFAULT_CONFIG = DQNTrainer.merge_trainer_configs(
@@ -120,9 +116,9 @@ def xadqn_execution_plan(workers, config):
 		for policy_id, batch in samples.policy_batches.items():
 			sub_batch_iter = (
 				sub_batch 
-				for episode_batch in batch.split_by_episode()
-				for sub_batch in episode_batch.timeslices(replay_sequence_length)
-			) if replay_sequence_length > 1 else batch.timeslices(replay_sequence_length)
+				for episode_batch in reversed(batch.split_by_episode())
+				for sub_batch in reversed(episode_batch.timeslices(replay_sequence_length))
+			) if replay_sequence_length > 1 else reversed(batch.timeslices(replay_sequence_length))
 			sub_batch_iter = unique_everseen(sub_batch_iter, key=lambda x: x['infos'][0]["batch_uid"])
 			for i,sub_batch in enumerate(sub_batch_iter):
 				if i >= len(policy_batch_list):

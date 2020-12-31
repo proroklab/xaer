@@ -151,7 +151,9 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def sample_cluster(self):
 		if self._prioritised_cluster_sampling:
-			type_priority = np.array(tuple(map(lambda x: x.sum(scaled=False), self._sample_priority_tree)), dtype=np.float32)
+			type_priority = map(lambda x: x.sum(scaled=False)/x.inserted_elements, self._sample_priority_tree)
+			# type_priority = map(self.normalize_priority, type_priority)
+			type_priority = np.array(tuple(type_priority))
 			if self._prioritised_cluster_sampling_strategy == 'average':
 				avg_type_priority = np.mean(type_priority)
 				type_priority = -np.absolute(type_priority-avg_type_priority) # the closer to the average, the higher the priority: the hardest tasks will be tackled last
@@ -175,21 +177,17 @@ class PseudoPrioritizedBuffer(Buffer):
 		type_sum_tree = self._sample_priority_tree[sample_type]
 		type_batch = self.batches[sample_type]
 		if self._beta is not None: # Update weights
-			min_priority = min(map(lambda x: x.min_tree.min(), self._sample_priority_tree))
-			# min_priority = type_sum_tree.min_tree.min()
+			# min_priority = min(map(lambda x: x.min_tree.min(), self._sample_priority_tree))
+			min_priority = type_sum_tree.min_tree.min()
 			assert min_priority > 0, "min_priority > 0, if beta is not None"
 		batch_list = []
 		for _ in range(n):
 			idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
-			# print('r',idx, type_sum_tree.inserted_elements, len(type_batch))
-			# idx = np.clip(idx, 0,len(type_batch)-1)
-			# print('b',idx)
 			batch = type_batch[idx]
 			# Update weights
 			if self._beta is not None: # Update weights
 				weight = (min_priority / type_sum_tree[idx])**self._beta
 				batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
-				# print(batch['weights'])
 			# Remove from buffer
 			if remove is True:
 				self.remove_batch(sample_type, idx)
@@ -209,8 +207,9 @@ class PseudoPrioritizedBuffer(Buffer):
 			return
 		if check_id and new_batch['infos'][0]['batch_uid'] != self.batches[sample_type][idx]['infos'][0]['batch_uid']:
 			return
-		# if replace_old_batch:
-		# 	self.batches[sample_type][idx] = new_batch
+		# for k,v in self.batches[sample_type][idx].data.items():
+		# 	if not np.array_equal(new_batch[k],v):
+		# 		print(k,v,new_batch[k])
 		new_priority = self.get_batch_priority(new_batch)
 		normalized_priority = self.normalize_priority(new_priority)
 		# Update priority

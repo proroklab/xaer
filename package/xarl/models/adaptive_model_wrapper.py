@@ -36,15 +36,16 @@ def get_tf_heads_model(obs_space, num_outputs):
 			tf.keras.layers.Flatten()(layer)
 			for layer in fc_inputs
 		]
-		fc_layers = [
-			tf.keras.layers.Dense(
-				num_outputs, 
-				name=f"fc_layer{i}", 
-				activation=tf.nn.relu, 
-				kernel_initializer=tf_normc_initializer(1.0)
-			)(layer)
-			for i,layer in enumerate(fc_layers)
-		]
+		if len(fc_layers) > 1:
+			fc_layers = tf.keras.layers.Concatenate()(fc_layers)
+		else:
+			fc_layers = fc_layers[0]
+		fc_layers = [tf.keras.layers.Dense(
+			num_outputs, 
+			name=f"fc_layer", 
+			activation=tf.nn.relu, 
+			kernel_initializer=tf_normc_initializer(1.0)
+		)(fc_layers)]
 	else: fc_layers = []
 
 	final_layer = fc_layers + cnn_layers
