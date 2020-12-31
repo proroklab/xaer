@@ -24,6 +24,7 @@ XAPPO_EXTRA_OPTIONS = {
 	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
 	"replay_proportion": 2, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 	##########################################
+	"gae_with_vtrace": False, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
 	"prioritized_replay": True,
 	"learning_starts": 100, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
 	"buffer_options": {
@@ -39,9 +40,9 @@ XAPPO_EXTRA_OPTIONS = {
 		'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
 		'prioritised_cluster_sampling_strategy': 'highest', # Whether to select which cluster to replay in a prioritised fashion. Four options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
 	},
-	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
-	"update_only_sampled_cluster": True, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
-	"gae_with_vtrace": False, # Formula for computing the advantages: combines GAE with V-Trace, for better sample efficiency.
+	"clustering_scheme": "multiple_types_with_reward_against_mean", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "type_with_reward_against_mean", "multiple_types", "type".
+	"cluster_with_episode_type": True, # Whether to cluster experience using information at episode-level.
+	"update_only_sampled_cluster": False, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
@@ -182,7 +183,7 @@ def xappo_execution_plan(workers, config):
 	# Augment with replay and concat to desired train batch size.
 	train_batches = rollouts \
 		.for_each(lambda batch: batch.decompress_if_needed()) \
-		.for_each(lambda batch: assign_types(batch, clustering_scheme, config["rollout_fragment_length"])) \
+		.for_each(lambda batch: assign_types(batch, clustering_scheme, config["rollout_fragment_length"], with_episode_type=config["cluster_with_episode_type"])) \
 		.flatten() \
 		.for_each(MixInReplay(
 			local_buffer=local_replay_buffer,

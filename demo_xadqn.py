@@ -20,8 +20,8 @@ CONFIG.update({
 	},
 	"dueling": True,
 	"double_q": True,
-	# "n_step": 1,
-	# "noisy": False,
+	# "n_step": 3,
+	# "noisy": True,
 	"prioritized_replay": True,
 	"num_atoms": 21,
 	"v_max": 2**5,
@@ -55,7 +55,8 @@ CONFIG.update({
 		'prioritised_cluster_sampling_strategy': 'highest', # Whether to select which cluster to replay in a prioritised fashion. Four options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
 	},
 	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
-	"clustering_scheme": "moving_best_extrinsic_reward_with_multiple_types", # Which scheme to use for building clusters. One of the following: none, extrinsic_reward, moving_best_extrinsic_reward, moving_best_extrinsic_reward_with_type, reward_with_type, reward_with_multiple_types, moving_best_extrinsic_reward_with_multiple_types.
+	"clustering_scheme": "multiple_types_with_reward_against_mean", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "type_with_reward_against_mean", "multiple_types", "type".
+	"cluster_with_episode_type": True, # Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": None, # cluster_overview_size <= train_batch_size. If None, then it is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled out of it. The closer is to train_batch_size, the faster is the algorithm.
 	"update_only_sampled_cluster": False, # Default is False. Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
 })
