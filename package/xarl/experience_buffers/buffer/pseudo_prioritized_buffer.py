@@ -63,7 +63,7 @@ class PseudoPrioritizedBuffer(Buffer):
 	
 	def normalize_priority(self, priority): # O(1)
 		# always add self._epsilon so that there is no priority equal to the neutral value of a SumSegmentTree
-		return (-1 if priority < 0 else 1)*(np.absolute(priority)**self._alpha + self._epsilon)
+		return (-1 if priority < 0 else 1)*(np.absolute(priority) + self._epsilon)**self._alpha
 
 	def get_priority(self, idx, type_id):
 		sample_type = self.get_type(type_id)

@@ -1,3 +1,4 @@
+cython
 ray[rllib]
 torch
 tensorflow
@@ -8,3 +9,4 @@ imageio>=2.9.0
 seaborn>=0.11.0
 Pillow>=7.2.0
 more_itertools
+runstats

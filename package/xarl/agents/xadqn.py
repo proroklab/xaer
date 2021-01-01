@@ -37,7 +37,8 @@ XADQN_EXTRA_OPTIONS = {
 	"clustering_scheme": "multiple_types_with_reward_against_mean", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": True, # Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": None, # cluster_overview_size <= train_batch_size. If None, then it is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled out of it. The closer is to train_batch_size, the faster is the algorithm.
-	"update_only_sampled_cluster": False, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption.
+	"update_only_sampled_cluster": True, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption.
+	"compute_td_errors_during_postprocessing": True, # Whether to compute the td-errors during post-processing, rather than assigning the default weights (=1) as placeholder. Setting this to false would force all the most recent batches to have the same priority, thus forcing all fresh batches to have the same probability of being sampled (if that is what you want, then set update_only_sampled_cluster to True).
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XADQN_DEFAULT_CONFIG = DQNTrainer.merge_trainer_configs(
@@ -56,7 +57,10 @@ def xa_postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None)
 		_adjust_nstep(policy.config["n_step"], policy.config["gamma"], batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES])
 	if 'weights' not in batch:
 		batch['weights'] = np.ones_like(batch[SampleBatch.REWARDS])
-	batch.data["td_errors"] = policy.compute_td_error(batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES], batch['weights'])
+	if policy.config["compute_td_errors_during_postprocessing"]:
+		batch.data["td_errors"] = policy.compute_td_error(batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES], batch['weights'])
+	else:
+		batch.data["td_errors"] = batch['weights'] # placeholder, waiting for the first learning step
 	return batch
 
 XADQNTFPolicy = DQNTFPolicy.with_updates(

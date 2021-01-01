@@ -2,7 +2,7 @@
 import numpy as np
 from collections import Counter
 from more_itertools import unique_everseen
-from xarl.utils.running_std import RunningMeanStd
+from xarl.utils.running_statistics import RunningStats
 import itertools
 
 class none():
@@ -25,19 +25,19 @@ class reward_against_zero(none):
 
 class reward_against_mean(none):
 	def __init__(self):
-		self.episode_scaler = RunningMeanStd(batch_size=33)
-		self.batch_scaler = RunningMeanStd(batch_size=33)
+		self.episode_stats = RunningStats(window_size=2**10)
+		self.batch_stats = RunningStats(window_size=2**10)
 
 	def get_episode_type(self, episode):
 		# episode_extrinsic_reward = sum((np.sum(batch["rewards"]) for batch in episode))
 		episode_extrinsic_reward = np.sum(episode[-1]["rewards"])
-		self.episode_scaler.update([episode_extrinsic_reward])
-		return 'better' if episode_extrinsic_reward > self.episode_scaler.mean else 'worse'
+		self.episode_stats.push(episode_extrinsic_reward)
+		return 'better' if episode_extrinsic_reward > self.episode_stats.mean else 'worse'
 
 	def get_batch_type(self, batch, episode_type='none'):
 		batch_extrinsic_reward = np.sum(batch["rewards"])
-		self.batch_scaler.update([batch_extrinsic_reward])
-		batch_type = 'greater' if batch_extrinsic_reward > self.batch_scaler.mean else 'lower'
+		self.batch_stats.push(batch_extrinsic_reward)
+		batch_type = 'greater' if batch_extrinsic_reward > self.batch_stats.mean else 'lower'
 		return [(episode_type, batch_type)]
 		
 class multiple_types_with_reward_against_mean(reward_against_mean):
