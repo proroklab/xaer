@@ -32,13 +32,13 @@ XADQN_EXTRA_OPTIONS = {
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer instead of the one having the lowest timestamp. In DQN default is 0.
 		'update_insertion_time_when_sampling': False, # Whether to update the insertion time batches to the time of sampling. It requires prioritized_drop_probability < 1. In DQN default is False.
 		'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-		'prioritised_cluster_sampling_strategy': 'highest', # Whether to select which cluster to replay in a prioritised fashion. Four options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
+		'prioritised_cluster_sampling_strategy': 'highest', # Whether to select which cluster to replay in a prioritised fashion -- 4 options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
+		'cluster_level_weighting': False, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
 	},
 	"clustering_scheme": "multiple_types_with_reward_against_mean", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": True, # Whether to cluster experience using information at episode-level.
-	"cluster_overview_size": None, # cluster_overview_size <= train_batch_size. If None, then it is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled out of it. The closer is to train_batch_size, the faster is the algorithm.
-	"update_only_sampled_cluster": True, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption.
-	"compute_td_errors_during_postprocessing": True, # Whether to compute the td-errors during post-processing, rather than assigning the default weights (=1) as placeholder. Setting this to false would force all the most recent batches to have the same priority, thus forcing all fresh batches to have the same probability of being sampled (if that is what you want, then set update_only_sampled_cluster to True).
+	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
+	"update_only_sampled_cluster": True, # If True, when sampling a batch from a cluster, no changes/updates to other clusters are performed if that batch is shared among these other clusters. Enabling this option would slightly speed-up batch sampling, by a constant proportional to the number of different clusters in the buffer.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XADQN_DEFAULT_CONFIG = DQNTrainer.merge_trainer_configs(
@@ -57,10 +57,7 @@ def xa_postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None)
 		_adjust_nstep(policy.config["n_step"], policy.config["gamma"], batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES])
 	if 'weights' not in batch:
 		batch['weights'] = np.ones_like(batch[SampleBatch.REWARDS])
-	if policy.config["compute_td_errors_during_postprocessing"]:
-		batch.data["td_errors"] = policy.compute_td_error(batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES], batch['weights'])
-	else:
-		batch.data["td_errors"] = batch['weights'] # placeholder, waiting for the first learning step
+	batch.data["td_errors"] = policy.compute_td_error(batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES], batch['weights'])
 	return batch
 
 XADQNTFPolicy = DQNTFPolicy.with_updates(
@@ -83,15 +80,12 @@ def get_policy_class(config):
 def xadqn_execution_plan(workers, config):
 	replay_batch_size = config["train_batch_size"]
 	replay_sequence_length = config["replay_sequence_length"]
-	cluster_overview_size = config["cluster_overview_size"]
-	cluster_overview_size = min(cluster_overview_size, replay_batch_size) if cluster_overview_size else replay_batch_size
 	if replay_sequence_length and replay_sequence_length > 1:
 		replay_batch_size = int(max(1, replay_batch_size // replay_sequence_length))
-		cluster_overview_size = int(max(1, cluster_overview_size // replay_sequence_length))
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	local_worker = workers.local_worker()
 
-	rollouts = ParallelRollouts(workers, mode="bulk_sync")
+	rollouts = ParallelRollouts(workers, mode="async")
 
 	# We execute the following steps concurrently:
 	# (1) Generate rollouts and store them in our local replay buffer. Calling
@@ -114,16 +108,15 @@ def xadqn_execution_plan(workers, config):
 		priority_id = config["buffer_options"]["priority_id"]
 		if priority_id == "td_errors":
 			for policy_id, info in info_dict.items():
-				td_error = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))
-				samples.policy_batches[policy_id][priority_id] = td_error
+				samples.policy_batches[policy_id]["td_errors"] = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))
 		# IMPORTANT: split train-batch into replay-batches before updating priorities
 		policy_batch_list = []
 		for policy_id, batch in samples.policy_batches.items():
 			sub_batch_iter = (
 				sub_batch 
-				for episode_batch in reversed(batch.split_by_episode())
-				for sub_batch in reversed(episode_batch.timeslices(replay_sequence_length))
-			) if replay_sequence_length > 1 else reversed(batch.timeslices(replay_sequence_length))
+				for episode_batch in batch.split_by_episode()
+				for sub_batch in episode_batch.timeslices(replay_sequence_length)
+			) if replay_sequence_length > 1 else batch.timeslices(replay_sequence_length)
 			sub_batch_iter = unique_everseen(sub_batch_iter, key=lambda x: x['infos'][0]["batch_uid"])
 			for i,sub_batch in enumerate(sub_batch_iter):
 				if i >= len(policy_batch_list):
@@ -133,7 +126,11 @@ def xadqn_execution_plan(workers, config):
 			local_replay_buffer.update_priorities(policy_batch)
 		return info_dict
 	post_fn = config.get("before_learn_on_batch") or (lambda b, *a: b)
-	replay_op = Replay(local_buffer=local_replay_buffer, replay_batch_size=replay_batch_size, cluster_overview_size=cluster_overview_size) \
+	replay_op = Replay(
+			local_buffer=local_replay_buffer, 
+			replay_batch_size=replay_batch_size, 
+			cluster_overview_size=config["cluster_overview_size"]
+		) \
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=replay_batch_size)) \
 		.for_each(lambda x: post_fn(x, workers, config)) \

@@ -1,8 +1,9 @@
 cython
+ray==1.0.1
 ray[rllib]
-torch
-tensorflow
-sklearn==0.0
+torch>=1.7.1
+tensorflow>=2.4.0
+sklearn>=0.0
 # Plotter
 matplotlib>=3.3.2
 imageio>=2.9.0

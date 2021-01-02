@@ -42,6 +42,21 @@ def assign_types(batch, clustering_scheme, replay_sequence_length, with_episode_
 		sub_batch["infos"][0]['batch_index'] = {}
 	return sub_batch_list
 
+def get_update_replayed_batch_fn(local_replay_buffer, local_worker, postprocess_trajectory_fn):
+	def update_replayed_fn(samples):
+		if isinstance(samples, MultiAgentBatch):
+			for pid, batch in samples.policy_batches.items():
+				if pid not in local_worker.policies_to_train:
+					continue
+				policy = local_worker.get_policy(pid)
+				samples.policy_batches[pid] = postprocess_trajectory_fn(policy, batch)
+			local_replay_buffer.update_priorities(samples.policy_batches)
+		else:
+			samples = postprocess_trajectory_fn(local_worker.policy_map[DEFAULT_POLICY_ID], samples)
+			local_replay_buffer.update_priorities({DEFAULT_POLICY_ID:samples})
+		return samples
+	return update_replayed_fn
+
 class StoreToReplayBuffer:
 	def __init__(self, local_buffer: LocalReplayBuffer = None):
 		self.local_actor = local_buffer
@@ -49,10 +64,14 @@ class StoreToReplayBuffer:
 	def __call__(self, batch: SampleBatchType):
 		return self.local_actor.add_batch(batch)
 
-def Replay(local_buffer, replay_batch_size=1, cluster_overview_size=1):
+def Replay(local_buffer, replay_batch_size=1, cluster_overview_size=None, update_replayed_fn=None):
 	def gen_replay(_):
 		while True:
-			batch_list = local_buffer.replay(batch_count=replay_batch_size, cluster_overview_size=cluster_overview_size)
+			batch_list = local_buffer.replay(
+				batch_count=replay_batch_size, 
+				cluster_overview_size=cluster_overview_size,
+				update_replayed_fn=update_replayed_fn,
+			)
 			if not batch_list:
 				yield _NextValueNotReady()
 			else:
@@ -68,10 +87,11 @@ class MixInReplay:
 	number of replay slots.
 	"""
 
-	def __init__(self, local_buffer, replay_proportion, update_replayed_fn=None):
+	def __init__(self, local_buffer, replay_proportion, cluster_overview_size=None, update_replayed_fn=None):
 		self.replay_buffer = local_buffer
 		self.replay_proportion = replay_proportion
 		self.update_replayed_fn = update_replayed_fn
+		self.cluster_overview_size = cluster_overview_size
 
 	def __call__(self, sample_batch):
 		# Put in the experience buffer
@@ -80,8 +100,10 @@ class MixInReplay:
 		if self.replay_buffer.can_replay():
 			n = np.random.poisson(self.replay_proportion)
 			if n > 0:
-				batch_list = self.replay_buffer.replay(batch_count=n) # allow for duplicates in output_batches
-				if self.update_replayed_fn:
-					batch_list = list(map(self.update_replayed_fn, batch_list))
+				batch_list = self.replay_buffer.replay( # allow for duplicates in output_batches
+					batch_count=n,
+					cluster_overview_size=self.cluster_overview_size,
+					update_replayed_fn=self.update_replayed_fn,
+				)
 				output_batches += batch_list
 		return output_batches

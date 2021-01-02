@@ -20,6 +20,27 @@ from ray.rllib.utils.timer import TimerStat
 
 logger = logging.getLogger(__name__)
 
+def apply_to_batch_once(fn, batch_list):
+	get_batch_id = lambda x: x['infos'][0]["batch_uid"]
+	updated_batch_dict = {
+		get_batch_id(x): fn(x) 
+		for x in unique_everseen(batch_list, key=get_batch_id)
+	}
+	return list(map(lambda x: updated_batch_dict[get_batch_id(x)], batch_list))
+
+# def apply_to_batch_once(fn, batch_list):
+# 	get_batch_id = lambda x: x['infos'][0]["batch_uid"]
+# 	max_batch_count = max(map(lambda x:x.count, batch_list))
+# 	unique_batch_list = list(unique_everseen(batch_list, key=get_batch_id))
+# 	unique_batches_concatenated = SampleBatch.concat_samples(unique_batch_list)
+# 	episode_list = fn(unique_batches_concatenated).split_by_episode()
+# 	unique_batch_list = sum((episode.timeslices(max_batch_count) for episode in episode_list), [])
+# 	updated_batch_dict = {
+# 		get_batch_id(x): fn(x) 
+# 		for x in unique_batch_list
+# 	}
+# 	return list(map(lambda x: updated_batch_dict[get_batch_id(x)], batch_list))
+
 class LocalReplayBuffer(ParallelIteratorWorker):
 	"""A replay buffer shard.
 
@@ -81,9 +102,11 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	def can_replay(self):
 		return self.num_added >= self.replay_starts
 
-	def replay(self, batch_count=1, cluster_overview_size=1):
+	def replay(self, batch_count=1, cluster_overview_size=None, update_replayed_fn=None):
 		if not self.can_replay():
 			return None
+		if not cluster_overview_size:
+			cluster_overview_size = batch_count
 
 		with self.replay_timer:
 			batch_list = [{} for _ in range(batch_count)]
@@ -94,6 +117,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					with self._buffer_lock: batch_iter += replay_buffer.sample(cluster_overview_size)
 				if batch_count%cluster_overview_size:
 					with self._buffer_lock: batch_iter += replay_buffer.sample(batch_count%cluster_overview_size)
+				if update_replayed_fn:
+					batch_iter = apply_to_batch_once(update_replayed_fn, batch_iter)
 				for i,batch in enumerate(batch_iter):
 					batch_list[i][policy_id] = batch
 		return (
@@ -101,9 +126,11 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			for samples in batch_list
 		)
 
-	def replay_n_concatenate(self, batch_count=1, cluster_overview_size=1):
+	def replay_n_concatenate(self, batch_count=1, cluster_overview_size=None, update_replayed_fn=None):
 		if not self.can_replay():
 			return None
+		if not cluster_overview_size:
+			cluster_overview_size = batch_count
 
 		with self.replay_timer:
 			samples = {}
@@ -114,6 +141,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					with self._buffer_lock: batch_iter += replay_buffer.sample(cluster_overview_size)
 				if batch_count%cluster_overview_size:
 					with self._buffer_lock: batch_iter += replay_buffer.sample(batch_count%cluster_overview_size)
+				if update_replayed_fn:
+					batch_iter = apply_to_batch_once(update_replayed_fn, batch_iter)
 				samples[policy_id] = SampleBatch.concat_samples(batch_iter)
 			# concatenate after lock is released
 			# for k,v in samples.items():

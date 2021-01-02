@@ -7,8 +7,12 @@ from xarl.utils.segment_tree import SumSegmentTree, MinSegmentTree
 import copy
 import uuid
 
+get_batch_infos = lambda x: x["infos"][0]
+get_batch_indexes = lambda x: get_batch_infos(x)['batch_index']
+get_batch_uid = lambda x: get_batch_infos(x)['batch_uid']
+
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling')
+	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling','_cluster_level_weighting')
 	
 	def __init__(self, 
 		priority_id,
@@ -22,18 +26,20 @@ class PseudoPrioritizedBuffer(Buffer):
 		global_distribution_matching=False, 
 		prioritised_cluster_sampling_strategy='highest',
 		update_insertion_time_when_sampling=False,
+		cluster_level_weighting=True,
 	): # O(1)
 		self._priority_id = priority_id
 		self._priority_aggregation_fn = eval(priority_aggregation_fn)
 		self._alpha = alpha # How much prioritization is used (0 - no prioritization, 1 - full prioritization)
 		self._beta = beta # To what degree to use importance weights (0 - no corrections, 1 - full correction).
-		assert self._beta is None or self._beta >= 0., "beta >= 0, if beta is not None"
+		assert self._beta is None or self._beta > 0., "beta > 0, if beta is not None"
 		self._epsilon = epsilon # Epsilon to add to the priorities when updating priorities.
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
 		self._prioritised_cluster_sampling = prioritised_cluster_sampling_strategy is not None
 		self._prioritised_cluster_sampling_strategy = prioritised_cluster_sampling_strategy
 		self._update_insertion_time_when_sampling = update_insertion_time_when_sampling
+		self._cluster_level_weighting = cluster_level_weighting
 		super().__init__(cluster_size, global_size)
 		self._it_capacity = 1
 		while self._it_capacity < self.cluster_size:
@@ -73,7 +79,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		last_idx = len(self.batches[sample_type])-1
 		assert idx <= last_idx, 'idx cannot be greater than last_idx'
 		type_id = self.type_keys[sample_type]
-		del self.batches[sample_type][idx]["infos"][0]['batch_index'][type_id]
+		del get_batch_indexes(self.batches[sample_type][idx])[type_id]
 		if idx == last_idx:
 			if self._prioritized_drop_probability > 0:
 				self._drop_priority_tree[sample_type][idx] = None # O(log)
@@ -91,7 +97,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._sample_priority_tree[sample_type][idx] = self._sample_priority_tree[sample_type][last_idx] # O(log)
 			self._sample_priority_tree[sample_type][last_idx] = None # O(log)
 			batch = self.batches[sample_type][idx] = self.batches[sample_type].pop()
-			batch["infos"][0]['batch_index'][type_id] = idx
+			get_batch_indexes(batch)[type_id] = idx
 
 	def count(self, type_=None):
 		if type_ is None:
@@ -110,7 +116,7 @@ class PseudoPrioritizedBuffer(Buffer):
 	def remove_less_important_batches(self, sample_type_list):
 		for sample_type in sample_type_list:
 			idx = self.get_less_important_batch(sample_type)
-			# print('r',self.batches[sample_type][idx]['infos'][0]['batch_uid'], self.batches[sample_type][idx]['infos'][0]['batch_index'])
+			# print('r',get_batch_uid(self.batches[sample_type][idx]), get_batch_indexes(self.batches[sample_type][idx]))
 			self.remove_batch(sample_type, idx)
 		
 	def add(self, batch, type_id=0): # O(log)
@@ -129,11 +135,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			idx = len(type_batch)
 			type_batch.append(batch)
 		else:
-			del type_batch[idx]["infos"][0]['batch_index'][type_id]
+			del get_batch_indexes(type_batch[idx])[type_id]
 			type_batch[idx] = batch
-		batch_infos = batch["infos"][0]
-		batch_infos['batch_uid'] = str(uuid.uuid4()) # random unique id
-		batch_infos['batch_index'][type_id] = idx
+		get_batch_infos(batch)['batch_uid'] = str(uuid.uuid4()) # random unique id
+		get_batch_indexes(batch)[type_id] = idx
 		if self._beta is not None and 'weights' not in batch: # Add default weights
 			batch['weights'] = np.ones(batch.count, dtype=np.float32)
 		# Set insertion time
@@ -151,7 +156,7 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def sample_cluster(self):
 		if self._prioritised_cluster_sampling:
-			type_priority = map(lambda x: x.sum(scaled=False)/x.inserted_elements, self._sample_priority_tree)
+			type_priority = map(lambda x: x.sum(scaled=False)/x.inserted_elements if x.inserted_elements else 0, self._sample_priority_tree)
 			# type_priority = map(self.normalize_priority, type_priority)
 			type_priority = np.array(tuple(type_priority))
 			if self._prioritised_cluster_sampling_strategy == 'average':
@@ -177,13 +182,20 @@ class PseudoPrioritizedBuffer(Buffer):
 		type_sum_tree = self._sample_priority_tree[sample_type]
 		type_batch = self.batches[sample_type]
 		if self._beta is not None: # Update weights
-			min_priority = min(map(lambda x: x.min_tree.min(), self._sample_priority_tree))
-			# min_priority = type_sum_tree.min_tree.min()
+			if self._cluster_level_weighting:
+				min_priority = type_sum_tree.min_tree.min()
+			else:
+				min_priority = min(map(lambda x: x.min_tree.min(), self._sample_priority_tree))
 			assert min_priority > 0, "min_priority > 0, if beta is not None"
 		batch_list = []
 		for _ in range(n):
 			idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
 			batch = type_batch[idx]
+			# Remove batch from other clusters if duplicates are still around
+			for other_type_id, other_idx in tuple(get_batch_indexes(batch).items()):
+				if other_type_id==type_id:
+					continue
+				self.remove_batch(self.get_type(other_type_id),other_idx)
 			# Update weights
 			if self._beta is not None: # Update weights
 				weight = (min_priority / type_sum_tree[idx])**self._beta
@@ -205,7 +217,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		sample_type = self.get_type(type_id)
 		if idx >= len(self.batches[sample_type]):
 			return
-		if check_id and new_batch['infos'][0]['batch_uid'] != self.batches[sample_type][idx]['infos'][0]['batch_uid']:
+		if check_id and get_batch_uid(new_batch) != get_batch_uid(self.batches[sample_type][idx]):
 			return
 		# for k,v in self.batches[sample_type][idx].data.items():
 		# 	if not np.array_equal(new_batch[k],v):

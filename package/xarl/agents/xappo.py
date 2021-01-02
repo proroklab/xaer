@@ -16,7 +16,7 @@ from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
-from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types
+from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn
 from xarl.utils.misc import accumulate
 
 XAPPO_EXTRA_OPTIONS = {
@@ -38,11 +38,13 @@ XAPPO_EXTRA_OPTIONS = {
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
 		'update_insertion_time_when_sampling': False, # Whether to update the insertion time batches to the time of sampling. It requires prioritized_drop_probability < 1. In DQN default is False.
 		'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-		'prioritised_cluster_sampling_strategy': 'above_average', # Whether to select which cluster to replay in a prioritised fashion. Four options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
+		'prioritised_cluster_sampling_strategy': 'above_average', # Whether to select which cluster to replay in a prioritised fashion -- 4 options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
+		'cluster_level_weighting': False, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
 	},
 	"clustering_scheme": "multiple_types_with_reward_against_mean", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": True, # Whether to cluster experience using information at episode-level.
-	"update_only_sampled_cluster": False, # Whether to update the priority only in the sampled cluster and not in all, if the same batch is in more than one cluster. Setting this option to True causes a slighlty higher memory consumption but shall increase by far the speed in updating priorities.
+	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
+	"update_only_sampled_cluster": True, # If True, when sampling a batch from a cluster, no changes/updates to other clusters are performed if that batch is shared among these other clusters. Enabling this option would slightly speed-up batch sampling, by a constant proportional to the number of different clusters in the buffer.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
@@ -167,19 +169,6 @@ def xappo_execution_plan(workers, config):
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 	local_worker = workers.local_worker()
 
-	def update_replayed_fn(samples):
-		if isinstance(samples, MultiAgentBatch):
-			for pid, batch in samples.policy_batches.items():
-				if pid not in local_worker.policies_to_train:
-					continue
-				policy = local_worker.policy_map[pid]
-				samples.policy_batches[pid] = xappo_postprocess_trajectory(policy, batch)
-			local_replay_buffer.update_priorities(samples.policy_batches)
-		else:
-			samples = xappo_postprocess_trajectory(local_worker.policy_map[DEFAULT_POLICY_ID], samples)
-			local_replay_buffer.update_priorities({DEFAULT_POLICY_ID:samples})
-		return samples
-
 	# Augment with replay and concat to desired train batch size.
 	train_batches = rollouts \
 		.for_each(lambda batch: batch.decompress_if_needed()) \
@@ -188,7 +177,8 @@ def xappo_execution_plan(workers, config):
 		.for_each(MixInReplay(
 			local_buffer=local_replay_buffer,
 			replay_proportion=config["replay_proportion"],
-			update_replayed_fn=update_replayed_fn,
+			cluster_overview_size=config["cluster_overview_size"],
+			update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory),
 		)) \
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
