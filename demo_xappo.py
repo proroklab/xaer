@@ -31,7 +31,7 @@ CONFIG.update({
 		'priority_id': "gains", # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
 		'priority_aggregation_fn': 'np.sum', # A reduce function that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
-		'global_size': 2**13, # Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
+		'global_size': 2**9, # Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
 		'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': None, # Parameter that regulates a mechanism for computing importance sampling; PPO probably does not need it because it has another mechanism for importance weighting.
 		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.

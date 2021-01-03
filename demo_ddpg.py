@@ -14,8 +14,32 @@ from environments import *
 SELECT_ENV = "AlexDrive-v0"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
-CONFIG["log_level"] = "WARN"
-CONFIG["batch_mode"] = "complete_episodes" # Whether to rollout "complete_episodes" or "truncate_episodes" to `rollout_fragment_length` length unrolls. Episode truncation guarantees evenly sized batches, but increases variance as the reward-to-go will need to be estimated at truncation boundaries.
+CONFIG.update({
+	# "dueling": True,
+	# "double_q": True,
+	# "n_step": 3,
+	# "noisy": True,
+	# "num_atoms": 21,
+	# "v_max": 2**5,
+	# "v_min": -1,
+	# "rollout_fragment_length": 1,
+	# "train_batch_size": 2**7,
+	"num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
+	# "grad_clip": None,
+	# "learning_starts": 1500,
+	# "hiddens": [512],
+	# "exploration_config": {
+	# 	"epsilon_timesteps": 2,
+	# 	"final_epsilon": 0.0,
+	# },
+	# "remote_worker_envs": True, # This will create env instances in Ray actors and step them in parallel. These remote processes introduce communication overheads, so this only helps if your env is very expensive to step / reset.
+	# "num_workers": multiprocessing.cpu_count(),
+	# "training_intensity": 2**4, # default is train_batch_size / rollout_fragment_length
+	# "framework": "torch",
+	########################################################
+	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	"prioritized_replay": True,
+})
 
 ####################################################################################
 ####################################################################################
