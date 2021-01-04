@@ -155,8 +155,13 @@ class PseudoPrioritizedBuffer(Buffer):
 		return idx, type_id
 
 	def sample_cluster(self):
+		tree_list = [
+			(i,t) 
+			for i,t in enumerate(self._sample_priority_tree) 
+			if t.inserted_elements > 0
+		]
 		if self._prioritised_cluster_sampling:
-			type_priority = map(lambda x: x.sum(scaled=False)/x.inserted_elements if x.inserted_elements else 0, self._sample_priority_tree)
+			type_priority = map(lambda x: x[-1].sum(scaled=False)/x[-1].inserted_elements, tree_list)
 			# type_priority = map(self.normalize_priority, type_priority)
 			type_priority = np.array(tuple(type_priority))
 			if self._prioritised_cluster_sampling_strategy == 'average':
@@ -170,11 +175,13 @@ class PseudoPrioritizedBuffer(Buffer):
 			worst_type_priority = np.min(type_priority)
 			type_cumsum = np.cumsum(type_priority-worst_type_priority) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
-			sample_type,_ = next(filter(lambda x: x[-1] >= type_mass and self._sample_priority_tree[x[0]].inserted_elements > 0, enumerate(type_cumsum))) # O(|self.type_keys|)
-			type_id = self.type_keys[sample_type]
+			assert 0 <= type_mass, 'type_mass is too small'
+			assert type_mass <= type_cumsum[-1], 'type_mass is too big'
+			tree_idx,_ = next(filter(lambda x: x[-1] >= type_mass, enumerate(type_cumsum))) # O(|self.type_keys|)
+			sample_type = tree_list[tree_idx][0]
 		else:
-			type_id = choice(self.type_keys)
-			sample_type = self.get_type(type_id)
+			sample_type = choice(tree_list)[0]
+		type_id = self.type_keys[sample_type]
 		return type_id, sample_type
 
 	def sample(self, n=1, remove=False): # O(log)

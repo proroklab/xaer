@@ -107,6 +107,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			return None
 		if not cluster_overview_size:
 			cluster_overview_size = batch_count
+		else:
+			cluster_overview_size = min(cluster_overview_size,batch_count)
 
 		with self.replay_timer:
 			batch_list = [{} for _ in range(batch_count)]
@@ -131,6 +133,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			return None
 		if not cluster_overview_size:
 			cluster_overview_size = batch_count
+		else:
+			cluster_overview_size = min(cluster_overview_size,batch_count)
 
 		with self.replay_timer:
 			samples = {}
