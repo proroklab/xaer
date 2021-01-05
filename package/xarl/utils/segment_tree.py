@@ -141,6 +141,7 @@ class SumSegmentTree(SegmentTree):
 			neutral_element=neutral_element
 		)
 		self.min_tree = MinSegmentTree(capacity)
+		self.max_tree = MaxSegmentTree(capacity)
 	
 	@staticmethod
 	def _operation(a, b):
@@ -149,6 +150,7 @@ class SumSegmentTree(SegmentTree):
 	def __setitem__(self, idx, val): # O(log)
 		super().__setitem__(idx, val)
 		self.min_tree[idx] = val
+		self.max_tree[idx] = val
 
 	def sum(self, start=0, end=None, scaled=True): # O(log)
 		"""Returns arr[start] + ... + arr[end]"""
@@ -215,7 +217,7 @@ class MinSegmentTree(SegmentTree):
 
 class MaxSegmentTree(SegmentTree):
 	def __init__(self, capacity, neutral_element=float('-inf')):
-		super(MinSegmentTree, self).__init__(
+		super(MaxSegmentTree, self).__init__(
 			capacity=capacity,
 			neutral_element=neutral_element
 		)

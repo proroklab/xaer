@@ -62,7 +62,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		ParallelIteratorWorker.__init__(self, None, False)
 
 		def new_buffer():
-			return PseudoPrioritizedBuffer(**self.buffer_options) if self.prioritized_replay else Buffer(self.buffer_options['size'])
+			return PseudoPrioritizedBuffer(**self.buffer_options) if self.prioritized_replay else Buffer(self.buffer_options['global_size'])
 
 		self.replay_buffers = collections.defaultdict(new_buffer)
 

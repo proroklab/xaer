@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from random import choice
 from collections import deque
+import uuid
 
 class Buffer(object):
 	__slots__ = ('cluster_size','global_size','types','batches','type_values','type_keys')
@@ -76,6 +77,7 @@ class Buffer(object):
 	def add(self, batch, type_id=0): # put batch into buffer
 		self._add_type_if_not_exist(type_id)
 		type_ = self.get_type(type_id)
+		batch["infos"][0]["batch_uid"] = str(uuid.uuid4()) # random unique id
 		self.batches[type_].append(batch)
 
 	def sample(self, n=1, remove=False):
