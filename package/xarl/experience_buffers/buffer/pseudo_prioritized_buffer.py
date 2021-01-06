@@ -205,18 +205,18 @@ class PseudoPrioritizedBuffer(Buffer):
 		for _ in range(n):
 			idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
 			batch = type_batch[idx]
-			# Remove batch from other clusters if duplicates are still around
-			for other_type_id, other_idx in tuple(get_batch_indexes(batch).items()):
-				if other_type_id==type_id:
-					continue
-				self.remove_batch(self.get_type(other_type_id),other_idx)
+			# # Remove batch from other clusters if duplicates are still around
+			# for other_type_id, other_idx in tuple(get_batch_indexes(batch).items()):
+			# 	if other_type_id==type_id:
+			# 		continue
+			# 	self.remove_batch(self.get_type(other_type_id),other_idx)
 			# Update weights
 			if self._beta: # Update weights
 				if self._eta:
 					new_max_priority = max_priority*((1+self._eta) if max_priority >= 0 else (1-self._eta))
 					weight = (new_max_priority - type_sum_tree[idx])/(new_max_priority - min_priority) # in (0,1] the closer is type_sum_tree[idx] to max_priority, the lower is the weight
 				else:
-					weight = (min_priority / type_sum_tree[idx])**self._beta # default, not compatible with negative priorities
+					weight = min_priority / type_sum_tree[idx] # default, not compatible with negative priorities
 				weight = weight**self._beta
 				# print(weight, ((self._epsilon**self._alpha) / (type_sum_tree[idx]-min_priority))**self._beta, (min_priority / type_sum_tree[idx])**self._beta)
 				batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
