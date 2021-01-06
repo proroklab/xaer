@@ -6,7 +6,7 @@ Detailed documentation:
 https://docs.ray.io/en/master/rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo
 """  # noqa: E501
 
-import collections
+from more_itertools import unique_everseen
 
 from ray.rllib.agents.impala.impala import *
 from ray.rllib.agents.ppo.appo import *
@@ -16,17 +16,18 @@ from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
-from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn
+from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn, xa_make_learner_thread
 from xarl.utils.misc import accumulate
 from xarl.agents.xappo_loss.xappo_tf_loss import xappo_surrogate_loss as tf_xappo_surrogate_loss
 from xarl.agents.xappo_loss.xappo_torch_loss import xappo_surrogate_loss as torch_xappo_surrogate_loss
+from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
 
 XAPPO_EXTRA_OPTIONS = {
-	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
-	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
+	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	# "vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
 	"replay_proportion": 2, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 	##########################################
-	"gae_with_vtrace": True, # Formula for computing the advantages: it combines GAE with V-Trace, for better sample efficiency.
+	"gae_with_vtrace": False, # Useful when default "vtrace" is not active. Formula for computing the advantages: it combines GAE with V-Trace.
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	"update_advantages_when_replaying": True, # Whether to recompute advantages when updating priorities.
 	"learning_starts": 2**6, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
@@ -130,8 +131,13 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 								   sample_batch[SampleBatch.ACTIONS][-1],
 								   sample_batch[SampleBatch.REWARDS][-1],
 								   *next_state)
-		if policy.config["gae_with_vtrace"]:
-			sample_batch = compute_gae_v_advantages(sample_batch, last_r, policy.config["gamma"], policy.config["lambda"])
+		if not policy.config["vtrace"] and policy.config["gae_with_vtrace"]:
+			sample_batch = compute_gae_v_advantages(
+				sample_batch, 
+				last_r, 
+				policy.config["gamma"], 
+				policy.config["lambda"]
+			)
 		else:
 			sample_batch = compute_advantages(
 				sample_batch,
@@ -183,12 +189,17 @@ def xappo_execution_plan(workers, config):
 			local_buffer=local_replay_buffer,
 			replay_proportion=config["replay_proportion"],
 			cluster_overview_size=config["cluster_overview_size"],
+			# update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory) if not config['vtrace'] else lambda x:x,
 			update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory),
 		)) \
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
 
 	# Start the learner thread.
+	# if config['vtrace']:
+	# 	learner_thread = xa_make_learner_thread(local_worker, config)
+	# else:
+	# 	learner_thread = make_learner_thread(local_worker, config)
 	learner_thread = make_learner_thread(local_worker, config)
 	learner_thread.start()
 
@@ -199,6 +210,37 @@ def xappo_execution_plan(workers, config):
 		enqueue_op = enqueue_op.zip_with_source_actor() \
 			.for_each(BroadcastUpdateLearnerWeights(learner_thread, workers, broadcast_interval=config["broadcast_interval"]))
 
+	# if config['vtrace']:
+	# 	def update_priorities(item):
+	# 		samples, info_dict = item
+	# 		if not config.get("prioritized_replay"):
+	# 			return info_dict
+	# 		# IMPORTANT: split train-batch into replay-batches, using batch_uid, before updating priorities
+	# 		policy_batch_list = []
+	# 		for policy_id, batch in samples.policy_batches.items():
+	# 			sub_batch_indexes = [
+	# 				i
+	# 				for i,infos in enumerate(batch['infos'])
+	# 				if "batch_uid" in infos
+	# 			] + [batch.count]
+	# 			sub_batch_iter = (
+	# 				batch.slice(sub_batch_indexes[j], sub_batch_indexes[j+1])
+	# 				for j in range(len(sub_batch_indexes)-1)
+	# 			)
+	# 			sub_batch_iter = unique_everseen(sub_batch_iter, key=get_batch_uid)
+	# 			for i,sub_batch in enumerate(sub_batch_iter):
+	# 				if i >= len(policy_batch_list):
+	# 					policy_batch_list.append({})
+	# 				policy_batch_list[i][policy_id] = sub_batch
+	# 		for policy_batch in policy_batch_list:
+	# 			local_replay_buffer.update_priorities(policy_batch)
+	# 		return samples.count, info_dict
+	# 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
+	# 		.for_each(update_priorities) \
+	# 		.for_each(record_steps_trained)
+	# else:
+	# 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
+	# 		.for_each(record_steps_trained)
 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
 		.for_each(record_steps_trained)
 

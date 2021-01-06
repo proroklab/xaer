@@ -90,7 +90,7 @@ def xappo_surrogate_loss(policy: Policy, model: ModelV2, dist_class: Type[TFActi
         reduce_mean_valid = tf.reduce_mean
 
     if 'weights' in train_batch:
-        weights = make_time_major(train_batch['weights'])
+        weights = make_time_major(train_batch['weights'], drop_last=policy.config["vtrace"])
 
     if policy.config["vtrace"]:
         logger.debug("Using V-Trace surrogate loss (vtrace=True)")

@@ -116,7 +116,7 @@ def xadqn_execution_plan(workers, config):
 		for policy_id, batch in samples.policy_batches.items():
 			sub_batch_indexes = [
 				i
-				for i,infos in enumerate(get_batch_infos(batch))
+				for i,infos in enumerate(batch['infos'])
 				if "batch_uid" in infos
 			] + [batch.count]
 			sub_batch_iter = (

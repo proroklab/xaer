@@ -90,7 +90,7 @@ def xappo_surrogate_loss(policy: Policy, model: ModelV2, dist_class: Type[TorchD
     else:
         reduce_mean_valid = torch.mean
 
-    weights = _make_time_major(train_batch['weights'])
+    weights = _make_time_major(train_batch['weights'], drop_last=policy.config["vtrace"])
 
     if policy.config["vtrace"]:
         logger.debug("Using V-Trace surrogate loss (vtrace=True)")
