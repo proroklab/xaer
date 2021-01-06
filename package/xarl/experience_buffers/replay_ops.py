@@ -8,7 +8,7 @@ from ray.util.iter_metrics import SharedMetrics
 from ray.rllib.utils.typing import SampleBatchType
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
-from xarl.experience_buffers.replay_buffer import LocalReplayBuffer
+from xarl.experience_buffers.replay_buffer import LocalReplayBuffer, get_batch_infos
 from xarl.experience_buffers.clustering_scheme import *
 
 def get_clustered_replay_buffer(config):
@@ -31,15 +31,15 @@ def assign_types(batch, clustering_scheme, replay_sequence_length, with_episode_
 			# print(episode_type)
 			for sub_batch in sub_batch_list:
 				sub_batch_type = clustering_scheme.get_batch_type(sub_batch, episode_type)
-				sub_batch["infos"][0]['batch_type'] = sub_batch_type
-				sub_batch["infos"][0]['batch_index'] = {}
+				get_batch_infos(sub_batch)['batch_type'] = sub_batch_type
+				# sub_batch["infos"][0]['batch_index'] = {}
 			batch_list += sub_batch_list
 		return batch_list
 	sub_batch_list = batch.timeslices(replay_sequence_length)
 	for sub_batch in sub_batch_list:
 		sub_batch_type = clustering_scheme.get_batch_type(sub_batch)
-		sub_batch["infos"][0]['batch_type'] = sub_batch_type
-		sub_batch["infos"][0]['batch_index'] = {}
+		get_batch_infos(sub_batch)['batch_type'] = sub_batch_type
+		# sub_batch["infos"][0]['batch_index'] = {}
 	return sub_batch_list
 
 def get_update_replayed_batch_fn(local_replay_buffer, local_worker, postprocess_trajectory_fn):
@@ -99,7 +99,9 @@ class MixInReplay:
 		output_batches = [sample_batch]
 		if self.replay_buffer.can_replay():
 			n = np.random.poisson(self.replay_proportion)
-			# n = int(self.replay_proportion//1 + (1 if self.replay_proportion%1 > 0 and random.random() <= self.replay_proportion%1 else 0))
+			# n = int(self.replay_proportion//1)
+			# if self.replay_proportion%1 > 0 and random.random() <= self.replay_proportion%1:
+			# 	n += 1
 			if n > 0:
 				batch_list = self.replay_buffer.replay( # allow for duplicates in output_batches
 					batch_count=n,

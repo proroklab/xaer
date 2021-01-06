@@ -18,33 +18,35 @@ from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_
 
 from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn
 from xarl.utils.misc import accumulate
+from xarl.agents.xappo_loss.xappo_tf_loss import xappo_surrogate_loss as tf_xappo_surrogate_loss
+from xarl.agents.xappo_loss.xappo_torch_loss import xappo_surrogate_loss as torch_xappo_surrogate_loss
 
 XAPPO_EXTRA_OPTIONS = {
 	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	"vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
 	"replay_proportion": 2, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 	##########################################
-	"gae_with_vtrace": False, # Formula for computing the advantages: it combines GAE with V-Trace, for better sample efficiency.
+	"gae_with_vtrace": True, # Formula for computing the advantages: it combines GAE with V-Trace, for better sample efficiency.
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
-	"update_priorities": True, # Whether to update priorities when replaying.
-	"learning_starts": 100, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
+	"update_advantages_when_replaying": True, # Whether to recompute advantages when updating priorities.
+	"learning_starts": 2**6, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
 	"buffer_options": {
-		'priority_id': "gains", # Which batch column to use for prioritisation. One of the following: gains, importance_weights, unweighted_advantages, advantages, rewards, prev_rewards, action_logp.
-		'priority_aggregation_fn': 'np.sum', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
+		'priority_id': "gains", # Which batch column to use for prioritisation. One of the following: gains, importance_weights, advantages, rewards, prev_rewards, action_logp.
+		'priority_aggregation_fn': 'np.mean', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
 		'global_size': 2**9, # Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
-		'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
-		'beta': None, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
+		'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
+		'beta': 0.4, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
 		'eta': 1e-2, # A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0 if beta is > 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
 		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer.
 		'update_insertion_time_when_sampling': False, # Whether to update the insertion time batches to the time of sampling. It requires prioritized_drop_probability < 1. In DQN default is False.
-		'global_distribution_matching': True, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-		'prioritised_cluster_sampling_strategy': 'above_average', # Whether to select which cluster to replay in a prioritised fashion -- 4 options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
+		'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
+		'prioritised_cluster_sampling_strategy': 'highest', # Whether to select which cluster to replay in a prioritised fashion -- 4 options: None; 'highest' - clusters with the highest priority are more likely to be sampled; 'average' - prioritise the cluster with priority closest to the average cluster priority; 'above_average' - prioritise the cluster with priority closest to the cluster with the smallest priority greater than the average cluster priority.
 		'cluster_level_weighting': False, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
 	},
 	"clustering_scheme": "multiple_types", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "multiple_types_with_reward_against_zero", "type_with_reward_against_mean", "multiple_types", "type".
-	"cluster_with_episode_type": True, # Whether to cluster experience using information at episode-level.
+	"cluster_with_episode_type": False, # Most useful with sparse-reward environments. Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": None, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"update_only_sampled_cluster": False, # If True, when sampling a batch from a cluster, no changes/updates to other clusters are performed if that batch is shared among these other clusters. Enabling this option would slightly speed-up batch sampling, by a constant proportional to the number of different clusters in the buffer.
 }
@@ -97,7 +99,7 @@ def compute_gae_v_advantages(rollout: SampleBatch, last_r: float, gamma: float =
 		last_r, 
 		rollout[SampleBatch.REWARDS][::-1], 
 		rollout[SampleBatch.VF_PREDS][::-1], 
-		rollout["importance_weights"][::-1]
+		rollout["action_importance_ratio"][::-1]
 	)
 	rollout[Postprocessing.ADVANTAGES] = np.array(reversed_cumulative_advantage, dtype=np.float32)[::-1]
 	rollout[Postprocessing.VALUE_TARGETS] = np.array(reversed_cumulative_return, dtype=np.float32)[::-1]
@@ -114,46 +116,48 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 		prev_reward_batch=None,
 	)
 	old_action_logp = sample_batch[SampleBatch.ACTION_LOGP]
-	sample_batch["importance_weights"] = np.exp(action_logp - old_action_logp)
-	# Add advantages, after "importance_weights"
-	completed = sample_batch["dones"][-1]
-	if completed:
-		last_r = 0.0
-	else:
-		next_state = []
-		for i in range(policy.num_state_tensors()):
-			next_state.append([sample_batch["state_out_{}".format(i)][-1]])
-		last_r = policy._value(sample_batch[SampleBatch.NEXT_OBS][-1],
-							   sample_batch[SampleBatch.ACTIONS][-1],
-							   sample_batch[SampleBatch.REWARDS][-1],
-							   *next_state)
-	if policy.config["gae_with_vtrace"]:
-		sample_batch = compute_gae_v_advantages(sample_batch, last_r, policy.config["gamma"], policy.config["lambda"])
-	else:
-		sample_batch = compute_advantages(
-			sample_batch,
-			last_r,
-			policy.config["gamma"],
-			policy.config["lambda"],
-			use_gae=policy.config["use_gae"],
-			use_critic=policy.config["use_critic"]
-		)
+	sample_batch["action_importance_ratio"] = np.exp(action_logp - old_action_logp)
+	# Add advantages, do it after computing action_importance_ratio (used by gae-v)
+	if policy.config["update_advantages_when_replaying"] or Postprocessing.ADVANTAGES not in sample_batch:
+		completed = sample_batch["dones"][-1]
+		if completed:
+			last_r = 0.0
+		else:
+			next_state = []
+			for i in range(policy.num_state_tensors()):
+				next_state.append([sample_batch["state_out_{}".format(i)][-1]])
+			last_r = policy._value(sample_batch[SampleBatch.NEXT_OBS][-1],
+								   sample_batch[SampleBatch.ACTIONS][-1],
+								   sample_batch[SampleBatch.REWARDS][-1],
+								   *next_state)
+		if policy.config["gae_with_vtrace"]:
+			sample_batch = compute_gae_v_advantages(sample_batch, last_r, policy.config["gamma"], policy.config["lambda"])
+		else:
+			sample_batch = compute_advantages(
+				sample_batch,
+				last_r,
+				policy.config["gamma"],
+				policy.config["lambda"],
+				use_gae=policy.config["use_gae"],
+				use_critic=policy.config["use_critic"]
+			)
 	# Add gains
-	sample_batch["gains"] = sample_batch[Postprocessing.ADVANTAGES] * sample_batch["importance_weights"]
-	sample_batch['unweighted_'+Postprocessing.ADVANTAGES] = sample_batch[Postprocessing.ADVANTAGES].copy()
-	if 'weights' in sample_batch:
-		sample_batch[Postprocessing.ADVANTAGES] *= sample_batch['weights']
+	sample_batch['gains'] = sample_batch['action_importance_ratio'] * sample_batch[Postprocessing.ADVANTAGES]
+	if policy.config["buffer_options"]["beta"] and 'weights' not in sample_batch:
+		sample_batch['weights'] = np.ones_like(sample_batch[SampleBatch.REWARDS])
 	return sample_batch
 
 XAPPOTFPolicy = AsyncPPOTFPolicy.with_updates(
 	name="XAPPOTFPolicy",
 	extra_action_fetches_fn=vf_preds_fetches,
 	postprocess_fn=xappo_postprocess_trajectory,
+	loss_fn=tf_xappo_surrogate_loss,
 )
 XAPPOTorchPolicy = AsyncPPOTorchPolicy.with_updates(
 	name="XAPPOTorchPolicy",
 	extra_action_out_fn=vf_preds_fetches,
 	postprocess_fn=xappo_postprocess_trajectory,
+	loss_fn=torch_xappo_surrogate_loss,
 )
 
 def xappo_get_policy_class(config):
@@ -179,7 +183,7 @@ def xappo_execution_plan(workers, config):
 			local_buffer=local_replay_buffer,
 			replay_proportion=config["replay_proportion"],
 			cluster_overview_size=config["cluster_overview_size"],
-			update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory) if config["update_priorities"] else lambda x:x,
+			update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory),
 		)) \
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))

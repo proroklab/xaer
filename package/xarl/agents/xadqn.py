@@ -16,6 +16,7 @@ from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
 from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types
+from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
 
 XADQN_EXTRA_OPTIONS = {
 	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
@@ -37,7 +38,7 @@ XADQN_EXTRA_OPTIONS = {
 		'cluster_level_weighting': False, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
 	},
 	"clustering_scheme": "multiple_types", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "multiple_types_with_reward_against_zero", "type_with_reward_against_mean", "multiple_types", "type".
-	"cluster_with_episode_type": True, # Whether to cluster experience using information at episode-level.
+	"cluster_with_episode_type": False, # Most useful with sparse-reward environments. Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"update_only_sampled_cluster": False, # If True, when sampling a batch from a cluster, no changes/updates to other clusters are performed if that batch is shared among these other clusters. Enabling this option would slightly speed-up batch sampling, by a constant proportional to the number of different clusters in the buffer.
 }
@@ -110,15 +111,19 @@ def xadqn_execution_plan(workers, config):
 		if priority_id == "td_errors":
 			for policy_id, info in info_dict.items():
 				samples.policy_batches[policy_id]["td_errors"] = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))
-		# IMPORTANT: split train-batch into replay-batches before updating priorities
+		# IMPORTANT: split train-batch into replay-batches, using batch_uid, before updating priorities
 		policy_batch_list = []
 		for policy_id, batch in samples.policy_batches.items():
+			sub_batch_indexes = [
+				i
+				for i,infos in enumerate(get_batch_infos(batch))
+				if "batch_uid" in infos
+			] + [batch.count]
 			sub_batch_iter = (
-				sub_batch 
-				for episode_batch in batch.split_by_episode()
-				for sub_batch in episode_batch.timeslices(replay_sequence_length)
-			) if replay_sequence_length > 1 else batch.timeslices(replay_sequence_length)
-			sub_batch_iter = unique_everseen(sub_batch_iter, key=lambda x: x['infos'][0]["batch_uid"])
+				batch.slice(sub_batch_indexes[j], sub_batch_indexes[j+1])
+				for j in range(len(sub_batch_indexes)-1)
+			)
+			sub_batch_iter = unique_everseen(sub_batch_iter, key=get_batch_uid)
 			for i,sub_batch in enumerate(sub_batch_iter):
 				if i >= len(policy_batch_list):
 					policy_batch_list.append({})

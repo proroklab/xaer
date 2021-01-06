@@ -12,7 +12,7 @@ get_batch_indexes = lambda x: get_batch_infos(x)['batch_index']
 get_batch_uid = lambda x: get_batch_infos(x)['batch_uid']
 
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_teta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling','_cluster_level_weighting')
+	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_eta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling','_cluster_level_weighting')
 	
 	def __init__(self, 
 		priority_id,
@@ -35,7 +35,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._priority_aggregation_fn = eval(priority_aggregation_fn)
 		self._alpha = alpha # How much prioritization is used (0 - no prioritization, 1 - full prioritization)
 		self._beta = beta # To what degree to use importance weights (0 - no corrections, 1 - full correction).
-		self._teta = 1 + eta if eta else None # Eta is a value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
+		self._eta = eta # Eta is a value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
 		self._epsilon = epsilon # Epsilon to add to the priorities when updating priorities.
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
@@ -140,8 +140,11 @@ class PseudoPrioritizedBuffer(Buffer):
 		else:
 			del get_batch_indexes(type_batch[idx])[type_id]
 			type_batch[idx] = batch
-		get_batch_infos(batch)['batch_uid'] = str(uuid.uuid4()) # random unique id
-		get_batch_indexes(batch)[type_id] = idx
+		batch_infos = get_batch_infos(batch)
+		if 'batch_index' not in batch_infos:
+			batch_infos['batch_index'] = {}
+		batch_infos['batch_index'][type_id] = idx
+		batch_infos['batch_uid'] = str(uuid.uuid4()) # random unique id
 		if self._beta is not None and 'weights' not in batch: # Add default weights
 			batch['weights'] = np.ones(batch.count, dtype=np.float32)
 		# Set insertion time
@@ -194,7 +197,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		if self._beta: # Update weights
 			if self._cluster_level_weighting: min_priority = type_sum_tree.min_tree.min()
 			else: min_priority = min(map(lambda x: x.min_tree.min(), self._sample_priority_tree))
-			if not self._teta:
+			if not self._eta:
 				assert min_priority > 0, f"min_priority must be > 0, if beta is not None and eta is None, but it is {min_priority}"
 			if self._cluster_level_weighting: max_priority = type_sum_tree.max_tree.max()
 			else: max_priority = max(map(lambda x: x.max_tree.max(), self._sample_priority_tree))
@@ -209,8 +212,9 @@ class PseudoPrioritizedBuffer(Buffer):
 				self.remove_batch(self.get_type(other_type_id),other_idx)
 			# Update weights
 			if self._beta: # Update weights
-				if self._teta:
-					weight = (max_priority*self._teta - type_sum_tree[idx])/(max_priority*self._teta - min_priority) # in (0,1] the closer is type_sum_tree[idx] to max_priority, the lower is the weight
+				if self._eta:
+					new_max_priority = max_priority*((1+self._eta) if max_priority >= 0 else (1-self._eta))
+					weight = (new_max_priority - type_sum_tree[idx])/(new_max_priority - min_priority) # in (0,1] the closer is type_sum_tree[idx] to max_priority, the lower is the weight
 				else:
 					weight = (min_priority / type_sum_tree[idx])**self._beta # default, not compatible with negative priorities
 				weight = weight**self._beta

@@ -11,7 +11,7 @@ import threading
 import ray  # noqa F401
 import psutil  # noqa E402
 
-from xarl.experience_buffers.buffer.pseudo_prioritized_buffer import PseudoPrioritizedBuffer
+from xarl.experience_buffers.buffer.pseudo_prioritized_buffer import PseudoPrioritizedBuffer, get_batch_infos, get_batch_indexes, get_batch_uid
 from xarl.experience_buffers.buffer.buffer import Buffer
 
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
@@ -21,25 +21,23 @@ from ray.rllib.utils.timer import TimerStat
 logger = logging.getLogger(__name__)
 
 def apply_to_batch_once(fn, batch_list):
-	get_batch_id = lambda x: x['infos'][0]["batch_uid"]
 	updated_batch_dict = {
-		get_batch_id(x): fn(x) 
-		for x in unique_everseen(batch_list, key=get_batch_id)
+		get_batch_uid(x): fn(x) 
+		for x in unique_everseen(batch_list, key=get_batch_uid)
 	}
-	return list(map(lambda x: updated_batch_dict[get_batch_id(x)], batch_list))
+	return list(map(lambda x: updated_batch_dict[get_batch_uid(x)], batch_list))
 
 # def apply_to_batch_once(fn, batch_list):
-# 	get_batch_id = lambda x: x['infos'][0]["batch_uid"]
 # 	max_batch_count = max(map(lambda x:x.count, batch_list))
-# 	unique_batch_list = list(unique_everseen(batch_list, key=get_batch_id))
+# 	unique_batch_list = list(unique_everseen(batch_list, key=get_batch_uid))
 # 	unique_batches_concatenated = SampleBatch.concat_samples(unique_batch_list)
 # 	episode_list = fn(unique_batches_concatenated).split_by_episode()
 # 	unique_batch_list = sum((episode.timeslices(max_batch_count) for episode in episode_list), [])
 # 	updated_batch_dict = {
-# 		get_batch_id(x): fn(x) 
+# 		get_batch_uid(x): fn(x) 
 # 		for x in unique_batch_list
 # 	}
-# 	return list(map(lambda x: updated_batch_dict[get_batch_id(x)], batch_list))
+# 	return list(map(lambda x: updated_batch_dict[get_batch_uid(x)], batch_list))
 
 class LocalReplayBuffer(ParallelIteratorWorker):
 	"""A replay buffer shard.
@@ -76,7 +74,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		return platform.node()
 
 	def add_batch(self, batch):
-		batch_type = batch['infos'][0]["batch_type"]
+		batch_type = get_batch_infos(batch)["batch_type"]
 		has_multiple_types = isinstance(batch_type,(tuple,list))
 		if not self.update_only_sampled_cluster or not has_multiple_types: # Make a copy so the replay buffer doesn't pin plasma memory.
 			batch = batch.copy()
@@ -113,6 +111,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		with self.replay_timer:
 			batch_list = [{} for _ in range(batch_count)]
 			for policy_id, replay_buffer in self.replay_buffers.items():
+				if replay_buffer.is_empty():
+					continue
 				# batch_iter = replay_buffer.sample(batch_count)
 				batch_iter = []
 				for _ in range(batch_count//cluster_overview_size):
@@ -154,9 +154,11 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			return MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 
 	def update_priorities(self, prio_dict):
+		if not self.prioritized_replay:
+			return
 		with self.update_priorities_timer:
 			for policy_id, new_batch in prio_dict.items():
-				for type_id,batch_index in new_batch['infos'][0]["batch_index"].items():
+				for type_id,batch_index in get_batch_indexes(new_batch).items():
 					with self._buffer_lock: self.replay_buffers[policy_id].update_priority(new_batch, batch_index, type_id)
 
 	def stats(self, debug=False):
