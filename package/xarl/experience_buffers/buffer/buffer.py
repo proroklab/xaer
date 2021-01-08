@@ -6,7 +6,7 @@ import uuid
 class Buffer(object):
 	__slots__ = ('cluster_size','global_size','types','batches','type_values','type_keys')
 	
-	def __init__(self, cluster_size=None, global_size=50000):
+	def __init__(self, cluster_size=None, global_size=50000, **args):
 		assert cluster_size or global_size, 'At least one of cluster_size or global_size shall be set greater than 0.'
 		if not cluster_size: cluster_size = global_size
 		self.cluster_size = min(cluster_size,global_size) if global_size else cluster_size
@@ -78,6 +78,9 @@ class Buffer(object):
 		self._add_type_if_not_exist(type_id)
 		type_ = self.get_type(type_id)
 		batch["infos"][0]["batch_uid"] = str(uuid.uuid4()) # random unique id
+		if self.is_full_buffer():
+			biggest_cluster = max(self.type_values, key=self.count)
+			self.batches[biggest_cluster].popleft()
 		self.batches[type_].append(batch)
 
 	def sample(self, n=1, remove=False):
