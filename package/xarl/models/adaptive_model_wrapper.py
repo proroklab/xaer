@@ -18,14 +18,12 @@ def get_tf_heads_model(obs_space, num_outputs):
 				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv1',  filters=32, kernel_size=8, strides=4, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_normc_initializer(1.0)),
 				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv2',  filters=64, kernel_size=4, strides=2, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_normc_initializer(1.0)),
 				tf.keras.layers.Conv2D(name=f'CNN{i}_Conv3',  filters=64, kernel_size=4, strides=1, padding='SAME', activation=tf.nn.relu, kernel_initializer=tf_normc_initializer(1.0)),
+				tf.keras.layers.Flatten(),
 			])(layer)
 			for i,layer in enumerate(cnn_inputs)
 		]
 		if len(cnn_layers) > 1:
-			cnn_layers = tf.keras.layers.Concatenate(axis=1)(cnn_layers)
-		else:
-			cnn_layers = cnn_layers[0]
-		cnn_layers = [tf.keras.layers.Flatten()(cnn_layers)]
+			cnn_layers = [tf.keras.layers.Concatenate(axis=1)(cnn_layers)]
 	else: cnn_layers = []
 	if 'fc' in obs_space.original_space.spaces:
 		fc_inputs = [

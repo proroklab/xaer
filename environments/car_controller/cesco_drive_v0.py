@@ -28,7 +28,7 @@ class CescoDriveV0(gym.Env):
 	max_deceleration = 7.1 # m/s^2
 	max_steering_degree = 30
 	max_step_per_spline = 75
-	min_control_points_per_step = 10
+	control_points_per_step = 10
 	max_distance_to_path = 0.3 # meters
 	# obstacles related stuff
 	max_obstacle_count = 6
@@ -41,42 +41,45 @@ class CescoDriveV0(gym.Env):
 	spline_number = 2
 	control_points_per_spline = 50
 
-	def get_state_shape(self):
-		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
-		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
-		return [
-			{
-				'low': -20,
-				'high': 20,
-				'shape': (2,self.control_points_per_step,3 if self.max_obstacle_count > 0 else 2),
-			},
-			{
-				'low': -1,
-				'high': self.max_speed/self.speed_lower_limit,
-				'shape': (self.get_concatenation_size(),)
-			},
-		]
-
 	def get_concatenation_size(self):
 		return 3
 		
 	def get_concatenation(self):
-		return [self.steering_angle/self.max_steering_angle, self.speed/self.max_speed, self.speed/self.speed_upper_limit]
+		return np.array([self.steering_angle/self.max_steering_angle, self.speed/self.max_speed, self.speed/self.speed_upper_limit], dtype=np.float32)
 
 	def __init__(self):
 		self.max_step = self.max_step_per_spline*self.spline_number
 		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)
-		self.control_points_per_step = max(self.min_control_points_per_step,self.max_obstacle_count)
 		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
 		# Spaces
 		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32) # steering angle, continuous control without softmax
-		self.observation_space = gym.spaces.Tuple([
-			gym.spaces.Box(**shape) 
-			for shape in self.get_state_shape()
-		])
-		self.state_shape = self.get_state_shape()[0]['shape']
+		# There are 2 types of objects (obstacles and lines), each object has 3 numbers (x, y and size)
+		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
+		cnn_dict = {
+			"points": gym.spaces.Box(
+				low=-20,
+				high=20,
+				shape=(1,self.control_points_per_step,2)
+			),
+		}
+		if self.max_obstacle_count > 0:
+			cnn_dict["obstacles"] = gym.spaces.Box(
+				low=-20,
+				high=20,
+				shape=(1,self.max_obstacle_count,3)
+			)
+		self.observation_space = gym.spaces.Dict({
+			"cnn": gym.spaces.Dict(cnn_dict),
+			"fc": gym.spaces.Dict({
+				"extra": gym.spaces.Box(
+					low=-1,
+					high=self.max_speed/self.speed_lower_limit,
+					shape=(self.get_concatenation_size(),)
+				),
+			}),
+		})
 	
 	def reset(self):
 		self.is_over = False
@@ -304,15 +307,15 @@ class CescoDriveV0(gym.Env):
 	def get_control_points(self, source_point, source_orientation, source_position): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		source_goal = self.get_goal(source_position)
 		# print(source_position, source_goal)
-		control_points = np.zeros((self.control_points_per_step,2 if self.max_obstacle_count < 1 else 3), dtype=np.float16)
+		control_points = np.zeros((1,self.control_points_per_step,2), dtype=np.float32)
 		source_x, source_y = source_point
 		control_distance = (source_goal-source_position)/self.control_points_per_step
 		# add control points
 		for i in range(self.control_points_per_step):
 			cp_x, cp_y = self.get_point_from_position(source_position + (i+1)*control_distance)
 			cp_x, cp_y = shift_and_rotate(cp_x, cp_y, -source_x, -source_y, -source_orientation) # get control point with coordinates relative to source point
-			control_points[i][0] = cp_x
-			control_points[i][1] = cp_y
+			control_points[0][i][0] = cp_x
+			control_points[0][i][1] = cp_y
 		return control_points
 		
 	def get_control_obstacles(self, car_point, car_orientation, obstacles):
@@ -324,18 +327,25 @@ class CescoDriveV0(gym.Env):
 				ro_x, ro_y = shift_and_rotate(obstacle_point[0], obstacle_point[1], -car_x, -car_y, -car_orientation) # get control point with coordinates relative to car point
 				control_obstacles.append((ro_x, ro_y, obstacle_radius))
 		# sort obstacles by euclidean distance from closer to most distant
-		control_obstacles.sort(key=lambda t: np.absolute(euclidean_distance((t[0],t[1]),car_point)-t[2]))
-		for _ in range(self.control_points_per_step-len(control_obstacles)):
+		if len(control_obstacles) > 0:
+			# sort obstacles by euclidean distance from closer to most distant
+			control_obstacles.sort(key=lambda t: np.absolute(euclidean_distance((t[0],t[1]),car_point)-t[2]))
+		for _ in range(self.max_obstacle_count-len(control_obstacles)):
 			control_obstacles.append((0.,0.,0.))
-		return control_obstacles
+		return np.array([control_obstacles], dtype=np.float32)
 		
 	def get_state(self, car_point, car_orientation, car_progress, obstacles):
-		state = np.zeros(self.state_shape)
-		# add control points
-		state[0] = self.get_control_points(car_point, car_orientation, car_progress)
-		# add control obstacles
-		state[1] = self.get_control_obstacles(car_point, car_orientation, obstacles)
-		return [state, self.get_concatenation()]
+		state = {
+			"cnn": {
+				"points": self.get_control_points(car_point, car_orientation, car_progress),
+			},
+			"fc": {
+				"extra": self.get_concatenation(), 
+			},
+		}
+		if self.max_obstacle_count > 0:
+			state["cnn"]["obstacles"] = self.get_control_obstacles(car_point, car_orientation, obstacles)
+		return state
 		
 	def get_goal(self, position):
 		return position + self.get_horizon_around(position)
