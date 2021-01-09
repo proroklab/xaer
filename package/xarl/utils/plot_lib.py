@@ -11,6 +11,7 @@ matplotlib_use('Agg',force=True) # no display
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
+import matplotlib.colors as mcolors
 from scipy.interpolate import interp1d
 from seaborn import heatmap as seaborn_heatmap  # Heatmap
 
@@ -25,6 +26,8 @@ flags = SimpleNamespace(**{
 	"gif_speed": 0.1, # "GIF frame speed in seconds."
 	"max_plot_size": 10, # "Maximum number of points in the plot. The smaller it is, the less RAM is required. If the log file has more than max_plot_size points, then max_plot_size means of slices are used instead."
 })
+linestyle_set = ['-', '--', '-.', ':', '']
+color_set = list(mcolors.TABLEAU_COLORS)
 
 
 def plot(logs, figure_file):
@@ -138,7 +141,7 @@ def plot(logs, figure_file):
 				# ax.plot(xnew, mean_interpolator(xnew), label=name)
 				#===============================================================
 				# plot mean line
-				ax.plot(x_key, y_key_mean, label=name)
+				ax.plot(x_key, y_key_mean, label=name, linestyle=linestyle_set[log_id//len(color_set)], color=color_set[log_id%len(color_set)])
 				# plot std range
 				ax.fill_between(x_key, y_key_mean-y_key_std, y_key_mean+y_key_std, alpha=0.25)
 				# show legend
