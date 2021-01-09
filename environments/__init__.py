@@ -21,3 +21,6 @@ register_env("GridDrive-v1", lambda config: GridDriveV1())
 
 from environments.car_controller.sparse_grid_drive_v1 import SparseGridDriveV1
 register_env("SparseGridDrive-v1", lambda config: SparseGridDriveV1())
+
+from environments.car_controller.sparse_grid_drive_v2 import SparseGridDriveV2
+register_env("SparseGridDrive-v2", lambda config: SparseGridDriveV2())

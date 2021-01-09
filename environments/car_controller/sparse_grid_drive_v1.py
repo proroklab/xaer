@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from environments.car_controller.grid_drive_v1 import GridDriveV1
-import gym
 
 class SparseGridDriveV1(GridDriveV1):
 
