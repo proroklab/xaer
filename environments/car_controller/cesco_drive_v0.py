@@ -59,15 +59,15 @@ class CescoDriveV0(gym.Env):
 		# if no obstacles are considered, then there is no need for representing the line size because it is always set to 0
 		cnn_dict = {
 			"points": gym.spaces.Box(
-				low=-20,
-				high=20,
+				low=-25,
+				high=25,
 				shape=(1,self.control_points_per_step,2)
 			),
 		}
 		if self.max_obstacle_count > 0:
 			cnn_dict["obstacles"] = gym.spaces.Box(
-				low=-20,
-				high=20,
+				low=-25,
+				high=25,
 				shape=(1,self.max_obstacle_count,3)
 			)
 		self.observation_space = gym.spaces.Dict({
