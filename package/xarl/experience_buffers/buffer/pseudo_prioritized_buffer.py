@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 from random import choice, random, randint
 import numpy as np
 import time
@@ -7,12 +8,14 @@ from xarl.utils.segment_tree import SumSegmentTree, MinSegmentTree
 import copy
 import uuid
 
+logger = logging.getLogger(__name__)
+
 get_batch_infos = lambda x: x["infos"][0]
 get_batch_indexes = lambda x: get_batch_infos(x)['batch_index']
 get_batch_uid = lambda x: get_batch_infos(x)['batch_uid']
 
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_eta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling','_cluster_level_weighting')
+	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_eta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling','_cluster_level_weighting','_min_elements_per_cluster')
 	
 	def __init__(self, 
 		priority_id,
@@ -28,6 +31,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		prioritised_cluster_sampling_strategy='highest',
 		update_insertion_time_when_sampling=False,
 		cluster_level_weighting=True,
+		min_elements_per_cluster=3,
 	): # O(1)
 		assert not beta or beta > 0., f"beta must be > 0, but it is {beta}"
 		assert not eta or eta > 0, f"eta must be > 0, but it is {eta}"
@@ -43,7 +47,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._prioritised_cluster_sampling_strategy = prioritised_cluster_sampling_strategy
 		self._update_insertion_time_when_sampling = update_insertion_time_when_sampling
 		self._cluster_level_weighting = cluster_level_weighting
-		super().__init__(cluster_size, global_size)
+		self._min_elements_per_cluster = min_elements_per_cluster
+		super().__init__(cluster_size=cluster_size, global_size=global_size)
 		self._it_capacity = 1
 		while self._it_capacity < self.cluster_size:
 			self._it_capacity *= 2
@@ -68,6 +73,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._sample_priority_tree.append(SumSegmentTree(self._it_capacity))
 		self._drop_priority_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
 		self._insertion_time_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
+		logger.warning(f'Added a new cluster with id {type_id}, now there are {len(self.type_values)} different clusters.')
 		return True
 	
 	def normalize_priority(self, priority): # O(1)
@@ -83,14 +89,14 @@ class PseudoPrioritizedBuffer(Buffer):
 		assert idx <= last_idx, 'idx cannot be greater than last_idx'
 		type_id = self.type_keys[sample_type]
 		del get_batch_indexes(self.batches[sample_type][idx])[type_id]
-		if idx == last_idx:
+		if idx == last_idx: # idx is the last, remove it
 			if self._prioritized_drop_probability > 0:
 				self._drop_priority_tree[sample_type][idx] = None # O(log)
 			if self._prioritized_drop_probability < 1:
 				self._insertion_time_tree[sample_type][idx] = None # O(log)
 			self._sample_priority_tree[sample_type][idx] = None # O(log)
 			self.batches[sample_type].pop()
-		elif idx < last_idx:
+		elif idx < last_idx: # swap idx with the last element and then remove it
 			if self._prioritized_drop_probability > 0:
 				self._drop_priority_tree[sample_type][idx] = (self._drop_priority_tree[sample_type][last_idx][0],idx) # O(log)
 				self._drop_priority_tree[sample_type][last_idx] = None # O(log)
@@ -116,10 +122,37 @@ class PseudoPrioritizedBuffer(Buffer):
 			_,idx = self._insertion_time_tree[sample_type].min() # O(1)
 		return idx
 
-	def remove_less_important_batches(self, sample_type_list):
-		for sample_type in sample_type_list:
-			idx = self.get_less_important_batch(sample_type)
-			# print('r',get_batch_uid(self.batches[sample_type][idx]), get_batch_indexes(self.batches[sample_type][idx]))
+	def remove_less_important_batches(self, n):
+		# Pick the right tree list
+		if random() <= self._prioritized_drop_probability: 
+			# Remove the batch with lowest priority
+			tree_list = self._drop_priority_tree
+		else: 
+			# Remove the oldest batch
+			tree_list = self._insertion_time_tree
+		# Build the generator of the less important batch in every cluster
+		less_important_batch_gen = (
+			(*tree_list[sample_type].min(), sample_type)
+			for sample_type in self.type_values
+			if tree_list[sample_type].inserted_elements > self._min_elements_per_cluster
+		)
+		less_important_batch_gen_len = len(self.type_values)
+		# assert less_important_batch_gen_len > 0, "Cannot remove from an empty buffer"
+		# Preserve the cluster with the lowest count of batches or all the clusters with less than 3 elements, remove from the others
+		# if less_important_batch_gen_len > 1:
+		# 	smallest_cluster = min(self.type_values, key=self.count)
+		# 	less_important_batch_gen = filter(lambda x: x[-1] != smallest_cluster and tree_list[x[-1]].inserted_elements > self._min_elements_per_cluster, less_important_batch_gen)
+		# 	less_important_batch_gen_len -= 1
+		# Remove the first N less important batches
+		assert less_important_batch_gen_len > 0, "Cannot remove any batch from this buffer, it has too few elements"
+		if n > 1 and less_important_batch_gen_len > 1:
+			batches_to_remove = sorted(less_important_batch_gen, key=lambda x: x[0])
+			n = min(n, len(batches_to_remove))
+			for i in range(n):
+				_, idx, sample_type = batches_to_remove[i]
+				self.remove_batch(sample_type, idx)
+		else:
+			_, idx, sample_type = min(less_important_batch_gen, key=lambda x: x[0])
 			self.remove_batch(sample_type, idx)
 		
 	def add(self, batch, type_id=0): # O(log)
@@ -127,13 +160,11 @@ class PseudoPrioritizedBuffer(Buffer):
 		sample_type = self.get_type(type_id)
 		type_batch = self.batches[sample_type]
 		idx = None
-		if self.is_full_buffer(): # full buffer, remove from the biggest cluster
-			biggest_cluster = max(self.type_values, key=self.count)
-			if sample_type == biggest_cluster: 
-				idx = self.get_less_important_batch(sample_type)
-			else: self.remove_less_important_batches([biggest_cluster])
-		elif self.is_full_cluster(sample_type): # full buffer
+		if self.is_full_cluster(sample_type): # full cluster, remove from it
+			self.remove_less_important_batches(1)
 			idx = self.get_less_important_batch(sample_type)
+		elif self.is_full_buffer(): # full buffer, remove the less important batch in the whole buffer
+			self.remove_less_important_batches(2)
 		if idx is None: # add new element to buffer
 			idx = len(type_batch)
 			type_batch.append(batch)
@@ -145,8 +176,6 @@ class PseudoPrioritizedBuffer(Buffer):
 			batch_infos['batch_index'] = {}
 		batch_infos['batch_index'][type_id] = idx
 		batch_infos['batch_uid'] = str(uuid.uuid4()) # random unique id
-		if self._beta is not None and 'weights' not in batch: # Add default weights
-			batch['weights'] = np.ones(batch.count, dtype=np.float32)
 		# Set insertion time
 		if self._prioritized_drop_probability < 1:
 			self._insertion_time_tree[sample_type][idx] = (time.time(), idx) # O(log)
@@ -155,6 +184,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
 		self.update_priority(batch, idx, type_id) # add batch
+		if self._beta and 'weights' not in batch: # Add default weights
+			batch['weights'] = np.ones(batch.count, dtype=np.float32)
+		# if self._beta: # Update weights after updating priority
+		# 	self.update_beta_weights(batch, idx, sample_type)
 		if self.global_size:
 			assert self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
 			assert super().count() <= self.global_size, 'Memory leak in replay buffer; v2'
@@ -194,13 +227,6 @@ class PseudoPrioritizedBuffer(Buffer):
 		type_id, sample_type = self.sample_cluster()
 		type_sum_tree = self._sample_priority_tree[sample_type]
 		type_batch = self.batches[sample_type]
-		if self._beta: # Update weights
-			if self._cluster_level_weighting: min_priority = type_sum_tree.min_tree.min()
-			else: min_priority = min(map(lambda x: x.min_tree.min(), self._sample_priority_tree))
-			if not self._eta:
-				assert min_priority > 0, f"min_priority must be > 0, if beta is not None and eta is None, but it is {min_priority}"
-			if self._cluster_level_weighting: max_priority = type_sum_tree.max_tree.max()
-			else: max_priority = max(map(lambda x: x.max_tree.max(), self._sample_priority_tree))
 		batch_list = []
 		for _ in range(n):
 			idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
@@ -212,14 +238,7 @@ class PseudoPrioritizedBuffer(Buffer):
 				self.remove_batch(self.get_type(other_type_id), other_idx)
 			# Update weights
 			if self._beta: # Update weights
-				if self._eta:
-					new_max_priority = max_priority*((1+self._eta) if max_priority >= 0 else (1-self._eta))
-					weight = (new_max_priority - type_sum_tree[idx])/(new_max_priority - min_priority) # in (0,1]: the closer is type_sum_tree[idx] to max_priority, the lower is the weight
-				else:
-					weight = min_priority / type_sum_tree[idx] # default, not compatible with negative priorities # in (0,1]: the closer is type_sum_tree[idx] to max_priority, the lower is the weight
-				weight = weight**self._beta
-				# print(weight, ((self._epsilon**self._alpha) / (type_sum_tree[idx]-min_priority))**self._beta, (min_priority / type_sum_tree[idx])**self._beta)
-				batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
+				self.update_beta_weights(batch, idx, sample_type)
 			# Remove from buffer
 			if remove is True:
 				self.remove_batch(sample_type, idx)
@@ -229,6 +248,21 @@ class PseudoPrioritizedBuffer(Buffer):
 				self._insertion_time_tree[sample_type][idx] = (time.time(), idx) # O(log)
 			batch_list.append(batch)
 		return batch_list
+
+	def update_beta_weights(self, batch, idx, sample_type):
+		type_sum_tree = self._sample_priority_tree[sample_type]
+		if self._cluster_level_weighting: min_priority = type_sum_tree.min_tree.min()
+		else: min_priority = min(map(lambda x: x.min_tree.min(), self._sample_priority_tree))
+		if self._eta:
+			if self._cluster_level_weighting: max_priority = type_sum_tree.max_tree.max()
+			else: max_priority = max(map(lambda x: x.max_tree.max(), self._sample_priority_tree))
+			new_max_priority = max_priority*((1+self._eta) if max_priority >= 0 else (1-self._eta))
+			weight = (new_max_priority - type_sum_tree[idx])/(new_max_priority - min_priority) # in (0,1]: the closer is type_sum_tree[idx] to max_priority, the lower is the weight
+		else:
+			assert min_priority > 0, f"min_priority must be > 0, if beta is not None and eta is None, but it is {min_priority}"
+			weight = min_priority / type_sum_tree[idx] # default, not compatible with negative priorities # in (0,1]: the closer is type_sum_tree[idx] to max_priority, the lower is the weight
+		weight = weight**self._beta
+		batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
 
 	def get_batch_priority(self, batch):
 		return self._priority_aggregation_fn(batch[self._priority_id])

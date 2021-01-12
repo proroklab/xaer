@@ -209,6 +209,9 @@ def xappo_surrogate_loss(policy: Policy, model: ModelV2, dist_class: Type[TFActi
     policy._mean_vf_loss = mean_vf_loss
     policy._mean_entropy = mean_entropy
     policy._value_targets = value_targets
+    ###################################
+    # policy._advantages = advantages
+    # policy._logp_ratio = logp_ratio
 
     # Store stats in policy for stats_fn.
     return total_loss

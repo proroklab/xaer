@@ -25,17 +25,20 @@ from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
 XAPPO_EXTRA_OPTIONS = {
 	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	# "vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
-	"replay_proportion": 4, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
+	"rollout_fragment_length": 2**3, # Number of transitions per batch in the experience buffer
+	"train_batch_size": 2**9, # Number of transitions per train-batch
+	"replay_proportion": 2, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 	##########################################
 	"gae_with_vtrace": False, # Useful when default "vtrace" is not active. Formula for computing the advantages: it combines GAE with V-Trace.
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	"update_advantages_when_replaying": True, # Whether to recompute advantages when updating priorities.
 	"learning_starts": 2**6, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
 	"buffer_options": {
-		'priority_id': 'gains', # Which batch column to use for prioritisation. One of the following: gains, importance_weights, advantages, rewards, prev_rewards, action_logp.
+		'priority_id': 'gains', # Which batch column to use for prioritisation. One of the following: gains, advantages, rewards, prev_rewards, action_logp.
 		'priority_aggregation_fn': 'np.mean', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
-		'global_size': 2**9, # Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
+		'global_size': 2**12, # Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
+		'min_elements_per_cluster': 3, # Cannot remove a batch from the cluster if it has less than min_elements_per_cluster elements.
 		'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': None, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
 		'eta': 1e-2, # A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0 if beta is > 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
@@ -196,10 +199,7 @@ def xappo_execution_plan(workers, config):
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
 
 	# Start the learner thread.
-	# if config['vtrace']:
-	# 	learner_thread = xa_make_learner_thread(local_worker, config)
-	# else:
-	# 	learner_thread = make_learner_thread(local_worker, config)
+	# learner_thread = xa_make_learner_thread(local_worker, config)
 	learner_thread = make_learner_thread(local_worker, config)
 	learner_thread.start()
 
@@ -210,37 +210,33 @@ def xappo_execution_plan(workers, config):
 		enqueue_op = enqueue_op.zip_with_source_actor() \
 			.for_each(BroadcastUpdateLearnerWeights(learner_thread, workers, broadcast_interval=config["broadcast_interval"]))
 
-	# if config['vtrace']:
-	# 	def update_priorities(item):
-	# 		samples, info_dict = item
-	# 		if not config.get("prioritized_replay"):
-	# 			return info_dict
-	# 		# IMPORTANT: split train-batch into replay-batches, using batch_uid, before updating priorities
-	# 		policy_batch_list = []
-	# 		for policy_id, batch in samples.policy_batches.items():
-	# 			sub_batch_indexes = [
-	# 				i
-	# 				for i,infos in enumerate(batch['infos'])
-	# 				if "batch_uid" in infos
-	# 			] + [batch.count]
-	# 			sub_batch_iter = (
-	# 				batch.slice(sub_batch_indexes[j], sub_batch_indexes[j+1])
-	# 				for j in range(len(sub_batch_indexes)-1)
-	# 			)
-	# 			sub_batch_iter = unique_everseen(sub_batch_iter, key=get_batch_uid)
-	# 			for i,sub_batch in enumerate(sub_batch_iter):
-	# 				if i >= len(policy_batch_list):
-	# 					policy_batch_list.append({})
-	# 				policy_batch_list[i][policy_id] = sub_batch
-	# 		for policy_batch in policy_batch_list:
-	# 			local_replay_buffer.update_priorities(policy_batch)
-	# 		return samples.count, info_dict
-	# 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
-	# 		.for_each(update_priorities) \
-	# 		.for_each(record_steps_trained)
-	# else:
-	# 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
-	# 		.for_each(record_steps_trained)
+	# def update_priorities(item):
+	# 	samples, info_dict = item
+	# 	if not config.get("prioritized_replay"):
+	# 		return info_dict
+	# 	# IMPORTANT: split train-batch into replay-batches, using batch_uid, before updating priorities
+	# 	policy_batch_list = []
+	# 	for policy_id, batch in samples.policy_batches.items():
+	# 		sub_batch_indexes = [
+	# 			i
+	# 			for i,infos in enumerate(batch['infos'])
+	# 			if "batch_uid" in infos
+	# 		] + [batch.count]
+	# 		sub_batch_iter = (
+	# 			batch.slice(sub_batch_indexes[j], sub_batch_indexes[j+1])
+	# 			for j in range(len(sub_batch_indexes)-1)
+	# 		)
+	# 		sub_batch_iter = unique_everseen(sub_batch_iter, key=get_batch_uid)
+	# 		for i,sub_batch in enumerate(sub_batch_iter):
+	# 			if i >= len(policy_batch_list):
+	# 				policy_batch_list.append({})
+	# 			policy_batch_list[i][policy_id] = sub_batch
+	# 	for policy_batch in policy_batch_list:
+	# 		local_replay_buffer.update_priorities(policy_batch)
+	# 	return samples.count, info_dict
+	# dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
+	# 	.for_each(update_priorities) \
+	# 	.for_each(record_steps_trained)
 	dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
 		.for_each(record_steps_trained)
 

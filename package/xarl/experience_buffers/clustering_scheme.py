@@ -26,7 +26,7 @@ class reward_against_zero(none):
 class reward_against_mean(none):
 	def __init__(self):
 		self.episode_stats = RunningStats(window_size=2**6)
-		self.batch_stats = RunningStats(window_size=2**10)
+		self.batch_stats = RunningStats(window_size=2**8)
 
 	def get_episode_type(self, episode):
 		episode_extrinsic_reward = sum((np.sum(batch["rewards"]) for batch in episode))

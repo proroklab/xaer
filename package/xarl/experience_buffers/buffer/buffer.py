@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
+import logging
 from random import choice
 from collections import deque
 import uuid
+
+logger = logging.getLogger(__name__)
 
 class Buffer(object):
 	__slots__ = ('cluster_size','global_size','types','batches','type_values','type_keys')
@@ -26,6 +29,7 @@ class Buffer(object):
 		self.type_values.append(sample_type)
 		self.type_keys.append(type_id)
 		self.batches.append(deque(maxlen=self.cluster_size))
+		logger.warning(f'Added a new cluster with id {type_id}, now there are {len(self.type_values)} different clusters.')
 		return True
 		
 	def set(self, buffer):

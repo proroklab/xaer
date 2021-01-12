@@ -26,3 +26,20 @@ class RunningStats(object):
 	def var(self):
 		return self.running_stats.variance()
 	
+# from collections import deque
+# import random 
+# import numpy as np
+
+# b1 = RunningStats(window_size=2**8)
+# b2 = deque(maxlen=2**8)
+
+# k=2**10
+# i=0
+# while True:
+# 	i = i+1
+# 	if not i%2**10:
+# 		k-=10
+# 	n = random.randint(0,max(10,k))
+# 	b1.push(n)
+# 	b2.append(n)
+# 	print(b1.mean, np.mean(b2))
