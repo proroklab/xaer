@@ -19,7 +19,6 @@ def get_clustered_replay_buffer(config):
 		prioritized_replay=config["prioritized_replay"],
 		buffer_options=config["buffer_options"], 
 		learning_starts=config["learning_starts"], 
-		update_only_sampled_cluster=config["update_only_sampled_cluster"],
 	)
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme

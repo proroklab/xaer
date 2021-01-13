@@ -38,7 +38,7 @@ CONFIG.update({
 		'priority_aggregation_fn': 'np.mean', # A reduction function that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
 		'global_size': 2**12, # Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
-		'min_elements_per_cluster': 3, # Cannot remove a batch from the cluster if it has less than min_elements_per_cluster elements.
+		'min_cluster_size_proportion': 0.5, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': None, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
 		'eta': 1e-2, # A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0 if beta is > 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
@@ -52,7 +52,6 @@ CONFIG.update({
 	"clustering_scheme": "multiple_types", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "multiple_types_with_reward_against_zero", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": False, # Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
-	"update_only_sampled_cluster": False, # If True, when sampling a batch from a cluster, no changes/updates to other clusters are performed if that batch is shared among these other clusters. Enabling this option would slightly speed-up batch sampling, by a constant proportional to the number of different clusters in the buffer.
 })
 
 ####################################################################################

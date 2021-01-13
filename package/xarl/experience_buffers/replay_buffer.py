@@ -6,6 +6,7 @@ from more_itertools import unique_everseen
 from itertools import islice
 import copy
 import threading 
+import random
 
 # Import ray before psutil will make sure we use psutil's bundled version
 import ray  # noqa F401
@@ -49,9 +50,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		prioritized_replay=True,
 		buffer_options=None, 
 		learning_starts=1000, 
-		update_only_sampled_cluster=False,
 	):
-		self.update_only_sampled_cluster = update_only_sampled_cluster
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
 		self.replay_starts = learning_starts
@@ -76,25 +75,29 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	def add_batch(self, batch):
 		batch_type = get_batch_infos(batch)["batch_type"]
 		has_multiple_types = isinstance(batch_type,(tuple,list))
-		if not self.update_only_sampled_cluster or not has_multiple_types: # Make a copy so the replay buffer doesn't pin plasma memory.
-			batch = batch.copy()
-			batch['infos'] = copy.deepcopy(batch['infos'])
+		# if not self.update_only_sampled_cluster or not has_multiple_types: # Make a copy so the replay buffer doesn't pin plasma memory.
+		# 	batch = batch.copy()
+		# 	batch['infos'] = copy.deepcopy(batch['infos'])
+		batch = batch.copy()
+		batch['infos'] = copy.deepcopy(batch['infos'])
 		# Handle everything as if multiagent
 		if isinstance(batch, SampleBatch):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
 		with self.add_batch_timer:
 			for policy_id, b in batch.policy_batches.items():
 				self.num_added += 1
-				if has_multiple_types:
-					for sub_batch_type in batch_type:
-						if self.update_only_sampled_cluster:
-							b_copy = b.copy()
-							b_copy['infos'] = copy.deepcopy(b_copy['infos'])
-							with self._buffer_lock: self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
-						else:
-							with self._buffer_lock: self.replay_buffers[policy_id].add(b, sub_batch_type)
-				else:
-					with self._buffer_lock: self.replay_buffers[policy_id].add(b, batch_type)
+				# if has_multiple_types:
+				# 	for sub_batch_type in batch_type:
+				# 		if self.update_only_sampled_cluster:
+				# 			b_copy = b.copy()
+				# 			b_copy['infos'] = copy.deepcopy(b_copy['infos'])
+				# 			with self._buffer_lock: self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
+				# 		else:
+				# 			with self._buffer_lock: self.replay_buffers[policy_id].add(b, sub_batch_type)
+				# else:
+				# 	with self._buffer_lock: self.replay_buffers[policy_id].add(b, batch_type)
+				# if has_multiple_types: no need for duplicating the batch across multiple clusters, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
+				with self._buffer_lock: self.replay_buffers[policy_id].add(b, random.choice(batch_type) if has_multiple_types else batch_type)
 		return batch
 
 	def can_replay(self):
