@@ -12,7 +12,7 @@ from environments import *
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-v0"
 # SELECT_ENV = "CescoDrive-v1"
-# SELECT_ENV = "AlexDrive-v0"
+# SELECT_ENV = "GraphDrive-v0"
 SELECT_ENV = "GridDrive-v1"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
@@ -38,7 +38,7 @@ CONFIG.update({
 		'priority_aggregation_fn': 'np.mean', # A reduction function that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
 		'global_size': 2**12, # Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
-		'min_cluster_size_proportion': 0.5, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
+		'min_cluster_size_proportion': 0.75, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'alpha': 0.5, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': None, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
 		'eta': 1e-2, # A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0 if beta is > 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.

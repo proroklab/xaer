@@ -18,7 +18,7 @@ class TFAdaptiveMultiHeadNet(TFModelV2):
 		super(TFAdaptiveMultiHeadNet, self).__init__(obs_space, action_space, num_outputs, model_config, name)
 
 		self._original_obs_space = obs_space
-		inputs, last_layer = get_tf_heads_model(obs_space, num_outputs)
+		inputs, last_layer = get_tf_heads_model(obs_space)
 
 		activation = get_activation_fn(model_config.get("fcnet_activation"))
 		hiddens = model_config.get("fcnet_hiddens", [])
@@ -120,7 +120,7 @@ class TFAdaptiveMultiHeadNet(TFModelV2):
 
 	def forward(self, input_dict: Dict[str, TensorType], state: List[TensorType], seq_lens: TensorType) -> (TensorType, List[TensorType]):
 		# obs = restore_original_dimensions(input_dict["obs"], self._original_obs_space, 'tf')
-		model_out, self._value_out = self.base_model(get_heads_input(input_dict["obs"]))
+		model_out, self._value_out = self.base_model(get_heads_input(input_dict))
 		return model_out, state
 
 	def value_function(self) -> TensorType:

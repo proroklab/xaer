@@ -10,8 +10,8 @@ from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAU
 from environments import *
 
 # SELECT_ENV = "ToyExample-v0"
-# SELECT_ENV = "CescoDrive-v2"
-SELECT_ENV = "AlexDrive-v0"
+# SELECT_ENV = "CescoDrive-v1"
+SELECT_ENV = "GraphDrive-v0"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({

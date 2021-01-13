@@ -10,8 +10,8 @@ register_env("CescoDrive-v0", lambda config: CescoDriveV0())
 from environments.car_controller.cesco_drive_v1 import CescoDriveV1
 register_env("CescoDrive-v1", lambda config: CescoDriveV1())
 
-from environments.car_controller.alex_drive_v0 import AlexDriveV0
-register_env("AlexDrive-v0", lambda config: AlexDriveV0())
+from environments.car_controller.graph_drive_v0 import GraphDriveV0
+register_env("GraphDrive-v0", lambda config: GraphDriveV0())
 
 from environments.car_controller.grid_drive_v0 import GridDriveV0
 register_env("GridDrive-v0", lambda config: GridDriveV0())

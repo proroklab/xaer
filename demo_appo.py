@@ -11,8 +11,8 @@ from environments import *
 
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-v0"
-# SELECT_ENV = "CescoDrive-v2"
-# SELECT_ENV = "AlexDrive-v0"
+# SELECT_ENV = "CescoDrive-v1"
+# SELECT_ENV = "GraphDrive-v0"
 SELECT_ENV = "GridDrive-v1"
 
 CONFIG = APPO_DEFAULT_CONFIG.copy()

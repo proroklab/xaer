@@ -7,6 +7,7 @@ from xarl.experience_buffers.buffer.buffer import Buffer
 from xarl.utils.segment_tree import SumSegmentTree, MinSegmentTree
 import copy
 import uuid
+from xarl.utils.running_statistics import RunningStats
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ get_batch_indexes = lambda x: get_batch_infos(x)['batch_index']
 get_batch_uid = lambda x: get_batch_infos(x)['batch_uid']
 
 class PseudoPrioritizedBuffer(Buffer):
-	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_eta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling','_cluster_level_weighting','_min_cluster_size_proportion')
+	__slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_eta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling','_cluster_level_weighting','_min_cluster_size_proportion','priority_stats')
 	
 	def __init__(self, 
 		priority_id,
@@ -53,6 +54,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._it_capacity = 1
 		while self._it_capacity < self.cluster_size:
 			self._it_capacity *= 2
+		self.priority_stats = RunningStats(window_size=global_size)
 		
 	def set(self, buffer): # O(1)
 		assert isinstance(buffer, PseudoPrioritizedBuffer)
@@ -200,9 +202,13 @@ class PseudoPrioritizedBuffer(Buffer):
 			if t.inserted_elements > 0
 		]
 		if self._prioritised_cluster_sampling:
-			# type_priority = map(lambda x: x[-1].sum(scaled=False), tree_list)
-			type_priority = map(lambda x: x[-1].sum(scaled=False)/x[-1].inserted_elements, tree_list)
+			average_min_priority = self.priority_stats.mean-3*self.priority_stats.std # The probability of the real minimum falling outside this value is 0.3%, if the underlying distribution would be normal. We are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
+			optimal_cluster_size = self.global_size/len(self.type_values) # If all clusters would have the same size, it would be this
+			get_cluster_priority = lambda x: (x.sum(scaled=False) - average_min_priority*x.inserted_elements)/optimal_cluster_size # Dividing by the optimal_cluster_size we are enforcing this number to be independent from the number of clusters, still being dependent to their size.
+			type_priority = map(lambda x: get_cluster_priority(x[-1]), tree_list) # A min_cluster_size_proportion lower than 1 guarantees that, taking the sum instead of the average, the resulting type priority is still relying on the average clusters' priority
+			type_priority = map(self.normalize_priority, type_priority)
 			type_priority = np.array(tuple(type_priority))
+			# print(np.mean(list(map(lambda x: x[-1].min_tree.min(), tree_list))), self.priority_stats.mean-3*self.priority_stats.std, type_priority)
 			if self._prioritised_cluster_sampling_strategy == 'average':
 				avg_type_priority = np.mean(type_priority)
 				type_priority = -np.absolute(type_priority-avg_type_priority) # the closer to the average, the higher the priority: the hardest tasks will be tackled last
@@ -212,7 +218,9 @@ class PseudoPrioritizedBuffer(Buffer):
 				best_after_mean = np.min(type_priority_above_avg) if type_priority_above_avg.size > 0 else type_priority[0]
 				type_priority = -np.absolute(type_priority-best_after_mean) # the closer to the best_after_mean, the higher the priority: the hardest tasks will be tackled last
 			worst_type_priority = np.min(type_priority)
-			type_cumsum = np.cumsum(type_priority-worst_type_priority) # O(|self.type_keys|)
+			if worst_type_priority < 0:
+				type_priority = type_priority - worst_type_priority + self._epsilon
+			type_cumsum = np.cumsum(type_priority) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
 			assert 0 <= type_mass, f'type_mass {type_mass} should be greater than 0'
 			assert type_mass <= type_cumsum[-1], f'type_mass {type_mass} should be lower than {type_cumsum[-1]}'
@@ -278,6 +286,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		# 		print(k,v,new_batch[k])
 		new_priority = self.get_batch_priority(new_batch)
 		normalized_priority = self.normalize_priority(new_priority)
+		self.priority_stats.push(normalized_priority)
 		# Update priority
 		if self._prioritized_drop_probability > 0 and not self._global_distribution_matching:
 			self._drop_priority_tree[sample_type][idx] = (normalized_priority, idx) # O(log)

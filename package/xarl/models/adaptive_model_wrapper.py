@@ -1,13 +1,13 @@
 from ray.rllib.utils.framework import try_import_tf
-from ray.rllib.utils.framework import get_activation_fn, try_import_torch
+# from ray.rllib.utils.framework import get_activation_fn, try_import_torch
 from ray.rllib.models.tf.misc import normc_initializer as tf_normc_initializer
-from ray.rllib.models.torch.misc import normc_initializer as torch_normc_initializer
+# from ray.rllib.models.torch.misc import normc_initializer as torch_normc_initializer
 import gym
 
 tf1, tf, tfv = try_import_tf()
-torch, nn = try_import_torch()
+# torch, nn = try_import_torch()
 
-def get_tf_heads_model(obs_space, num_outputs):
+def get_tf_heads_model(obs_space):
 	if 'cnn' in obs_space.original_space.spaces:
 		cnn_inputs = [
 			tf.keras.layers.Input(shape=cnn_head.shape, name=f"cnn_input{i}")
@@ -23,7 +23,7 @@ def get_tf_heads_model(obs_space, num_outputs):
 			for i,layer in enumerate(cnn_inputs)
 		]
 		if len(cnn_layers) > 1:
-			cnn_layers = [tf.keras.layers.Concatenate(axis=1)(cnn_layers)]
+			cnn_layers = [tf.keras.layers.Concatenate(axis=-1)(cnn_layers)]
 	else: cnn_layers = []
 	if 'fc' in obs_space.original_space.spaces:
 		fc_inputs = [
@@ -34,37 +34,24 @@ def get_tf_heads_model(obs_space, num_outputs):
 			tf.keras.layers.Flatten()(layer)
 			for layer in fc_inputs
 		]
-		if len(fc_layers) > 1:
-			fc_layers = tf.keras.layers.Concatenate()(fc_layers)
-		else:
-			fc_layers = fc_layers[0]
-		fc_layers = [tf.keras.layers.Dense(
-			num_outputs, 
-			name=f"fc_layer", 
-			activation=tf.nn.relu, 
-			kernel_initializer=tf_normc_initializer(1.0)
-		)(fc_layers)]
+		if len(fc_layers) > 1: 
+			fc_layers = [tf.keras.layers.Concatenate(axis=-1)(fc_layers)]
 	else: fc_layers = []
 
-	final_layer = fc_layers + cnn_layers
-	if final_layer:
-		if len(final_layer) > 1:
-			final_layer = tf.keras.layers.Concatenate()(final_layer)
-		else:
-			final_layer = final_layer[0]
-		final_layer = tf.keras.layers.Flatten()(final_layer)
-		return cnn_inputs+fc_inputs, final_layer
+	last_layer = fc_layers + cnn_layers
+	if last_layer:
+		if len(last_layer) > 1: last_layer = tf.keras.layers.Concatenate()(last_layer)
+		else: last_layer = last_layer[0]
+		last_layer = tf.keras.layers.Flatten()(last_layer)
+		inputs = cnn_inputs+fc_inputs
 	else:
-		inputs = tf.keras.layers.Input(shape=obs_space.shape)
-		layer = tf.keras.layers.Dense(
-			num_outputs, 
-			name="fc_layer", 
-			activation=tf.nn.relu, 
-			kernel_initializer=tf_normc_initializer(1.0)
-		)(inputs)
-		return inputs, layer
+		last_layer = inputs = tf.keras.layers.Input(shape=obs_space.shape)
+	return inputs, last_layer
 
-def get_heads_input(obs):
+def get_heads_input(input_dict):
+	obs = input_dict['obs']
+	if not isinstance(obs, dict):
+		return input_dict['obs_flat']
 	cnn_inputs = obs.get("cnn",[])
 	fc_inputs = obs.get("fc",[])
 	if cnn_inputs or fc_inputs:
@@ -73,4 +60,4 @@ def get_heads_input(obs):
 		if isinstance(fc_inputs,dict):
 			fc_inputs = list(fc_inputs.values())
 		return cnn_inputs + fc_inputs
-	return obs
+	return input_dict['obs_flat']
