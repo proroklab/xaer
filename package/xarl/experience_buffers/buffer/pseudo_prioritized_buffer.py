@@ -186,10 +186,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._drop_priority_tree[sample_type][idx] = (random(), idx) # O(log)
 		# Set priority
 		self.update_priority(batch, idx, type_id) # add batch
-		if self._beta and 'weights' not in batch: # Add default weights
-			batch['weights'] = np.ones(batch.count, dtype=np.float32)
-		# if self._beta: # Update weights after updating priority
-		# 	self.update_beta_weights(batch, idx, sample_type)
+		# if self._beta and 'weights' not in batch: # Add default weights
+		# 	batch['weights'] = np.ones(batch.count, dtype=np.float32)
+		if self._beta: # Update weights after updating priority
+			self.update_beta_weights(batch, idx, sample_type)
 		if self.global_size:
 			assert self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
 			assert super().count() <= self.global_size, 'Memory leak in replay buffer; v2'
@@ -202,11 +202,11 @@ class PseudoPrioritizedBuffer(Buffer):
 			if t.inserted_elements > 0
 		]
 		if self._prioritised_cluster_sampling:
-			average_min_priority = self.priority_stats.mean-3*self.priority_stats.std # The probability of the real minimum falling outside this value is 0.3%, if the underlying distribution would be normal. We are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
+			average_min_priority = self.priority_stats.mean-3*self.priority_stats.std # The probability of the real minimum being lower than this value is 0.3%, if the underlying distribution would be normal. We are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
 			optimal_cluster_size = self.global_size/len(self.type_values) # If all clusters would have the same size, it would be this
 			get_cluster_priority = lambda x: (x.sum(scaled=False) - average_min_priority*x.inserted_elements)/optimal_cluster_size # Dividing by the optimal_cluster_size we are enforcing this number to be independent from the number of clusters, still being dependent to their size.
 			type_priority = map(lambda x: get_cluster_priority(x[-1]), tree_list) # A min_cluster_size_proportion lower than 1 guarantees that, taking the sum instead of the average, the resulting type priority is still relying on the average clusters' priority
-			type_priority = map(self.normalize_priority, type_priority)
+			# type_priority = map(self.normalize_priority, type_priority)
 			type_priority = np.array(tuple(type_priority))
 			# print(np.mean(list(map(lambda x: x[-1].min_tree.min(), tree_list))), self.priority_stats.mean-3*self.priority_stats.std, type_priority)
 			if self._prioritised_cluster_sampling_strategy == 'average':
