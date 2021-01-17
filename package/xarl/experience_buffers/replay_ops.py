@@ -58,6 +58,10 @@ def get_update_replayed_batch_fn(local_replay_buffer, local_worker, postprocess_
 		return samples
 	return update_replayed_fn
 
+def add_buffer_metrics(results, buffer):
+	results['buffer']=buffer.stats()
+	return results
+
 class StoreToReplayBuffer:
 	def __init__(self, local_buffer: LocalReplayBuffer = None):
 		self.local_actor = local_buffer

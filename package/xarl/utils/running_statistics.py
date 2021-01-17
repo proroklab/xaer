@@ -16,15 +16,15 @@ class RunningStats(object):
 
 	@property
 	def mean(self):
-		return self.running_stats.mean()
+		return self.running_stats.mean() if len(self.running_stats) > 0 else 0.
 	
 	@property
 	def std(self):
-		return self.running_stats.stddev()
+		return self.running_stats.stddev() if len(self.running_stats) > 1 else 0.
 
 	@property
 	def var(self):
-		return self.running_stats.variance()
+		return self.running_stats.variance() if len(self.running_stats) > 1 else 0.
 	
 # from collections import deque
 # import random 

@@ -151,9 +151,6 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 				if update_replayed_fn:
 					batch_iter = apply_to_batch_once(update_replayed_fn, batch_iter)
 				samples[policy_id] = SampleBatch.concat_samples(batch_iter)
-			# concatenate after lock is released
-			# for k,v in samples.items():
-			# 	samples[k] = SampleBatch.concat_samples(v)
 			return MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 
 	def update_priorities(self, prio_dict):
@@ -171,7 +168,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			"update_priorities_time_ms": round(1000 * self.update_priorities_timer.mean, 3),
 		}
 		for policy_id, replay_buffer in self.replay_buffers.items():
+			# print(replay_buffer.stats(debug=debug))
 			stat.update({
-				"policy_{}".format(policy_id): replay_buffer.stats(debug=debug)
+				policy_id: replay_buffer.stats(debug=debug)
 			})
 		return stat

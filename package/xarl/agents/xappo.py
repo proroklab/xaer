@@ -16,7 +16,7 @@ from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
-from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn, xa_make_learner_thread
+from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn, xa_make_learner_thread, add_buffer_metrics
 from xarl.utils.misc import accumulate
 from xarl.agents.xappo_loss.xappo_tf_loss import xappo_surrogate_loss as tf_xappo_surrogate_loss
 from xarl.agents.xappo_loss.xappo_torch_loss import xappo_surrogate_loss as torch_xappo_surrogate_loss
@@ -248,7 +248,7 @@ def xappo_execution_plan(workers, config):
 			.for_each(lambda t: t[1]) \
 			.for_each(config["after_train_step"](workers, config))
 
-	return StandardMetricsReporting(merged_op, workers, config).for_each(learner_thread.add_learner_metrics)
+	return StandardMetricsReporting(merged_op, workers, config).for_each(learner_thread.add_learner_metrics).for_each(lambda x: add_buffer_metrics(x,local_replay_buffer))
 
 XAPPOTrainer = APPOTrainer.with_updates(
 	name="XAPPO", 

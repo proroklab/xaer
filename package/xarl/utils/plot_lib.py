@@ -29,6 +29,11 @@ flags = SimpleNamespace(**{
 linestyle_set = ['-', '--', '-.', ':', '']
 color_set = list(mcolors.TABLEAU_COLORS)
 
+def wrap_string(s, max_len=10):
+	return '\n'.join([
+		s[i*max_len:(i+1)*max_len]
+		for i in range(int(np.ceil(len(s)/max_len)))
+	]).strip()
 
 def plot(logs, figure_file):
 	log_count = len(logs)
@@ -126,7 +131,7 @@ def plot(logs, figure_file):
 				# print stats
 				print("    ", y_key["min"], " < ", key, " < ", y_key["max"])
 				# ax
-				ax.set_ylabel(key, fontdict=font_dict)
+				ax.set_ylabel(wrap_string(key, 20), fontdict=font_dict)
 				ax.set_xlabel('step', fontdict=font_dict)
 				# ax.plot(x, y, linewidth=linewidth, markersize=markersize)
 				y_key_mean = np.array(y_key["data"])
@@ -143,7 +148,7 @@ def plot(logs, figure_file):
 				# plot mean line
 				ax.plot(x_key, y_key_mean, label=name, linestyle=linestyle_set[log_id//len(color_set)], color=color_set[log_id%len(color_set)])
 				# plot std range
-				ax.fill_between(x_key, y_key_mean-y_key_std, y_key_mean+y_key_std, alpha=0.25)
+				ax.fill_between(x_key, y_key_mean-y_key_std, y_key_mean+y_key_std, alpha=0.25, color=color_set[log_id%len(color_set)])
 				# show legend
 				ax.legend()
 				# display grid
@@ -181,11 +186,26 @@ def parse_line(line,i=0):
 		k:val_dict[k] 
 		for k in ["episode_reward_mean","episode_reward_max","episode_reward_min","episode_len_mean"]
 	}
+	default_learner = val_dict["info"]["learner"]["default_policy"]
 	obj.update({
 		k:v 
-		for k,v in val_dict["info"]["learner"]["default_policy"].items()
+		for k,v in default_learner.items()
 		if isinstance(v, numbers.Number)
 	})
+	if 'buffer' in val_dict:
+		default_buffer = val_dict["buffer"]["default_policy"]
+		if 'cluster_capacity' in default_buffer:
+			obj.update({
+				f'capacity_{k}':v 
+				for k,v in default_buffer['cluster_capacity'].items()
+				if isinstance(v, numbers.Number)
+			})
+		if 'cluster_priority' in default_buffer:
+			obj.update({
+				f'priority_{k}':v 
+				for k,v in default_buffer['cluster_priority'].items()
+				if isinstance(v, numbers.Number)
+			})
 	return (step, obj)
 	
 def parse(log_fname, max_i=None):

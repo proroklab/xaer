@@ -15,7 +15,7 @@ from ray.rllib.utils.torch_ops import explained_variance as torch_explained_vari
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 
-from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types
+from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types, add_buffer_metrics
 from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
 
 XADQN_EXTRA_OPTIONS = {
@@ -148,7 +148,7 @@ def xadqn_execution_plan(workers, config):
 	# of (2) since training metrics are not available until (2) runs.
 	train_op = Concurrently([store_op, replay_op], mode="round_robin", output_indexes=[1], round_robin_weights=calculate_rr_weights(config))
 
-	return StandardMetricsReporting(train_op, workers, config)
+	return StandardMetricsReporting(train_op, workers, config).for_each(lambda x: add_buffer_metrics(x,local_replay_buffer))
 
 XADQNTrainer = DQNTrainer.with_updates(
 	name="XADQN", 

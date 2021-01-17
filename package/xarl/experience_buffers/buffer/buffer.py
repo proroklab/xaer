@@ -96,3 +96,8 @@ class Buffer(object):
 		if remove:
 			for batch in batch_list: self.batches[type_].remove(batch)
 		return batch_list
+
+	def stats(self, debug=False):
+		return {
+			"added_count": self.count(),
+		}
