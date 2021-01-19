@@ -22,7 +22,6 @@ class EasyRoadCulture(Culture):
 						   "Stop Sign": False}
 
 		self.agent_properties = {"Speed": 0}
-		self.ids = {}
 
 	def create_arguments(self):
 		"""

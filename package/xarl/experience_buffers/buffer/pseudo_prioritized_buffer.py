@@ -63,8 +63,10 @@ class PseudoPrioritizedBuffer(Buffer):
 	def clean(self): # O(1)
 		super().clean()
 		self._sample_priority_tree = []
-		self._drop_priority_tree = []
-		self._insertion_time_tree = []
+		if self._prioritized_drop_probability > 0:
+			self._drop_priority_tree = []
+		if self._prioritized_drop_probability < 1:
+			self._insertion_time_tree = []
 			
 	def _add_type_if_not_exist(self, type_id): # O(1)
 		if type_id in self.types: # check it to avoid double insertion
@@ -73,9 +75,16 @@ class PseudoPrioritizedBuffer(Buffer):
 		self.type_values.append(sample_type)
 		self.type_keys.append(type_id)
 		self.batches.append([])
-		self._sample_priority_tree.append(SumSegmentTree(self._it_capacity))
-		self._drop_priority_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
-		self._insertion_time_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
+		new_sample_priority_tree = SumSegmentTree(self._it_capacity, with_min_tree=True, with_max_tree=self._eta)
+		self._sample_priority_tree.append(new_sample_priority_tree)
+		if self._prioritized_drop_probability > 0:
+			self._drop_priority_tree.append(
+				MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1))
+				if self._global_distribution_matching else
+				new_sample_priority_tree.min_tree
+			)
+		if self._prioritized_drop_probability < 1:
+			self._insertion_time_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
 		logger.warning(f'Added a new cluster with id {type_id}, now there are {len(self.type_values)} different clusters.')
 		for t in self.type_values:
 			elements_to_remove = max(0, self.count(t)-self.get_max_cluster_size())
@@ -97,14 +106,14 @@ class PseudoPrioritizedBuffer(Buffer):
 		type_id = self.type_keys[sample_type]
 		del get_batch_indexes(self.batches[sample_type][idx])[type_id]
 		if idx == last_idx: # idx is the last, remove it
-			if self._prioritized_drop_probability > 0:
+			if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
 				self._drop_priority_tree[sample_type][idx] = None # O(log)
 			if self._prioritized_drop_probability < 1:
 				self._insertion_time_tree[sample_type][idx] = None # O(log)
 			self._sample_priority_tree[sample_type][idx] = None # O(log)
 			self.batches[sample_type].pop()
 		elif idx < last_idx: # swap idx with the last element and then remove it
-			if self._prioritized_drop_probability > 0:
+			if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
 				self._drop_priority_tree[sample_type][idx] = (self._drop_priority_tree[sample_type][last_idx][0],idx) # O(log)
 				self._drop_priority_tree[sample_type][last_idx] = None # O(log)
 			if self._prioritized_drop_probability < 1:
@@ -145,7 +154,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		return segment_tree.inserted_elements/self.get_max_cluster_size()
 
 	def get_cluster_priority(self, segment_tree):
-		average_min_priority = np.mean(tuple(map(lambda x: x.min_tree.min(), self._sample_priority_tree))) # We are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
+		average_min_priority = np.mean(tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree))) # We are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
 		get_avg_cluster_priority = lambda x: x.sum(scaled=False)/x.inserted_elements - average_min_priority # Dividing by the optimal_cluster_size we are enforcing this number to be independent from the number of clusters, still being dependent to their size.
 		return self.get_cluster_capacity(segment_tree)*get_avg_cluster_priority(segment_tree) # A min_cluster_size_proportion lower than 1 guarantees that, taking the sum instead of the average, the resulting type priority is still relying on the average clusters' priority
 
@@ -247,7 +256,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			# type_priority = map(self.normalize_priority, type_priority)
 			type_priority = np.array(tuple(type_priority))
 			# print(self.get_cluster_capacity_dict())
-			# print(np.mean(list(map(lambda x: x[-1].min_tree.min(), tree_list))), type_priority)
+			# print(np.mean(list(map(lambda x: x[-1].min_tree.min()[0], tree_list))), type_priority)
 			if self._prioritised_cluster_sampling_strategy == 'average':
 				avg_type_priority = np.mean(type_priority)
 				type_priority = -np.absolute(type_priority-avg_type_priority) # the closer to the average, the higher the priority: the hardest tasks will be tackled last
@@ -298,13 +307,13 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def update_beta_weights(self, batch, idx, sample_type):
 		type_sum_tree = self._sample_priority_tree[sample_type]
-		if self._cluster_level_weighting: min_priority = type_sum_tree.min_tree.min()
-		else: min_priority = np.mean(tuple(map(lambda x: x.min_tree.min(), self._sample_priority_tree))) # Using the average min priority we are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
+		if self._cluster_level_weighting: min_priority = type_sum_tree.min_tree.min()[0]
+		else: min_priority = np.mean(tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree))) # Using the average min priority we are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
 		batch_priority = type_sum_tree[idx]
 		batch_priority = max(min_priority, batch_priority)
 		if self._eta:
-			if self._cluster_level_weighting: max_priority = type_sum_tree.max_tree.max()
-			else: max_priority = max(map(lambda x: x.max_tree.max(), self._sample_priority_tree))
+			if self._cluster_level_weighting: max_priority = type_sum_tree.max_tree.max()[0]
+			else: max_priority = max(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree))
 			batch_priority = min(max_priority, batch_priority)
 			upper_max_priority = max_priority*((1+self._eta) if max_priority >= 0 else (1-self._eta))
 			if upper_max_priority != min_priority: 
@@ -333,8 +342,6 @@ class PseudoPrioritizedBuffer(Buffer):
 		normalized_priority = self.normalize_priority(new_priority)
 		# self.priority_stats.push(normalized_priority)
 		# Update priority
-		if self._prioritized_drop_probability > 0 and not self._global_distribution_matching:
-			self._drop_priority_tree[sample_type][idx] = (normalized_priority, idx) # O(log)
 		self._sample_priority_tree[sample_type][idx] = normalized_priority # O(log)
 
 	def stats(self, debug=False):

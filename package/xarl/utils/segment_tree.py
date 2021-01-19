@@ -135,13 +135,13 @@ class SegmentTree(object):
 
 
 class SumSegmentTree(SegmentTree):
-	def __init__(self, capacity, neutral_element=0.):
+	def __init__(self, capacity, neutral_element=0., with_min_tree=True, with_max_tree=False):
 		super(SumSegmentTree, self).__init__(
 			capacity=capacity,
 			neutral_element=neutral_element
 		)
-		self.min_tree = MinSegmentTree(capacity)
-		self.max_tree = MaxSegmentTree(capacity)
+		self.min_tree = MinSegmentTree(capacity, neutral_element=(float('inf'),-1)) if with_min_tree else None
+		self.max_tree = MaxSegmentTree(capacity, neutral_element=(float('-inf'),-1)) if with_max_tree else None
 	
 	@staticmethod
 	def _operation(a, b):
@@ -149,14 +149,17 @@ class SumSegmentTree(SegmentTree):
 
 	def __setitem__(self, idx, val): # O(log)
 		super().__setitem__(idx, val)
-		self.min_tree[idx] = val
-		self.max_tree[idx] = val
+		if self.min_tree:
+			self.min_tree[idx] = (val,idx) if val is not None else None
+		if self.max_tree:
+			self.max_tree[idx] = (val,idx) if val is not None else None
 
 	def sum(self, start=0, end=None, scaled=True): # O(log)
 		"""Returns arr[start] + ... + arr[end]"""
+		assert not scaled or self.min_tree, "Need a min_tree for scaling"
 		tot = super(SumSegmentTree, self).reduce(start, end)
 		if scaled:
-			tot -= self.min_tree.min()*self.inserted_elements
+			tot -= self.min_tree.min()[0]*self.inserted_elements
 		return tot
 
 	def find_prefixsum_idx(self, prefixsum_fn): # O(log)
@@ -176,10 +179,10 @@ class SumSegmentTree(SegmentTree):
 		"""
 		if self.inserted_elements == 1:
 			return 0
-		scaled_prefix = self.min_tree.min() < 0 # O(1)
+		scaled_prefix = self.min_tree and self.min_tree.min()[0] < 0 # O(1)
 		mass = self.sum(scaled=scaled_prefix) # O(1)
 		if scaled_prefix: # Use it in case of negative elements in the sumtree, they would break the tree invariant
-			minimum = min(self._neutral_element,self.min_tree.min()) # O(1)
+			minimum = min(self._neutral_element,self.min_tree.min()[0]) # O(1)
 			summed_elements = self._capacity
 		prefixsum = prefixsum_fn(mass)
 		# prefixsum = np.clip(prefixsum, 0, mass)
@@ -237,7 +240,7 @@ class MaxSegmentTree(SegmentTree):
 # test[0] = 1
 # test[1] = 2
 # print('unscaled', test.sum(scaled=False))
-# print('scaled', test.sum(scaled=True), test.sum(scaled=True)+test.min_tree.min()*test.inserted_elements)
+# print('scaled', test.sum(scaled=True), test.sum(scaled=True)+test.min_tree.min()[0]*test.inserted_elements)
 # i = test.find_prefixsum_idx(lambda x:23)
 # print(i,test[i] )
 
