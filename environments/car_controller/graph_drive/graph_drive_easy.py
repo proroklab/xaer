@@ -7,12 +7,12 @@ from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
-from environments.car_controller.car_stuff.utils import *
-from environments.car_controller.car_stuff.alex_continuous.roads import *
+from environments.car_controller.utils import *
+from environments.car_controller.graph_drive.lib.roads import *
 import random
 import gym
 
-class GraphDriveV0(gym.Env):
+class GraphDriveEasy(gym.Env):
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
 	horizon_distance = 3 # meters
 	track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
@@ -120,7 +120,7 @@ class GraphDriveV0(gym.Env):
 
 	@staticmethod
 	def normalize_point(p):
-		return (p[0]/GraphDriveV0.map_size[0], p[1]/GraphDriveV0.map_size[1])
+		return (p[0]/GraphDriveEasy.map_size[0], p[1]/GraphDriveEasy.map_size[1])
 
 	def get_view(self, source_point, source_orientation): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		# get road view

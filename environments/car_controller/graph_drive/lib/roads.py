@@ -1,7 +1,7 @@
 import numpy as np
 from collections import deque
-from environments.car_controller.car_stuff.utils import *
-from environments.car_controller.car_stuff.alex_continuous.simple_culture import SimpleCulture
+from environments.car_controller.utils import *
+from environments.car_controller.graph_drive.lib.simple_culture import SimpleCulture
 from environments.utils.random_planar_graph.GenerateGraph import get_random_planar_graph, default_seed
 import random
 

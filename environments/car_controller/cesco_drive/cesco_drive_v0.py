@@ -9,7 +9,7 @@ from matplotlib.lines import Line2D
 
 import numpy as np
 from scipy import optimize
-from environments.car_controller.car_stuff.utils import *
+from environments.car_controller.utils import *
 import gym
 
 class CescoDriveV0(gym.Env):

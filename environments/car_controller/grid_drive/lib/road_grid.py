@@ -1,6 +1,6 @@
 # import numpy as np
-from environments.car_controller.car_stuff.alex_discrete.road_cell import RoadCell
-from environments.car_controller.car_stuff.alex_discrete.road_agent import RoadAgent
+from environments.car_controller.grid_drive.lib.road_cell import RoadCell
+from environments.car_controller.grid_drive.lib.road_agent import RoadAgent
 from random import randrange
 
 NORTH = 0

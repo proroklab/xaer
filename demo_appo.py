@@ -10,10 +10,10 @@ from ray.rllib.agents.ppo.appo import APPOTrainer, DEFAULT_CONFIG as APPO_DEFAUL
 from environments import *
 
 # SELECT_ENV = "Taxi-v3"
-# SELECT_ENV = "ToyExample-v0"
-# SELECT_ENV = "CescoDrive-v1"
-# SELECT_ENV = "GraphDrive-v0"
-SELECT_ENV = "GridDrive-v1"
+# SELECT_ENV = "ToyExample-V0"
+# SELECT_ENV = "CescoDrive-V1"
+# SELECT_ENV = "GraphDrive-Easy"
+SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = APPO_DEFAULT_CONFIG.copy()
 CONFIG.update({

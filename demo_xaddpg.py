@@ -9,9 +9,8 @@ import ray
 from xarl.agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
 from environments import *
 
-# SELECT_ENV = "ToyExample-v0"
-# SELECT_ENV = "CescoDrive-v1"
-SELECT_ENV = "GraphDrive-v0"
+# SELECT_ENV = "CescoDrive-V1"
+SELECT_ENV = "GraphDrive-Easy"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({

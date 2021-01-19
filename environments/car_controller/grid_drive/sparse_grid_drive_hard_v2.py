@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from environments.car_controller.grid_drive_v1 import GridDriveV1
+from environments.car_controller.grid_drive.grid_drive_hard import GridDriveHard
 
-class SparseGridDriveV2(GridDriveV1):
+class SparseGridDriveHardV2(GridDriveHard):
 
 	def reset(self):
 		self.cumulated_return = 0

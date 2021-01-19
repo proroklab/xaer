@@ -9,8 +9,9 @@ import ray
 from ray.rllib.agents.dqn.dqn import DQNTrainer, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
 from environments import *
 
-# SELECT_ENV = "ToyExample-v0"
-SELECT_ENV = "GridDrive-v1"
+# SELECT_ENV = "Taxi-v3"
+# SELECT_ENV = "ToyExample-V0"
+SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = DQN_DEFAULT_CONFIG.copy()
 CONFIG.update({

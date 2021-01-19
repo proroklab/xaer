@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from scipy import optimize
-from environments.car_controller.cesco_drive_v0 import CescoDriveV0
-from environments.car_controller.car_stuff.utils import *
+from environments.car_controller.cesco_drive.cesco_drive_v0 import CescoDriveV0
+from environments.car_controller.utils import *
 
 class CescoDriveV1(CescoDriveV0):
 

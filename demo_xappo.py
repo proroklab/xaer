@@ -14,10 +14,10 @@ from ray.rllib.models import ModelCatalog
 ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
 
 # SELECT_ENV = "Taxi-v3"
-# SELECT_ENV = "ToyExample-v0"
-# SELECT_ENV = "CescoDrive-v1"
-# SELECT_ENV = "GraphDrive-v0"
-SELECT_ENV = "GridDrive-v1"
+# SELECT_ENV = "ToyExample-V0"
+# SELECT_ENV = "CescoDrive-V1"
+# SELECT_ENV = "GraphDrive-Easy"
+SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG.update({

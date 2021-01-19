@@ -1,6 +1,6 @@
 from environments.utils.culture_lib.culture import Culture, Argument
-from environments.car_controller.car_stuff.alex_discrete.road_cell import RoadCell
-from environments.car_controller.car_stuff.alex_discrete.road_agent import RoadAgent
+from environments.car_controller.grid_drive.lib.road_cell import RoadCell
+from environments.car_controller.grid_drive.lib.road_agent import RoadAgent
 import numpy as np
 import random
 
@@ -14,6 +14,7 @@ class EasyRoadCulture(Culture):
 		if agent_options is None: agent_options = {}
 		self.road_options = road_options
 		self.agent_options = agent_options
+		self.ids = {}
 		super().__init__()
 		self.name = "Easy Road Culture"
 		# Properties of the culture with their default values go in self.properties.
@@ -74,11 +75,22 @@ class EasyRoadCulture(Culture):
 		Receives an empty RoadCell and initialises properties with acceptable random values.
 		:param road: uninitialised RoadCell.
 		"""
-		motorway = random.choice([True, False])
+		motorway = True if random.random() <= self.road_options.get('motorway',1/2) else False
 		road.assign_property_value("Motorway", motorway)
 
-		stop_sign = random.choice([True, False])
-		road.assign_property_value("Stop Sign", stop_sign)
+		if motorway:
+			road.assign_property_value("Stop Sign", False)
+		else:
+			stop_sign = True if random.random() <= self.road_options.get('stop_sign',1/2) else False
+			road.assign_property_value("Stop Sign", stop_sign)
+
+	def initialise_random_agent(self, agent: RoadAgent):
+		"""
+		Receives an empty RoadAgent and initialises properties with acceptable random values.
+		:param agent: uninitialised RoadAgent.
+		"""
+		speed = np.random.randint(0, self.agent_options.get('speed',120))
+		agent.assign_property_value("Speed", speed)
 
 	def define_attacks(self):
 		"""
@@ -91,8 +103,6 @@ class EasyRoadCulture(Culture):
 		self.AF.add_attack(ID["has_stop_sign"], ID["is_motorway"])
 		self.AF.add_attack(ID["speed==0"], ID["has_stop_sign"])
 		self.AF.add_attack(ID["speed<=70"], ID["is_motorway"])
-
-
 
 #######################
 # MEDIUM ROAD CULTURE #
@@ -225,20 +235,25 @@ class MediumRoadCulture(Culture):
 		Receives an empty RoadCell and initialises properties with acceptable random values.
 		:param road: uninitialised RoadCell.
 		"""
-		motorway = random.choice([True, False])
+		motorway = True if random.random() <= self.road_options.get('motorway',1/2) else False
 		road.assign_property_value("Motorway", motorway)
 
-		stop_sign = random.choice([True, False])
-		road.assign_property_value("Stop Sign", stop_sign)
+		if motorway:
+			road.assign_property_value("School", False)
+			road.assign_property_value("Town Road", False)
+			road.assign_property_value("Stop Sign", False)
+		else:
+			stop_sign = True if random.random() <= self.road_options.get('stop_sign',1/2) else False
+			road.assign_property_value("Stop Sign", stop_sign)
 
-		school = random.choice([True, False])
-		road.assign_property_value("School", school)
+			school = True if random.random() <= self.road_options.get('school',1/2) else False
+			road.assign_property_value("School", school)
 
-		single_lane = random.choice([True, False])
+			town_road = True if random.random() <= self.road_options.get('town_road',1/2) else False
+			road.assign_property_value("Town Road", town_road)
+
+		single_lane = True if random.random() <= self.road_options.get('single_lane',1/2) else False
 		road.assign_property_value("Single Lane", single_lane)
-
-		town_road = random.choice([True, False])
-		road.assign_property_value("Town Road", town_road)
 
 
 	def initialise_random_agent(self, agent: RoadAgent):
@@ -246,10 +261,10 @@ class MediumRoadCulture(Culture):
 		Receives an empty RoadAgent and initialises properties with acceptable random values.
 		:param agent: uninitialised RoadAgent.
 		"""
-		emergency_vehicle = False if np.random.randint(0, 5) != 0 else True
+		emergency_vehicle = True if random.random() <= self.agent_options.get('emergency_vehicle',1/5) else False
 		agent.assign_property_value("Emergency Vehicle", emergency_vehicle)
 
-		speed = np.random.randint(0, 120)
+		speed = np.random.randint(0, self.agent_options.get('speed',120))
 		agent.assign_property_value("Speed", speed)
 
 
@@ -278,7 +293,6 @@ class MediumRoadCulture(Culture):
 		self.AF.add_attack(ID["emergency_vehicle"], ID["town_road"])
 		self.AF.add_attack(ID["emergency_vehicle"], ID["single_lane"])
 		self.AF.add_attack(ID["emergency_vehicle"], ID["is_motorway"])
-
 
 #####################
 # HARD ROAD CULTURE #

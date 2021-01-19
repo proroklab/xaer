@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from environments.car_controller.car_stuff.alex_discrete.road_grid import RoadGrid
 import gym
 import numpy as np
-from environments.car_controller.car_stuff.alex_discrete.road_cultures import EasyRoadCulture, MediumRoadCulture, HardRoadCulture
+from environments.car_controller.grid_drive.lib.road_grid import RoadGrid
+from environments.car_controller.grid_drive.lib.road_cultures import HardRoadCulture
 
-
-class GridDriveV0(gym.Env):
+class GridDriveHard(gym.Env):
+	CULTURE 					= HardRoadCulture
 	GRID_DIMENSION				= 15
 	MAX_SPEED 					= 120
 	SPEED_GAP					= 10
@@ -14,23 +14,7 @@ class GridDriveV0(gym.Env):
 	DIRECTIONS					= 4 # N,S,W,E
 	
 	def __init__(self):
-		# Replace here in case culture changes.
-		OBS_ROAD_FEATURES	 = 10  # Number of binary ROAD features in Hard Culture
-		OBS_CAR_FEATURES	 = 5  # Number of binary CAR features in Hard Culture (excl. speed)
-
-		# Direction (N, S, W, E) + Speed [0-MAX_SPEED]
-		self.action_space	   = gym.spaces.MultiDiscrete([self.DIRECTIONS, self.MAX_GAPPED_SPEED])
-		self.observation_space = gym.spaces.Dict({
-			"cnn": gym.spaces.Dict({
-				"grid": gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, OBS_ROAD_FEATURES+2]), # Features representing the grid + visited cells + current position
-			}),
-			"fc": gym.spaces.Dict({
-				"neighbours": gym.spaces.MultiBinary(OBS_ROAD_FEATURES * self.DIRECTIONS), # Neighbourhood view
-				"agent": gym.spaces.MultiBinary(OBS_CAR_FEATURES), # Car features
-			}),
-		})
-		self.step_counter = 0
-		self.culture = HardRoadCulture(road_options={
+		self.culture = self.CULTURE(road_options={
 			'motorway': 1/2,
 			'stop_sign': 1/2,
 			'school': 1/2,
@@ -48,6 +32,24 @@ class GridDriveV0(gym.Env):
 			'paid_charge': 1/2,
 			'speed': self.MAX_SPEED,
 		})
+		self.obs_road_features = len(self.culture.properties)  # Number of binary ROAD features in Hard Culture
+		self.obs_car_features = len(self.culture.agent_properties)-1  # Number of binary CAR features in Hard Culture (excluded speed)
+
+		# Direction (N, S, W, E) + Speed [0-MAX_SPEED]
+		# self.action_space	   = gym.spaces.MultiDiscrete([self.DIRECTIONS, self.MAX_GAPPED_SPEED])
+		self.action_space	   = gym.spaces.Discrete(self.DIRECTIONS*self.MAX_GAPPED_SPEED)
+		fc_dict = {
+			"neighbours": gym.spaces.MultiBinary(self.obs_road_features * self.DIRECTIONS), # Neighbourhood view
+		}
+		if self.obs_car_features > 0:
+			fc_dict["agent"] = gym.spaces.MultiBinary(self.obs_car_features) # Car features
+		self.observation_space = gym.spaces.Dict({
+			"cnn": gym.spaces.Dict({
+				"grid": gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, self.obs_road_features+2]), # Features representing the grid + visited cells + current position
+			}),
+			"fc": gym.spaces.Dict(fc_dict),
+		})
+		self.step_counter = 0
 
 	def reset(self):
 		# if self.step_counter%self.MAX_STEP == 0:
@@ -64,21 +66,25 @@ class GridDriveV0(gym.Env):
 		return self.get_state()
 
 	def get_state(self):
+		fc_dict = {
+			"neighbours": np.array(self.grid.neighbour_features(), dtype=np.int8), 
+		}
+		if self.obs_car_features > 0:
+			fc_dict["agent"] = np.array(self.grid.agent.binary_features(), dtype=np.int8)
 		return {
 			"cnn": {
 				"grid": self.grid_view,
 			},
-			"fc": {
-				"neighbours": np.array(self.grid.neighbour_features(), dtype=np.int8), 
-				"agent": np.array(self.grid.agent.binary_features(), dtype=np.int8),
-			},
+			"fc": fc_dict,
 		}
 
 	def step(self, action_vector):
+		direction = action_vector//self.MAX_GAPPED_SPEED
+		gapped_speed = action_vector%self.MAX_GAPPED_SPEED
+		# direction, gapped_speed = action_vector
 		self.step_counter += 1
 		x, y = self.grid.agent_position
 		self.grid_view[x][y][-1] = 0 # remove old position
-		direction, gapped_speed = action_vector
 		speed = gapped_speed*self.SPEED_GAP
 		can_move, explanation = self.grid.move_agent(direction, speed)
 		is_terminal_step = self.step_counter >= self.MAX_STEP
