@@ -100,7 +100,7 @@ class MixInReplay:
 
 	def __call__(self, sample_batch):
 		# Put in the experience buffer
-		sample_batch = self.replay_buffer.add_batch(sample_batch) # allow for duplicates in output_batches
+		sample_batch = self.replay_buffer.add_batch(sample_batch, on_policy=True) # allow for duplicates in output_batches
 		output_batches = [sample_batch]
 		if self.replay_buffer.can_replay():
 			n = np.random.poisson(self.replay_proportion)

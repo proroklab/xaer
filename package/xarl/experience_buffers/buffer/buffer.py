@@ -78,7 +78,7 @@ class Buffer(object):
 	def get_type(self, type_id):
 		return self.types[type_id]
 
-	def add(self, batch, type_id=0): # put batch into buffer
+	def add(self, batch, type_id=0, **args): # put batch into buffer
 		self._add_type_if_not_exist(type_id)
 		type_ = self.get_type(type_id)
 		batch["infos"][0]["batch_uid"] = str(uuid.uuid4()) # random unique id

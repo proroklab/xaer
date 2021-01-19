@@ -72,7 +72,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	def get_host(self):
 		return platform.node()
 
-	def add_batch(self, batch):
+	def add_batch(self, batch, on_policy=False):
 		batch_type = get_batch_infos(batch)["batch_type"]
 		has_multiple_types = isinstance(batch_type,(tuple,list))
 		# if not self.update_only_sampled_cluster or not has_multiple_types: # Make a copy so the replay buffer doesn't pin plasma memory.
@@ -86,18 +86,12 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		with self.add_batch_timer:
 			for policy_id, b in batch.policy_batches.items():
 				self.num_added += 1
-				# if has_multiple_types:
-				# 	for sub_batch_type in batch_type:
-				# 		if self.update_only_sampled_cluster:
-				# 			b_copy = b.copy()
-				# 			b_copy['infos'] = copy.deepcopy(b_copy['infos'])
-				# 			with self._buffer_lock: self.replay_buffers[policy_id].add(b_copy, sub_batch_type)
-				# 		else:
-				# 			with self._buffer_lock: self.replay_buffers[policy_id].add(b, sub_batch_type)
-				# else:
-				# 	with self._buffer_lock: self.replay_buffers[policy_id].add(b, batch_type)
-				# if has_multiple_types: no need for duplicating the batch across multiple clusters, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
-				with self._buffer_lock: self.replay_buffers[policy_id].add(b, random.choice(batch_type) if has_multiple_types else batch_type)
+				# If has_multiple_types is True: no need for duplicating the batch across multiple clusters, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
+				with self._buffer_lock: self.replay_buffers[policy_id].add(
+						batch= b, 
+						type_id= random.choice(batch_type) if has_multiple_types else batch_type,
+						on_policy= on_policy,
+					)
 		return batch
 
 	def can_replay(self):
@@ -130,28 +124,6 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 			for samples in batch_list
 		)
-
-	def replay_n_concatenate(self, batch_count=1, cluster_overview_size=None, update_replayed_fn=None):
-		if not self.can_replay():
-			return None
-		if not cluster_overview_size:
-			cluster_overview_size = batch_count
-		else:
-			cluster_overview_size = min(cluster_overview_size,batch_count)
-
-		with self.replay_timer:
-			samples = {}
-			for policy_id, replay_buffer in self.replay_buffers.items():
-				# batch_iter = replay_buffer.sample(batch_count)
-				batch_iter = []
-				for _ in range(batch_count//cluster_overview_size):
-					with self._buffer_lock: batch_iter += replay_buffer.sample(cluster_overview_size)
-				if batch_count%cluster_overview_size:
-					with self._buffer_lock: batch_iter += replay_buffer.sample(batch_count%cluster_overview_size)
-				if update_replayed_fn:
-					batch_iter = apply_to_batch_once(update_replayed_fn, batch_iter)
-				samples[policy_id] = SampleBatch.concat_samples(batch_iter)
-			return MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 
 	def update_priorities(self, prio_dict):
 		if not self.prioritized_replay:

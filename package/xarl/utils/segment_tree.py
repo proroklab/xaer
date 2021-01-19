@@ -179,10 +179,14 @@ class SumSegmentTree(SegmentTree):
 		"""
 		if self.inserted_elements == 1:
 			return 0
-		scaled_prefix = self.min_tree and self.min_tree.min()[0] < 0 # O(1)
-		mass = self.sum(scaled=scaled_prefix) # O(1)
+		if self.min_tree:
+			min_p = self.min_tree.min()[0] # O(log)
+			scaled_prefix = min_p < 0
+		else:
+			scaled_prefix = False
+		mass = self.sum(scaled=scaled_prefix) # O(log)
 		if scaled_prefix: # Use it in case of negative elements in the sumtree, they would break the tree invariant
-			minimum = min(self._neutral_element,self.min_tree.min()[0]) # O(1)
+			minimum = min(self._neutral_element, min_p)
 			summed_elements = self._capacity
 		prefixsum = prefixsum_fn(mass)
 		# prefixsum = np.clip(prefixsum, 0, mass)

@@ -50,7 +50,8 @@ CONFIG.update({
 	########################################################
 	"buffer_options": {
 		'priority_id': "td_errors", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
-		'priority_aggregation_fn': 'lambda x: np.mean(np.abs(x))', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
+		'priority_can_be_negative': False, # Whether the priority can be negative. By default in DQN and DDPG it cannot while in PPO it can.
+		'priority_aggregation_fn': 'np.mean', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Default None, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'global_size': 2**15, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'min_cluster_size_proportion': 2, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
@@ -81,8 +82,10 @@ agent = XADQNTrainer(CONFIG, env=SELECT_ENV)
 # Inspect the trained policy and model, to see the results of training in detail
 policy = agent.get_policy()
 model = policy.model
-print(model.q_value_head.summary())
-print(model.heads_model.summary())
+if model.q_value_head:
+	print(model.q_value_head.summary())
+if model.heads_model:
+	print(model.heads_model.summary())
 
 # Train a policy. The following code runs 30 iterations and that’s generally enough to begin to see improvements in the “Taxi-v3” problem
 # results = []
