@@ -32,7 +32,7 @@ class EasyRoadCulture(Culture):
 		_id = 0
 		motion = Argument(_id, "I will not get a ticket.")
 		self.ids["no_ticket"] = _id
-		motion.set_verifier(lambda gen: True)  # Propositional arguments are always valid.
+		motion.set_verifier(lambda *gen: True)  # Propositional arguments are always valid.
 		args.append(motion)
 
 		_id += 1
