@@ -27,11 +27,11 @@ XADQN_EXTRA_OPTIONS = {
 		'priority_can_be_negative': False, # Whether the priority can be negative. By default in DQN and DDPG it cannot while in PPO it can.
 		'priority_aggregation_fn': 'np.mean', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Default None, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-		'global_size': 2**15, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': 2**14, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'min_cluster_size_proportion': 2, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': 0.4, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
-		'eta': None, # A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0 if beta is > 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
+		'eta': 1e-2, # A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0 if beta is > 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
 		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer instead of the one having the lowest timestamp. In DQN default is 0.
 		'update_insertion_time_when_sampling': False, # Whether to update the insertion time batches to the time of sampling. It requires prioritized_drop_probability < 1. In DQN default is False.
@@ -88,16 +88,20 @@ def xadqn_execution_plan(workers, config):
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	local_worker = workers.local_worker()
 
-	rollouts = ParallelRollouts(workers, mode="async")
+	rollouts = ParallelRollouts(workers, mode="bulk_sync")
 
 	# We execute the following steps concurrently:
 	# (1) Generate rollouts and store them in our local replay buffer. Calling
 	# next() on store_op drives this.
+	store_fn = StoreToReplayBuffer(local_buffer=local_replay_buffer)
 	def store_batch(batch):
-		sub_batch_list = assign_types(batch, clustering_scheme, replay_sequence_length, with_episode_type=config["cluster_with_episode_type"])
-		store = StoreToReplayBuffer(local_buffer=local_replay_buffer)
-		for sub_batch in sub_batch_list:
-			store(sub_batch)
+		for rollout_fragment in assign_types(batch, clustering_scheme, config["rollout_fragment_length"], with_episode_type=config["cluster_with_episode_type"]):
+			if rollout_fragment.count > replay_sequence_length:
+				for b in rollout_fragment.timeslices(replay_sequence_length):
+					get_batch_infos(b)['batch_type'] = get_batch_infos(rollout_fragment)['batch_type']
+					store_fn(b)
+			else:
+				store_fn(rollout_fragment)
 		return batch
 	store_op = rollouts.for_each(store_batch)
 
@@ -115,15 +119,18 @@ def xadqn_execution_plan(workers, config):
 		# IMPORTANT: split train-batch into replay-batches, using batch_uid, before updating priorities
 		policy_batch_list = []
 		for policy_id, batch in samples.policy_batches.items():
-			sub_batch_indexes = [
-				i
-				for i,infos in enumerate(batch['infos'])
-				if "batch_uid" in infos
-			] + [batch.count]
-			sub_batch_iter = (
-				batch.slice(sub_batch_indexes[j], sub_batch_indexes[j+1])
-				for j in range(len(sub_batch_indexes)-1)
-			)
+			if replay_sequence_length > 1 and config["batch_mode"] == "complete_episodes":
+				sub_batch_indexes = [
+					i
+					for i,infos in enumerate(batch['infos'])
+					if "batch_uid" in infos
+				] + [batch.count]
+				sub_batch_iter = (
+					batch.slice(sub_batch_indexes[j], sub_batch_indexes[j+1])
+					for j in range(len(sub_batch_indexes)-1)
+				)
+			else:
+				sub_batch_iter = batch.timeslices(replay_sequence_length)
 			sub_batch_iter = unique_everseen(sub_batch_iter, key=get_batch_uid)
 			for i,sub_batch in enumerate(sub_batch_iter):
 				if i >= len(policy_batch_list):

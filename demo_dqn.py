@@ -5,6 +5,7 @@ import multiprocessing
 import json
 import shutil
 import ray
+import time
 
 from ray.rllib.agents.dqn.dqn import DQNTrainer, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
 from environments import *
@@ -15,16 +16,24 @@ SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = DQN_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	"model": {
-		"custom_model": "adaptive_multihead_network",
-	},
-	"rollout_fragment_length": 1,
-	"train_batch_size": 256,
-	# "learning_starts": 1500,
+	# "model": {
+	# 	"custom_model": "adaptive_multihead_network",
+	# },
 	"grad_clip": None,
-	# "framework": "torch",
-	'buffer_size': 50000, # Size of the experience buffer. Default 50000
-	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	"num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
+	"rollout_fragment_length": 2**3, # Divide episodes into fragments of this many steps each during rollouts.
+	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
+	"train_batch_size": 2**7,
+	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
+	"learning_starts": 1500,
+	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	"prioritized_replay": True,	
+	##############################
+	"dueling": True,
+	"double_q": True,
+	"num_atoms": 21,
+	"v_max": 2**5,
+	"v_min": -1,
 })
 
 ####################################################################################
@@ -61,6 +70,7 @@ print(model.heads_model.summary())
 n = 0
 while True:
 	n += 1
+	last_time = time.time()
 	result = agent.train()
 	# print(result)
 	# results.append(result)
@@ -74,6 +84,6 @@ while True:
 	# episode_data.append(episode)
 	# episode_json.append(json.dumps(episode))
 	# file_name = agent.save(checkpoint_root)
-	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}')
+	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
 	# print(f'Checkpoint saved to {file_name}')
 

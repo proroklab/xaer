@@ -5,6 +5,7 @@ import multiprocessing
 import json
 import shutil
 import ray
+import time
 
 from xarl.agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
 from environments import *
@@ -19,45 +20,35 @@ SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	# "log_level": "INFO",
-	# "model": = {
+	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
 	# },
+	"grad_clip": None,
+	"num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
+	"rollout_fragment_length": 2**3, # Divide episodes into fragments of this many steps each during rollouts.
+	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
+	"train_batch_size": 2**7,
+	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
+	"learning_starts": 1500,
+	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	"prioritized_replay": True,	
+	##############################
 	"dueling": True,
 	"double_q": True,
-	# "n_step": 3,
-	# "noisy": True,
 	"num_atoms": 21,
 	"v_max": 2**5,
 	"v_min": -1,
-	"rollout_fragment_length": 1,
-	"train_batch_size": 2**7,
-	"num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
-	"grad_clip": None,
-	"learning_starts": 1500,
-	# "hiddens": [512],
-	# "exploration_config": {
-	# 	"epsilon_timesteps": 2,
-	# 	"final_epsilon": 0.0,
-	# },
-	# "remote_worker_envs": True, # This will create env instances in Ray actors and step them in parallel. These remote processes introduce communication overheads, so this only helps if your env is very expensive to step / reset.
-	# "num_workers": multiprocessing.cpu_count(),
-	# "training_intensity": 2**4, # default is train_batch_size / rollout_fragment_length
-	# "framework": "torch",
-	########################################################
-	"batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
-	"prioritized_replay": True,
-	########################################################
+	##############################
 	"buffer_options": {
-		'priority_id': "td_errors", # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
+		'priority_id': 'td_errors', # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
 		'priority_can_be_negative': False, # Whether the priority can be negative. By default in DQN and DDPG it cannot while in PPO it can.
 		'priority_aggregation_fn': 'np.mean', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Default None, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-		'global_size': 2**15, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': 2**14, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'min_cluster_size_proportion': 2, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': 0.4, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
-		'eta': None, # A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
+		'eta': 1e-2, # A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0 if beta is > 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
 		'epsilon': 1e-6, # Epsilon to add to a priority so that it is never equal to 0.
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer instead of the one having the lowest timestamp. In DQN default is 0.
 		'update_insertion_time_when_sampling': False, # Whether to update the insertion time batches to the time of sampling. It requires prioritized_drop_probability < 1. In DQN default is False.
@@ -82,9 +73,9 @@ agent = XADQNTrainer(CONFIG, env=SELECT_ENV)
 # Inspect the trained policy and model, to see the results of training in detail
 policy = agent.get_policy()
 model = policy.model
-if model.q_value_head:
+if hasattr(model, 'q_value_head'):
 	print(model.q_value_head.summary())
-if model.heads_model:
+if hasattr(model, 'heads_model'):
 	print(model.heads_model.summary())
 
 # Train a policy. The following code runs 30 iterations and that’s generally enough to begin to see improvements in the “Taxi-v3” problem
@@ -94,6 +85,7 @@ if model.heads_model:
 n = 0
 while True:
 	n += 1
+	last_time = time.time()
 	result = agent.train()
 	# print(result)
 	# results.append(result)
@@ -107,6 +99,6 @@ while True:
 	# episode_data.append(episode)
 	# episode_json.append(json.dumps(episode))
 	# file_name = agent.save(checkpoint_root)
-	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}')
+	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
 	# print(f'Checkpoint saved to {file_name}')
 

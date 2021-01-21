@@ -23,24 +23,21 @@ def get_clustered_replay_buffer(config):
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme
 
-def assign_types(batch, clustering_scheme, replay_sequence_length, with_episode_type=True):
+def assign_types(batch, clustering_scheme, batch_fragment_length, with_episode_type=True):
 	if with_episode_type:
 		batch_list = []
 		for episode in batch.split_by_episode():
-			sub_batch_list = episode.timeslices(replay_sequence_length)
+			sub_batch_list = episode.timeslices(batch_fragment_length) if episode.count > batch_fragment_length else [episode]
 			episode_type = clustering_scheme.get_episode_type(sub_batch_list)
-			# print(episode_type)
 			for sub_batch in sub_batch_list:
 				sub_batch_type = clustering_scheme.get_batch_type(sub_batch, episode_type)
 				get_batch_infos(sub_batch)['batch_type'] = sub_batch_type
-				# sub_batch["infos"][0]['batch_index'] = {}
 			batch_list += sub_batch_list
 		return batch_list
-	sub_batch_list = batch.timeslices(replay_sequence_length)
+	sub_batch_list = batch.timeslices(batch_fragment_length) if batch.count > batch_fragment_length else [batch]
 	for sub_batch in sub_batch_list:
 		sub_batch_type = clustering_scheme.get_batch_type(sub_batch)
 		get_batch_infos(sub_batch)['batch_type'] = sub_batch_type
-		# sub_batch["infos"][0]['batch_index'] = {}
 	return sub_batch_list
 
 def get_update_replayed_batch_fn(local_replay_buffer, local_worker, postprocess_trajectory_fn):

@@ -28,18 +28,6 @@ def apply_to_batch_once(fn, batch_list):
 	}
 	return list(map(lambda x: updated_batch_dict[get_batch_uid(x)], batch_list))
 
-# def apply_to_batch_once(fn, batch_list):
-# 	max_batch_count = max(map(lambda x:x.count, batch_list))
-# 	unique_batch_list = list(unique_everseen(batch_list, key=get_batch_uid))
-# 	unique_batches_concatenated = SampleBatch.concat_samples(unique_batch_list)
-# 	episode_list = fn(unique_batches_concatenated).split_by_episode()
-# 	unique_batch_list = sum((episode.timeslices(max_batch_count) for episode in episode_list), [])
-# 	updated_batch_dict = {
-# 		get_batch_uid(x): fn(x) 
-# 		for x in unique_batch_list
-# 	}
-# 	return list(map(lambda x: updated_batch_dict[get_batch_uid(x)], batch_list))
-
 class LocalReplayBuffer(ParallelIteratorWorker):
 	"""A replay buffer shard.
 
@@ -73,13 +61,12 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		return platform.node()
 
 	def add_batch(self, batch, on_policy=False):
-		batch_type = get_batch_infos(batch)["batch_type"]
-		has_multiple_types = isinstance(batch_type,(tuple,list))
-		# if not self.update_only_sampled_cluster or not has_multiple_types: # Make a copy so the replay buffer doesn't pin plasma memory.
-		# 	batch = batch.copy()
-		# 	batch['infos'] = copy.deepcopy(batch['infos'])
+		# Make a copy so the replay buffer doesn't pin plasma memory.
 		batch = batch.copy()
 		batch['infos'] = copy.deepcopy(batch['infos'])
+		# Get batch's type
+		batch_type = get_batch_infos(batch)["batch_type"]
+		has_multiple_types = isinstance(batch_type,(tuple,list))
 		# Handle everything as if multiagent
 		if isinstance(batch, SampleBatch):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
