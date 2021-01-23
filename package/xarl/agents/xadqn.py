@@ -19,15 +19,19 @@ from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_
 from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
 
 XADQN_EXTRA_OPTIONS = {
-	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
-	"prioritized_replay": True,
+	"rollout_fragment_length": 2**5, # Divide episodes into fragments of this many steps each during rollouts.
+	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
+	"train_batch_size": 2**7, # Number of transitions per train-batch
+	"learning_starts": 1500, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
+	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
+	"batch_mode": "truncate_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	##########################################
 	"buffer_options": {
 		'priority_id': 'td_errors', # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
 		'priority_can_be_negative': False, # Whether the priority can be negative. By default in DQN and DDPG it cannot while in PPO it can.
 		'priority_aggregation_fn': 'np.mean', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Default None, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-		'global_size': 2**14, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': 2**15, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'min_cluster_size_proportion': 2, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': 0.4, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
@@ -42,6 +46,7 @@ XADQN_EXTRA_OPTIONS = {
 	"clustering_scheme": "multiple_types", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "multiple_types_with_reward_against_zero", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": False, # Most useful with sparse-reward environments. Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
+	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XADQN_DEFAULT_CONFIG = DQNTrainer.merge_trainer_configs(
@@ -95,13 +100,8 @@ def xadqn_execution_plan(workers, config):
 	# next() on store_op drives this.
 	store_fn = StoreToReplayBuffer(local_buffer=local_replay_buffer)
 	def store_batch(batch):
-		for rollout_fragment in assign_types(batch, clustering_scheme, config["rollout_fragment_length"], with_episode_type=config["cluster_with_episode_type"]):
-			if rollout_fragment.count > replay_sequence_length:
-				for b in rollout_fragment.timeslices(replay_sequence_length):
-					get_batch_infos(b)['batch_type'] = get_batch_infos(rollout_fragment)['batch_type']
-					store_fn(b)
-			else:
-				store_fn(rollout_fragment)
+		for rollout_fragment in assign_types(batch, clustering_scheme, replay_sequence_length, with_episode_type=config["cluster_with_episode_type"]):
+			store_fn(rollout_fragment)
 		return batch
 	store_op = rollouts.for_each(store_batch)
 
@@ -156,7 +156,10 @@ def xadqn_execution_plan(workers, config):
 	# of (2) since training metrics are not available until (2) runs.
 	train_op = Concurrently([store_op, replay_op], mode="round_robin", output_indexes=[1], round_robin_weights=calculate_rr_weights(config))
 
-	return StandardMetricsReporting(train_op, workers, config).for_each(lambda x: add_buffer_metrics(x,local_replay_buffer))
+	standard_metrics_reporting = StandardMetricsReporting(train_op, workers, config)
+	if config['collect_cluster_metrics']:
+		standard_metrics_reporting = standard_metrics_reporting.for_each(lambda x: add_buffer_metrics(x,local_replay_buffer))
+	return standard_metrics_reporting
 
 XADQNTrainer = DQNTrainer.with_updates(
 	name="XADQN", 

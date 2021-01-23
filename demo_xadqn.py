@@ -25,13 +25,13 @@ CONFIG.update({
 	# },
 	"grad_clip": None,
 	"num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
-	"rollout_fragment_length": 2**3, # Divide episodes into fragments of this many steps each during rollouts.
+	"rollout_fragment_length": 1, # Divide episodes into fragments of this many steps each during rollouts.
 	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
-	"train_batch_size": 2**7,
-	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
+	"train_batch_size": 2**8, # Number of transitions per train-batch
+	'buffer_size': 2**15, # Size of the experience buffer. Default 50000
 	"learning_starts": 1500,
-	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	"prioritized_replay": True,	
+	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	##############################
 	"dueling": True,
 	"double_q": True,
@@ -44,7 +44,7 @@ CONFIG.update({
 		'priority_can_be_negative': False, # Whether the priority can be negative. By default in DQN and DDPG it cannot while in PPO it can.
 		'priority_aggregation_fn': 'np.mean', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Default None, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-		'global_size': 2**14, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
+		'global_size': 2**15, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'min_cluster_size_proportion': 2, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'beta': 0.4, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
@@ -59,6 +59,7 @@ CONFIG.update({
 	"clustering_scheme": "multiple_types", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": False, # Useful with sparse-reward environments. Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
+	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
 })
 
 ####################################################################################
@@ -99,6 +100,6 @@ while True:
 	# episode_data.append(episode)
 	# episode_json.append(json.dumps(episode))
 	# file_name = agent.save(checkpoint_root)
-	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
+	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {result["info"]["num_steps_trained"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
 	# print(f'Checkpoint saved to {file_name}')
 

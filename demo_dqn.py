@@ -9,6 +9,10 @@ import time
 
 from ray.rllib.agents.dqn.dqn import DQNTrainer, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
 from environments import *
+from xarl.models.dqn import TFAdaptiveMultiHeadDQN
+from ray.rllib.models import ModelCatalog
+# Register the models to use.
+ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
 
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-V0"
@@ -21,13 +25,13 @@ CONFIG.update({
 	# },
 	"grad_clip": None,
 	"num_envs_per_worker": 8, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
-	"rollout_fragment_length": 2**3, # Divide episodes into fragments of this many steps each during rollouts.
+	"rollout_fragment_length": 1, # Divide episodes into fragments of this many steps each during rollouts.
 	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
-	"train_batch_size": 2**7,
-	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
+	"train_batch_size": 2**8, # Number of transitions per train-batch
+	'buffer_size': 2**15, # Size of the experience buffer. Default 50000
 	"learning_starts": 1500,
-	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	"prioritized_replay": True,	
+	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	##############################
 	"dueling": True,
 	"double_q": True,
@@ -35,17 +39,6 @@ CONFIG.update({
 	"v_max": 2**5,
 	"v_min": -1,
 })
-
-####################################################################################
-####################################################################################
-
-from xarl.models.dqn import TFAdaptiveMultiHeadDQN
-from ray.rllib.models import ModelCatalog
-# Register the models to use.
-ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
-CONFIG["model"] = {
-	"custom_model": "adaptive_multihead_network",
-}
 
 ####################################################################################
 ####################################################################################
@@ -60,8 +53,10 @@ agent = DQNTrainer(CONFIG, env=SELECT_ENV)
 # Inspect the trained policy and model, to see the results of training in detail
 policy = agent.get_policy()
 model = policy.model
-print(model.q_value_head.summary())
-print(model.heads_model.summary())
+if hasattr(model, 'q_value_head'):
+	print(model.q_value_head.summary())
+if hasattr(model, 'heads_model'):
+	print(model.heads_model.summary())
 
 # Train a policy. The following code runs 30 iterations and that’s generally enough to begin to see improvements in the “Taxi-v3” problem
 # results = []
@@ -84,6 +79,6 @@ while True:
 	# episode_data.append(episode)
 	# episode_json.append(json.dumps(episode))
 	# file_name = agent.save(checkpoint_root)
-	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
+	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {result["info"]["num_steps_trained"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
 	# print(f'Checkpoint saved to {file_name}')
 

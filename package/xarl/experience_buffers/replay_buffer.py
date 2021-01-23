@@ -14,6 +14,7 @@ import psutil  # noqa E402
 
 from xarl.experience_buffers.buffer.pseudo_prioritized_buffer import PseudoPrioritizedBuffer, get_batch_infos, get_batch_indexes, get_batch_uid
 from xarl.experience_buffers.buffer.buffer import Buffer
+from xarl.utils import ReadWriteLock
 
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 from ray.util.iter import ParallelIteratorWorker
@@ -42,7 +43,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
 		self.replay_starts = learning_starts
-		self._buffer_lock = threading.Lock() 
+		self._buffer_lock = ReadWriteLock() 
 
 		ParallelIteratorWorker.__init__(self, None, False)
 
@@ -71,14 +72,13 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		if isinstance(batch, SampleBatch):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
 		with self.add_batch_timer:
+			self.num_added += len(batch.policy_batches)
+			random_type_id = random.choice(batch_type) if has_multiple_types else batch_type
+			self._buffer_lock.acquire_write()
 			for policy_id, b in batch.policy_batches.items():
-				self.num_added += 1
 				# If has_multiple_types is True: no need for duplicating the batch across multiple clusters, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
-				with self._buffer_lock: self.replay_buffers[policy_id].add(
-						batch= b, 
-						type_id= random.choice(batch_type) if has_multiple_types else batch_type,
-						on_policy= on_policy,
-					)
+				self.replay_buffers[policy_id].add(batch=b, type_id=random_type_id, on_policy=on_policy)
+			self._buffer_lock.release_write()
 		return batch
 
 	def can_replay(self):
@@ -98,11 +98,12 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 				if replay_buffer.is_empty():
 					continue
 				# batch_iter = replay_buffer.sample(batch_count)
-				batch_iter = []
-				for _ in range(batch_count//cluster_overview_size):
-					with self._buffer_lock: batch_iter += replay_buffer.sample(cluster_overview_size)
-				if batch_count%cluster_overview_size:
-					with self._buffer_lock: batch_iter += replay_buffer.sample(batch_count%cluster_overview_size)
+				batch_size_list = [cluster_overview_size]*(batch_count//cluster_overview_size)
+				if batch_count%cluster_overview_size > 0:
+					batch_size_list.append(batch_count%cluster_overview_size)
+				self._buffer_lock.acquire_read()
+				batch_iter = sum(map(replay_buffer.sample,batch_size_list), [])
+				self._buffer_lock.release_read()
 				if update_replayed_fn:
 					batch_iter = apply_to_batch_once(update_replayed_fn, batch_iter)
 				for i,batch in enumerate(batch_iter):
@@ -116,9 +117,11 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		if not self.prioritized_replay:
 			return
 		with self.update_priorities_timer:
+			self._buffer_lock.acquire_write()
 			for policy_id, new_batch in prio_dict.items():
 				for type_id,batch_index in get_batch_indexes(new_batch).items():
-					with self._buffer_lock: self.replay_buffers[policy_id].update_priority(new_batch, batch_index, type_id)
+					self.replay_buffers[policy_id].update_priority(new_batch, batch_index, type_id)
+			self._buffer_lock.release_write()
 
 	def stats(self, debug=False):
 		stat = {
@@ -127,7 +130,6 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			"update_priorities_time_ms": round(1000 * self.update_priorities_timer.mean, 3),
 		}
 		for policy_id, replay_buffer in self.replay_buffers.items():
-			# print(replay_buffer.stats(debug=debug))
 			stat.update({
 				policy_id: replay_buffer.stats(debug=debug)
 			})

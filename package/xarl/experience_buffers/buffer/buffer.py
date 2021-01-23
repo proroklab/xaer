@@ -87,14 +87,12 @@ class Buffer(object):
 			self.batches[biggest_cluster].popleft()
 		self.batches[type_].append(batch)
 
-	def sample(self, n=1, remove=False):
+	def sample(self, n=1):
 		type_ = choice(self.type_values)
 		batch_list = [
 			choice(self.batches[type_])
 			for _ in range(n)
 		]
-		if remove:
-			for batch in batch_list: self.batches[type_].remove(batch)
 		return batch_list
 
 	def stats(self, debug=False):

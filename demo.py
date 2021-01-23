@@ -6,6 +6,7 @@ import json
 import shutil
 import ray
 from ray.rllib.models import ModelCatalog
+import time
 
 from environments import *
 
@@ -57,6 +58,7 @@ agent = TRAINER(CONFIG, env=ENVIRONMENT)
 n = 0
 while True:
 	n += 1
+	last_time = time.time()
 	result = agent.train()
 	episode = {
 		'n': n, 
@@ -65,7 +67,7 @@ while True:
 		'episode_reward_max': result['episode_reward_max'],  
 		'episode_len_mean': result['episode_len_mean']
 	}
-	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}')
+	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {result["info"]["num_steps_trained"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
 	# file_name = agent.save(checkpoint_root)
 	# print(f'Checkpoint saved to {file_name}')
 

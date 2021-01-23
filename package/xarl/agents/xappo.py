@@ -54,6 +54,7 @@ XAPPO_EXTRA_OPTIONS = {
 	"clustering_scheme": "multiple_types", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "multiple_types_with_reward_against_zero", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": False, # Most useful with sparse-reward environments. Whether to cluster experience using information at episode-level. It requires "batch_mode" == "complete_episodes".
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
+	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
@@ -250,7 +251,10 @@ def xappo_execution_plan(workers, config):
 			.for_each(lambda t: t[1]) \
 			.for_each(config["after_train_step"](workers, config))
 
-	return StandardMetricsReporting(merged_op, workers, config).for_each(learner_thread.add_learner_metrics).for_each(lambda x: add_buffer_metrics(x,local_replay_buffer))
+	standard_metrics_reporting = StandardMetricsReporting(merged_op, workers, config).for_each(learner_thread.add_learner_metrics)
+	if config['collect_cluster_metrics']:
+		standard_metrics_reporting = standard_metrics_reporting.for_each(lambda x: add_buffer_metrics(x,local_replay_buffer))
+	return standard_metrics_reporting
 
 XAPPOTrainer = APPOTrainer.with_updates(
 	name="XAPPO", 

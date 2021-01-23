@@ -279,30 +279,22 @@ class PseudoPrioritizedBuffer(Buffer):
 		type_id = self.type_keys[sample_type]
 		return type_id, sample_type
 
-	def sample(self, n=1, remove=False): # O(log)
+	def sample(self, n=1): # O(log)
 		type_id, sample_type = self.sample_cluster()
 		type_sum_tree = self._sample_priority_tree[sample_type]
 		type_batch = self.batches[sample_type]
-		batch_list = []
-		for _ in range(n):
-			idx = type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
-			batch = type_batch[idx]
-			# # Remove batch from other clusters if duplicates are still around
-			# for other_type_id, other_idx in tuple(get_batch_indexes(batch).items()):
-			# 	if other_type_id==type_id:
-			# 		continue
-			# 	self.remove_batch(self.get_type(other_type_id), other_idx)
-			# Update weights
-			if self._beta: # Update weights
+		idx_list = [
+			type_sum_tree.find_prefixsum_idx(prefixsum_fn=lambda mass: mass*random()) # O(log)
+			for _ in range(n)
+		]
+		batch_list = [
+			type_batch[idx] # O(1)
+			for idx in idx_list
+		]
+		# Update weights
+		if self._beta: # Update weights
+			for batch,idx in zip(batch_list,idx_list):
 				self.update_beta_weights(batch, idx, sample_type)
-			# Remove from buffer
-			if remove is True:
-				self.remove_batch(sample_type, idx)
-			# Set insertion time
-			elif self._update_insertion_time_when_sampling and self._prioritized_drop_probability < 1:
-				# this batch's priority is going to be updated so it makes sense to update its timestamp as well, before it's removed from batch because too old
-				self._insertion_time_tree[sample_type][idx] = (time.time(), idx) # O(log)
-			batch_list.append(batch)
 		return batch_list
 
 	def update_beta_weights(self, batch, idx, sample_type):
