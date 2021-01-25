@@ -14,8 +14,9 @@ from ray.rllib.utils.tf_ops import explained_variance as tf_explained_variance
 from ray.rllib.utils.torch_ops import explained_variance as torch_explained_variance
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
+from ray.rllib.policy.view_requirement import ViewRequirement
 
-from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types, add_buffer_metrics
+from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types, add_buffer_metrics, clean_batch
 from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
 
 XADQN_EXTRA_OPTIONS = {
@@ -45,7 +46,7 @@ XADQN_EXTRA_OPTIONS = {
 	},
 	"clustering_scheme": "multiple_types_with_reward_against_mean", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "multiple_types_with_reward_against_zero", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": False, # Perhaps of most use with sparse-reward environments. Whether to cluster experience using information at episode-level.
-	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
+	"cluster_overview_size": 2, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
@@ -65,7 +66,8 @@ def xa_postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None)
 		_adjust_nstep(policy.config["n_step"], policy.config["gamma"], batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES])
 	if 'weights' not in batch:
 		batch['weights'] = np.ones_like(batch[SampleBatch.REWARDS])
-	batch.data["td_errors"] = policy.compute_td_error(batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES], batch['weights'])
+	if policy.config["buffer_options"]["priority_id"] == "td_errors":
+		batch["td_errors"] = policy.compute_td_error(batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS], batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS], batch[SampleBatch.DONES], batch['weights'])
 	return batch
 
 XADQNTFPolicy = DQNTFPolicy.with_updates(
@@ -93,6 +95,11 @@ def xadqn_execution_plan(workers, config):
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	local_worker = workers.local_worker()
 
+	for policy in local_worker.policy_map.values():
+		policy.view_requirements[SampleBatch.INFOS] = ViewRequirement(SampleBatch.INFOS, shift=0)
+		if policy.config["buffer_options"]["priority_id"] == "td_errors":
+			policy.view_requirements["td_errors"] = ViewRequirement("td_errors", shift=0)
+
 	rollouts = ParallelRollouts(workers, mode="bulk_sync")
 
 	# We execute the following steps concurrently:
@@ -113,6 +120,7 @@ def xadqn_execution_plan(workers, config):
 		if not config.get("prioritized_replay"):
 			return info_dict
 		priority_id = config["buffer_options"]["priority_id"]
+		samples = clean_batch(samples, keys_to_keep=[priority_id,'infos'], keep_only_keys_to_keep=True)
 		if priority_id == "td_errors":
 			for policy_id, info in info_dict.items():
 				samples.policy_batches[policy_id]["td_errors"] = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))

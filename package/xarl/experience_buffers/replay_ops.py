@@ -55,6 +55,22 @@ def get_update_replayed_batch_fn(local_replay_buffer, local_worker, postprocess_
 		return samples
 	return update_replayed_fn
 
+def clean_batch(batch, keys_to_keep=None, keep_only_keys_to_keep=False):
+	if isinstance(batch, MultiAgentBatch):
+		for b in batch.policy_batches.values():
+			for k,v in list(b.data.items()):
+				if keys_to_keep and k in keys_to_keep:
+					continue
+				if keep_only_keys_to_keep or not isinstance(v, np.ndarray):
+					del b.data[k]
+	else:
+		for k,v in list(batch.data.items()):
+			if keys_to_keep and k in keys_to_keep:
+				continue
+			if keep_only_keys_to_keep or not isinstance(v, np.ndarray):
+				del batch.data[k]
+	return batch
+
 def add_buffer_metrics(results, buffer):
 	results['buffer']=buffer.stats()
 	return results

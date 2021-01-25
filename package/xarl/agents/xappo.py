@@ -15,6 +15,7 @@ from ray.rllib.agents.ppo.ppo_tf_policy import vf_preds_fetches
 from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
+from ray.rllib.evaluation.postprocessing import compute_advantages
 
 from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn, xa_make_learner_thread, add_buffer_metrics
 from xarl.utils.misc import accumulate
@@ -23,6 +24,7 @@ from xarl.agents.xappo_loss.xappo_torch_loss import xappo_surrogate_loss as torc
 from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
 
 XAPPO_EXTRA_OPTIONS = {
+	"_use_trajectory_view_api": False, # important
 	# "lambda": .95, # GAE(lambda) parameter. Taking lambda < 1 introduces bias only when the value function is inaccurate.
 	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	# "vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
@@ -53,7 +55,7 @@ XAPPO_EXTRA_OPTIONS = {
 	},
 	"clustering_scheme": "multiple_types", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "multiple_types_with_reward_against_zero", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": False, # Most useful with sparse-reward environments. Whether to cluster experience using information at episode-level. It requires "batch_mode" == "complete_episodes".
-	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
+	"cluster_overview_size": 2, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
@@ -125,17 +127,30 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 	sample_batch["action_importance_ratio"] = np.exp(action_logp - old_action_logp)
 	# Add advantages, do it after computing action_importance_ratio (used by gae-v)
 	if policy.config["update_advantages_when_replaying"] or Postprocessing.ADVANTAGES not in sample_batch:
-		completed = sample_batch["dones"][-1]
-		if completed:
+		if sample_batch[SampleBatch.DONES][-1]:
 			last_r = 0.0
+		# Trajectory has been truncated -> last r=VF estimate of last obs.
 		else:
-			next_state = []
-			for i in range(policy.num_state_tensors()):
-				next_state.append([sample_batch["state_out_{}".format(i)][-1]])
-			last_r = policy._value(sample_batch[SampleBatch.NEXT_OBS][-1],
-								   sample_batch[SampleBatch.ACTIONS][-1],
-								   sample_batch[SampleBatch.REWARDS][-1],
-								   *next_state)
+			# Input dict is provided to us automatically via the Model's
+			# requirements. It's a single-timestep (last one in trajectory)
+			# input_dict.
+			if policy.config["_use_trajectory_view_api"]:
+				# Create an input dict according to the Model's requirements.
+				input_dict = policy.model.get_input_dict(sample_batch, index=-1)
+				last_r = policy._value(**input_dict)
+			# TODO: (sven) Remove once trajectory view API is all-algo default.
+			else:
+				next_state = []
+				for i in range(policy.num_state_tensors()):
+					next_state.append(sample_batch["state_out_{}".format(i)][-1])
+				last_r = policy._value(sample_batch[SampleBatch.NEXT_OBS][-1],
+									   sample_batch[SampleBatch.ACTIONS][-1],
+									   sample_batch[SampleBatch.REWARDS][-1],
+									   *next_state)
+
+		# Adds the policy logits, VF preds, and advantages to the batch,
+		# using GAE ("generalized advantage estimation") or not.
+		
 		if not policy.config["vtrace"] and policy.config["gae_with_vtrace"]:
 			sample_batch = compute_gae_v_advantages(
 				sample_batch, 
@@ -150,7 +165,7 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 				policy.config["gamma"],
 				policy.config["lambda"],
 				use_gae=policy.config["use_gae"],
-				use_critic=policy.config["use_critic"]
+				use_critic=policy.config.get("use_critic", True)
 			)
 	# Add gains
 	sample_batch['gains'] = sample_batch['action_importance_ratio'] * sample_batch[Postprocessing.ADVANTAGES]

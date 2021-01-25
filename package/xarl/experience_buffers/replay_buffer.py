@@ -58,9 +58,6 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		self.update_priorities_timer = TimerStat()
 		self.num_added = 0
 
-	def get_host(self):
-		return platform.node()
-
 	def add_batch(self, batch, on_policy=False):
 		# Make a copy so the replay buffer doesn't pin plasma memory.
 		batch = batch.copy()
@@ -112,6 +109,29 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 			for samples in batch_list
 		)
+
+	def replay_n_concatenate(self, batch_count=1, cluster_overview_size=None, update_replayed_fn=None):
+		if not self.can_replay():
+			return None
+		if not cluster_overview_size:
+			cluster_overview_size = batch_count
+		else:
+			cluster_overview_size = min(cluster_overview_size,batch_count)
+
+		with self.replay_timer:
+			samples = {}
+			for policy_id, replay_buffer in self.replay_buffers.items():
+				# batch_iter = replay_buffer.sample(batch_count)
+				batch_size_list = [cluster_overview_size]*(batch_count//cluster_overview_size)
+				if batch_count%cluster_overview_size > 0:
+					batch_size_list.append(batch_count%cluster_overview_size)
+				self._buffer_lock.acquire_read()
+				batch_iter = sum(map(replay_buffer.sample,batch_size_list), [])
+				self._buffer_lock.release_read()
+				if update_replayed_fn:
+					batch_iter = apply_to_batch_once(update_replayed_fn, batch_iter)
+				samples[policy_id] = SampleBatch.concat_samples(batch_iter)
+			return MultiAgentBatch(samples, max(map(lambda x:x.count, samples.values())))
 
 	def update_priorities(self, prio_dict):
 		if not self.prioritized_replay:

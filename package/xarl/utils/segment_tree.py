@@ -34,6 +34,19 @@ class SegmentTree(object):
 		self._neutral_element = neutral_element
 		self.inserted_elements = 0
 
+	def resize(self, new_capacity):
+		if new_capacity == self._capacity:
+			return
+		assert new_capacity > 0 and new_capacity & (new_capacity - 1) == 0, "new capacity must be positive and a power of 2."
+		# assert self.inserted_elements <= new_capacity, "cannot resize because new_capacity is lower than inserted_elements"
+		old_value = self._value
+		old_capacity = self._capacity
+		self._value = [neutral_element for _ in range(2 * new_capacity)]
+		self._capacity = new_capacity
+		self.inserted_elements = 0
+		for i,v in enumerate(old_value[:min(old_capacity,new_capacity)]):
+			self[i] = v
+
 	def reduce(self, start=0, end=None):
 		"""Applies `self._operation` to subsequence of our values.
 		Subsequence is contiguous, includes `start` and excludes `end`.
@@ -47,9 +60,9 @@ class SegmentTree(object):
 				range of `self._value` elements.
 		"""
 		if end is None:
-			end = self._capacity
+			end = self.inserted_elements
 		elif end < 0:
-			end += self._capacity
+			end += self.inserted_elements
 
 		# Init result with neutral element.
 		result = self._neutral_element
@@ -142,6 +155,13 @@ class SumSegmentTree(SegmentTree):
 		)
 		self.min_tree = MinSegmentTree(capacity, neutral_element=(float('inf'),-1)) if with_min_tree else None
 		self.max_tree = MaxSegmentTree(capacity, neutral_element=(float('-inf'),-1)) if with_max_tree else None
+
+	def resize(self, new_capacity):
+		super().resize(new_capacity)
+		if self.min_tree:
+			self.min_tree.resize(new_capacity)
+		if self.max_tree:
+			self.max_tree.resize(new_capacity)
 	
 	@staticmethod
 	def _operation(a, b):
@@ -154,15 +174,11 @@ class SumSegmentTree(SegmentTree):
 		if self.max_tree:
 			self.max_tree[idx] = (val,idx) if val is not None else None
 
-	def sum(self, start=0, end=None, scaled=True): # O(log)
+	def sum(self, start=0, end=None): # O(log)
 		"""Returns arr[start] + ... + arr[end]"""
-		assert not scaled or self.min_tree, "Need a min_tree for scaling"
-		tot = super(SumSegmentTree, self).reduce(start, end)
-		if scaled:
-			tot -= self.min_tree.min()[0]*self.inserted_elements
-		return tot
+		return super(SumSegmentTree, self).reduce(start, end)
 
-	def find_prefixsum_idx(self, prefixsum_fn): # O(log)
+	def find_prefixsum_idx(self, prefixsum_fn, check_min=True): # O(log)
 		"""Find the highest index `i` in the array such that
 			sum(arr[0] + arr[1] + ... + arr[i - i]) <= prefixsum
 		if array values are probabilities, this function
@@ -179,13 +195,14 @@ class SumSegmentTree(SegmentTree):
 		"""
 		if self.inserted_elements == 1:
 			return 0
-		if self.min_tree:
+		if self.min_tree and check_min:
 			min_p = self.min_tree.min()[0] # O(log)
 			scaled_prefix = min_p < 0
 		else:
 			scaled_prefix = False
-		mass = self.sum(scaled=scaled_prefix) # O(log)
+		mass = self.sum() # O(log)
 		if scaled_prefix: # Use it in case of negative elements in the sumtree, they would break the tree invariant
+			mass -= min_p*self.inserted_elements # scale mass by min priority
 			minimum = min(self._neutral_element, min_p)
 			summed_elements = self._capacity
 		prefixsum = prefixsum_fn(mass)
@@ -205,7 +222,9 @@ class SumSegmentTree(SegmentTree):
 			else:
 				prefixsum -= value
 				idx = update_idx + 1
-		return idx - self._capacity
+		idx -= self._capacity
+		assert idx < self.inserted_elements, f"{idx} has to be lower than {self.inserted_elements}"
+		return idx
 	
 class MinSegmentTree(SegmentTree):
 	def __init__(self, capacity, neutral_element=float('inf')):
@@ -243,8 +262,8 @@ class MaxSegmentTree(SegmentTree):
 # test[3] = -5
 # test[0] = 1
 # test[1] = 2
-# print('unscaled', test.sum(scaled=False))
-# print('scaled', test.sum(scaled=True), test.sum(scaled=True)+test.min_tree.min()[0]*test.inserted_elements)
+# print('unscaled', test.sum())
+# print('scaled', test.sum()-test.min_tree.min()[0]*test.inserted_elements)
 # i = test.find_prefixsum_idx(lambda x:23)
 # print(i,test[i] )
 

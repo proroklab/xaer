@@ -7,7 +7,7 @@ import uuid
 logger = logging.getLogger(__name__)
 
 class Buffer(object):
-	__slots__ = ('cluster_size','global_size','types','batches','type_values','type_keys')
+	# __slots__ = ('cluster_size','global_size','types','batches','type_values','type_keys')
 	
 	def __init__(self, cluster_size=None, global_size=50000, **args):
 		assert cluster_size or global_size, 'At least one of cluster_size or global_size shall be set greater than 0.'
