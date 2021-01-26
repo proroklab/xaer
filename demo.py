@@ -22,10 +22,14 @@ def get_algorithm_by_name(alg_name):
 		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
 		return XADQN_DEFAULT_CONFIG.copy(), XADQNTrainer
 	if alg_name == 'ddpg':
+		from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
 		from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAULT_CONFIG
+		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 		return DDPG_DEFAULT_CONFIG.copy(), DDPGTrainer
 	if alg_name == 'xaddpg':
+		from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
 		from xarl.agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
+		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 		return XADDPG_DEFAULT_CONFIG.copy(), XADDPGTrainer
 	if alg_name == 'appo':
 		from ray.rllib.agents.ppo.appo import APPOTrainer, DEFAULT_CONFIG as APPO_DEFAULT_CONFIG

@@ -20,7 +20,6 @@ SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = DQN_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	# "framework": "torch",
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
 	# },

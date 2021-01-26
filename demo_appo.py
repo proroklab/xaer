@@ -9,6 +9,9 @@ import time
 
 from ray.rllib.agents.ppo.appo import APPOTrainer, DEFAULT_CONFIG as APPO_DEFAULT_CONFIG
 from environments import *
+from ray.rllib.models import ModelCatalog
+from xarl.models.appo import TFAdaptiveMultiHeadNet
+ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
 
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-V0"
@@ -30,17 +33,6 @@ CONFIG.update({
 	"replay_proportion": 2, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 	"replay_buffer_num_slots": 2**13, # Maximum number of batches stored in the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
 })
-
-####################################################################################
-####################################################################################
-
-from xarl.models.appo import TFAdaptiveMultiHeadNet
-from ray.rllib.models import ModelCatalog
-# Register the models to use.
-ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
-CONFIG["model"] = {
-	"custom_model": "adaptive_multihead_network",
-}
 
 ####################################################################################
 ####################################################################################
