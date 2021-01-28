@@ -23,12 +23,12 @@ CONFIG.update({
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
 	# },
-	"num_envs_per_worker": 2**3, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
+	# "num_envs_per_worker": 2**3, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
 	"grad_clip": None,
 	##################################
-	"rollout_fragment_length": 2**3, # Divide episodes into fragments of this many steps each during rollouts.
+	"rollout_fragment_length": 2**6, # Divide episodes into fragments of this many steps each during rollouts.
 	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
-	"train_batch_size": 2**9, # Number of transitions per train-batch
+	"train_batch_size": 2**8, # Number of transitions per train-batch
 	"learning_starts": 1500, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	"batch_mode": "truncate_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
@@ -58,7 +58,7 @@ CONFIG.update({
 	},
 	"clustering_scheme": "multiple_types_with_reward_against_mean", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "multiple_types_with_reward_against_zero", "type_with_reward_against_mean", "multiple_types", "type".
 	"cluster_with_episode_type": False, # Perhaps of most use with sparse-reward environments. Whether to cluster experience using information at episode-level.
-	"cluster_overview_size": 2, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
+	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
 })
 
