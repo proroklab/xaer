@@ -9,6 +9,7 @@ from matplotlib.lines import Line2D
 
 from environments.car_controller.utils import *
 from environments.car_controller.graph_drive.lib.roads import *
+from environments.car_controller.grid_drive.lib.road_cultures import EasyRoadCulture
 import random
 import gym
 
@@ -37,6 +38,7 @@ class GraphDriveEasy(gym.Env):
 	max_dimension = 64
 	map_size = (max_dimension, max_dimension)
 	max_road_length = max_dimension*2/3
+	CULTURE = EasyRoadCulture
 
 	def get_state_shape(self):
 		return [
@@ -89,10 +91,6 @@ class GraphDriveEasy(gym.Env):
 		# print(distance_from_junction, self.junction_around)
 		if distance_from_junction > self.junction_around:
 			# "Valid colour" rule
-			valid_colour = self.closest_road.colour in self.car_feasible_colours
-			# print(self.distance_to_closest_road, self.max_distance_to_path, valid_colour)
-			if not valid_colour:
-				return terminal_reward(is_positive=False, label='valid_colour')
 			# "Stay on the road" rule
 			if self.distance_to_closest_road > 2*self.max_distance_to_path: 
 				return terminal_reward(is_positive=False, label='stay_on_the_road')
@@ -111,6 +109,28 @@ class GraphDriveEasy(gym.Env):
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
 		self.road_network = RoadNetwork(map_size=self.map_size, max_road_length=self.max_road_length)
 		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
+
+		self.culture = self.CULTURE(road_options={
+			'motorway': 1/2,
+			'stop_sign': 1/2,
+			'school': 1/2,
+			'single_lane': 1/2,
+			'town_road': 1/2,
+			'roadworks': 1/8,
+			'accident': 1/8,
+			'heavy_rain': 1/2,
+			'congestion_charge': 1/8,
+		}, agent_options={
+			'emergency_vehicle': 1/5,
+			'heavy_vehicle': 1/4,
+			'worker_vehicle': 1/3,
+			'tasked': 1/2,
+			'paid_charge': 1 / 2,
+			'speed': self.MAX_SPEED,
+		})
+		self.obs_road_features = len(self.culture.properties)  # Number of binary ROAD features in Hard Culture
+		self.obs_car_features = len(
+			self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
 		# Spaces
 		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32) # steering angle, continuous control without softmax
 		self.observation_space = gym.spaces.Tuple([
@@ -154,11 +174,12 @@ class GraphDriveEasy(gym.Env):
 		self._step = 0
 		###########################
 		self.seconds_per_step = self.get_step_seconds()
-		self.car_colour = random.choice(RoadNetwork.all_road_colours)
-		self.normalised_car_colour = RoadNetwork.all_road_colours.index(self.car_colour)/len(RoadNetwork.all_road_colours)
-		self.car_feasible_colours = self.road_network.feasible_road_colours(self.car_colour)
+		# self.car_colour = random.choice(RoadNetwork.all_road_colours)
+		# self.normalised_car_colour = RoadNetwork.all_road_colours.index(self.car_colour)/len(RoadNetwork.all_road_colours)
+		# self.car_feasible_colours = self.road_network.feasible_road_colours(self.car_colour)
+
 		# car position
-		self.car_point = self.road_network.set(self.junction_number, self.car_colour)
+		self.car_point = self.road_network.set(self.junction_number)
 		self.car_orientation = (2*np.random.random()-1)*np.pi # in [-pi,pi]
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		# speed limit
