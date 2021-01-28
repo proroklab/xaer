@@ -1,5 +1,8 @@
 import numpy as np
 from collections import deque
+from ...grid_drive.lib.road_cultures import * # FIXME: Move RoadCultures to a more generic location.
+from ...grid_drive.lib.road_cell import RoadCell
+from ...grid_drive.lib.road_agent import RoadAgent
 from environments.car_controller.utils import *
 from environments.car_controller.graph_drive.lib.simple_culture import SimpleCulture
 from environments.utils.random_planar_graph.GenerateGraph import get_random_planar_graph, default_seed
@@ -24,16 +27,16 @@ class Junction:
 			self.roads_connected.append(road)
 		return True
 
-class Road:
-	def __init__(self, start: Junction, end: Junction, colour="Grey", connect=False):
+class Road(RoadCell):
+	def __init__(self, start: Junction, end: Junction, connect=False):
 		# arbitrary sorting by x-coordinate to avoid mirrored duplicates
+		super().__init__()
 		if start.pos[0] < end.pos[0]:
 			start, end = end, start
 		self.orientation = np.arctan2(end.pos[1] - start.pos[1], end.pos[0] - start.pos[0]) # get slope
 		self.start = start
 		self.end = end
 		self.edge = (start.pos, end.pos)
-		self.colour = colour
 		self.is_connected = False
 		if connect:
 			if self.start.can_connect() and self.end.can_connect():
@@ -60,18 +63,31 @@ class Road:
 		return road_b_orientation_relative_to_source
 
 class RoadNetwork:
-	all_road_colours = ["Grey", "Purple", "Orange", "Olive", "Brown"]
 
-	def __init__(self, map_size=(50, 50), max_road_length=15, min_junction_distance=None):
+	def __init__(self, culture, map_size=(50, 50), max_road_length=15, min_junction_distance=None):
 		self.junctions = []
 		self.roads = []
 		self.map_size = map_size
 		self.max_road_length = max_road_length
+		self.agent = RoadAgent()
 		if min_junction_distance is None:
 			self.min_junction_distance = map_size[0]/8
 		else:
 			self.min_junction_distance = min_junction_distance
-		self.culture = SimpleCulture()
+		self.road_culture = culture
+		self.road_culture.initialise_random_agent(self.agent)
+
+	def normalise_speed(self, min, max, current):
+		"""
+		Normalises speed from Euclidean m/s to nominal speeds used in the culture rules (0-100)
+		Args:
+			min: min speed in m/s
+			max: max speed in m/s
+			current: current speed in m/s
+
+		Returns: speed normalised to range (0-120)
+		"""
+		return 120 * ((current - min) / (max - min))
 
 	def add_junction(self, junction):
 		if junction not in self.junctions:
@@ -129,20 +145,7 @@ class RoadNetwork:
 			), key=lambda x:x[0]
 		)
 
-	def feasible_road_colours(self, agent_colour):
-		feasible_colours = set()
-		AF = self.culture.AF
-		for road_colour in self.all_road_colours:
-			challenged = False
-			for arg_id in AF.arguments_that_attack(0): # Arguments that attack the motion.
-				if AF.argument(arg_id).verify(agent_colour, road_colour):
-					challenged = True
-					break
-			if not challenged:
-				feasible_colours.add(road_colour)
-		return list(feasible_colours)
-
-	def set(self, nodes_amount, agent_colour):
+	def set(self, nodes_amount):
 		self.junctions = []
 		self.roads = []
 		random_planar_graph = get_random_planar_graph({
@@ -161,14 +164,14 @@ class RoadNetwork:
 		self.junction_dict = dict(zip(random_planar_graph['nodes'], map(Junction, random_planar_graph['nodes'])))
 		self.junctions = tuple(self.junction_dict.values())
 		spanning_tree_set = set(random_planar_graph['spanning_tree'])
-		feasible_colours = self.feasible_road_colours(agent_colour)
 		# print('edges', random_planar_graph['edges'])
 		for edge in random_planar_graph['edges']:
 			p1,p2 = edge
 			j1 = self.junction_dict[p1]
 			j2 = self.junction_dict[p2]
-			colour = random.choice(feasible_colours if edge in spanning_tree_set else self.all_road_colours)
-			road = Road(j1, j2, colour=colour, connect=True)
+			road = Road(j1, j2, connect=True)
+			road.set_culture(self.road_culture)
+			self.road_culture.initialise_random_road(road)
 			self.roads.append(road)
 		starting_point = random.choice(random_planar_graph['spanning_tree'])[0]
 		return starting_point

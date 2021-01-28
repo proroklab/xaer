@@ -1,7 +1,7 @@
 import numpy as np
 
 class RoadCell:
-    def __init__(self, i, j):
+    def __init__(self, i=-1, j=-1):
         self.current_position = (i, j)
         self.road_culture = None
         pass
