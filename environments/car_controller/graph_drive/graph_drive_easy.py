@@ -123,7 +123,6 @@ class GraphDriveEasy(gym.Env):
 		return (p[0]/GraphDriveEasy.map_size[0], p[1]/GraphDriveEasy.map_size[1])
 
 	def get_view(self, source_point, source_orientation): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
-		# get road view
 		source_x, source_y = source_point
 		j1, j2 = self.closest_junctions
 		# Get road view

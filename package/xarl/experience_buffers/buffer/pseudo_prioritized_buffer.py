@@ -16,7 +16,7 @@ get_batch_indexes = lambda x: get_batch_infos(x)['batch_index']
 get_batch_uid = lambda x: get_batch_infos(x)['batch_uid']
 
 class PseudoPrioritizedBuffer(Buffer):
-	# __slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_eta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_update_insertion_time_when_sampling','_cluster_level_weighting','_min_cluster_size_proportion','_priority_can_be_negative')
+	# __slots__ = ('_priority_id','_priority_aggregation_fn','_alpha','_beta','_eta','_epsilon','_prioritized_drop_probability','_global_distribution_matching','_it_capacity','_sample_priority_tree','_drop_priority_tree','_insertion_time_tree','_prioritised_cluster_sampling','_prioritised_cluster_sampling_strategy','_cluster_level_weighting','_min_cluster_size_proportion','_priority_can_be_negative')
 	
 	def __init__(self, 
 		priority_id,
@@ -30,7 +30,6 @@ class PseudoPrioritizedBuffer(Buffer):
 		prioritized_drop_probability=0.5, 
 		global_distribution_matching=False, 
 		prioritised_cluster_sampling_strategy='highest',
-		update_insertion_time_when_sampling=False,
 		cluster_level_weighting=True,
 		min_cluster_size_proportion=0.5,
 		priority_can_be_negative=True,
@@ -49,7 +48,6 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._global_distribution_matching = global_distribution_matching
 		self._prioritised_cluster_sampling = prioritised_cluster_sampling_strategy is not None
 		self._prioritised_cluster_sampling_strategy = prioritised_cluster_sampling_strategy
-		self._update_insertion_time_when_sampling = update_insertion_time_when_sampling
 		self._cluster_level_weighting = cluster_level_weighting
 		self._min_cluster_size_proportion = min_cluster_size_proportion
 		super().__init__(cluster_size=cluster_size, global_size=global_size)
