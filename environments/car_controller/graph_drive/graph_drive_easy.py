@@ -9,6 +9,7 @@ from matplotlib.lines import Line2D
 
 from environments.car_controller.utils import *
 from environments.car_controller.graph_drive.lib.roads import *
+from environments.car_controller.grid_drive.lib.road_cultures import EasyRoadCulture
 import random
 import gym
 
@@ -37,45 +38,49 @@ class GraphDriveEasy(gym.Env):
 	max_dimension = 64
 	map_size = (max_dimension, max_dimension)
 	max_road_length = max_dimension*2/3
+	CULTURE = EasyRoadCulture
 
 	def get_state_shape(self):
 		return [
-			{
+			{  # Beginning and end of closest road to the agent (the one it's driving on)
 				'low': -15,
 				'high': 15,
 				'shape': (1, 2, 2), # current road view: relative coordinates of road.start.pos and road.end.pos
 			},
-			{
+			{  # Junctions
 				'low': -15,
 				'high': 15,
 				'shape': ( # closest junctions view
 					2, # number of junctions close to current road
 					Junction.max_roads_connected, 
-					1+1, # relative heading vector + road colour
+					1 + self.obs_road_features,  # relative heading vector + road features
 				),
 			},
-			{
+			{  # Agent features
 				'low': -1,
 				'high': self.max_speed/self.speed_lower_limit,
-				'shape': (self.get_concatenation_size(),)
+				'shape': (self.get_concatenation_size() + self.obs_car_features + self.obs_road_features,)
 			},
 		]
 
 	def get_state(self, car_point, car_orientation):
 		return (
 			*self.get_view(car_point, car_orientation), 
-			self.get_concatenation()
+			np.concatenate([self.get_concatenation(),
+							self.road_network.agent.binary_features(), self.closest_road.binary_features()],
+						    axis=-1),
+
+
 		)
 
 	def get_concatenation_size(self):
-		return 4
+		return 3
 		
 	def get_concatenation(self):
 		return np.array((
 			self.steering_angle/self.max_steering_angle, 
 			self.speed/self.max_speed, 
 			self.speed/self.speed_upper_limit,
-			self.normalised_car_colour,
 		), dtype=np.float32)
 
 	def get_reward(self, car_speed, car_point, old_car_point): # to finish
@@ -89,10 +94,6 @@ class GraphDriveEasy(gym.Env):
 		# print(distance_from_junction, self.junction_around)
 		if distance_from_junction > self.junction_around:
 			# "Valid colour" rule
-			valid_colour = self.closest_road.colour in self.car_feasible_colours
-			# print(self.distance_to_closest_road, self.max_distance_to_path, valid_colour)
-			if not valid_colour:
-				return terminal_reward(is_positive=False, label='valid_colour')
 			# "Stay on the road" rule
 			if self.distance_to_closest_road > 2*self.max_distance_to_path: 
 				return terminal_reward(is_positive=False, label='stay_on_the_road')
@@ -110,12 +111,45 @@ class GraphDriveEasy(gym.Env):
 		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
-		self.road_network = RoadNetwork(map_size=self.map_size, max_road_length=self.max_road_length)
+
+		self.culture = self.CULTURE(road_options={
+			'motorway': 1/2,
+			'stop_sign': 1/2,
+			'school': 1/2,
+			'single_lane': 1/2,
+			'town_road': 1/2,
+			'roadworks': 1/8,
+			'accident': 1/8,
+			'heavy_rain': 1/2,
+			'congestion_charge': 1/8,
+		}, agent_options={
+			'emergency_vehicle': 1/5,
+			'heavy_vehicle': 1/4,
+			'worker_vehicle': 1/3,
+			'tasked': 1/2,
+			'paid_charge': 1 / 2,
+			'speed': 120,
+		})
+		self.road_network = RoadNetwork(self.culture, map_size=self.map_size, max_road_length=self.max_road_length)
 		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
+		self.obs_road_features = len(self.culture.properties)  # Number of binary ROAD features in Hard Culture
+		self.obs_car_features = len(
+			self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
+		# # Spaces
+		# self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32) # steering angle, continuous control without softmax
+		# shapes = [gym.spaces.Box(**shape, dtype=np.float32) for shape in self.get_state_shape()]
+		# features = gym.spaces.Dict({
+		# 	"cnn": gym.spaces.Dict({
+		# 		"grid": gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, self.obs_road_features+2]), # Features representing the grid + visited cells + current position
+		# 	}),
+		# 	"fc": gym.spaces.Dict(fc_dict),
+		# })
+		# self.observation_space = gym.spaces.Tuple(shapes, )
 		# Spaces
-		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32) # steering angle, continuous control without softmax
+		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,),
+										   dtype=np.float32)  # steering angle, continuous control without softmax
 		self.observation_space = gym.spaces.Tuple([
-			gym.spaces.Box(**shape, dtype=np.float32) 
+			gym.spaces.Box(**shape, dtype=np.float32)
 			for shape in self.get_state_shape()
 		])
 
@@ -130,6 +164,7 @@ class GraphDriveEasy(gym.Env):
 		road_view = ( # 4x2
 			j1.pos,
 			j2.pos,
+			# *self.closest_road.binary_features(),
 		)
 		road_view = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_view)
 		road_view = map(self.normalize_point, road_view) # in [-1,1]
@@ -140,12 +175,14 @@ class GraphDriveEasy(gym.Env):
 			[
 				(
 					(road.get_orientation_relative_to(source_orientation) % two_pi)/two_pi, # in [0,1]
-					RoadNetwork.all_road_colours.index(road.colour)/len(RoadNetwork.all_road_colours), # in [0,1]
+					*road.binary_features(),
+					# RoadNetwork.all_road_colours.index(road.colour)/len(RoadNetwork.all_road_colours), # in [0,1]
 				)
 				for road in j.roads_connected
-			] + [(-1,-1)]*(Junction.max_roads_connected-len(j.roads_connected))
+			] + [(-1,*[-1]*self.obs_road_features)]*(Junction.max_roads_connected-len(j.roads_connected))
 			for j in (j1,j2)
 		], dtype=np.float32)
+		# print(junction_view.shape)
 		return road_view, junction_view
 	
 	def reset(self):
@@ -154,11 +191,12 @@ class GraphDriveEasy(gym.Env):
 		self._step = 0
 		###########################
 		self.seconds_per_step = self.get_step_seconds()
-		self.car_colour = random.choice(RoadNetwork.all_road_colours)
-		self.normalised_car_colour = RoadNetwork.all_road_colours.index(self.car_colour)/len(RoadNetwork.all_road_colours)
-		self.car_feasible_colours = self.road_network.feasible_road_colours(self.car_colour)
+		# self.car_colour = random.choice(RoadNetwork.all_road_colours)
+		# self.normalised_car_colour = RoadNetwork.all_road_colours.index(self.car_colour)/len(RoadNetwork.all_road_colours)
+		# self.car_feasible_colours = self.road_network.feasible_road_colours(self.car_colour)
+
 		# car position
-		self.car_point = self.road_network.set(self.junction_number, self.car_colour)
+		self.car_point = self.road_network.set(self.junction_number)
 		self.car_orientation = (2*np.random.random()-1)*np.pi # in [-pi,pi]
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		# speed limit
