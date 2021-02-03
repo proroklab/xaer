@@ -161,13 +161,13 @@ class GraphDriveEasy(gym.Env):
 		source_x, source_y = source_point
 		j1, j2 = self.closest_junctions
 		# Get road view
-		road_view = ( # 2x2
+		road_points = ( # 2x2
 			j1.pos,
 			j2.pos,
 		)
-		road_view = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_view)
-		road_view = map(self.normalize_point, road_view) # in [-1,1]
-		road_view = sum(road_view,()) + self.closest_road.binary_features() + (1 if self.closest_road.id in self.already_visited_roads else 0,)
+		road_points = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_points)
+		road_points = map(self.normalize_point, road_points) # in [-1,1]
+		road_view = sum(road_points,()) + self.closest_road.binary_features() + (1 if self.closest_road.id in self.already_visited_roads else 0,)
 		road_view = np.array(road_view, dtype=np.float32)
 		# Get junction view
 		junction_view = np.array([ # 2 x Junction.max_roads_connected x (1+1)
@@ -178,7 +178,13 @@ class GraphDriveEasy(gym.Env):
 					1 if road.id in self.already_visited_roads else 0, # whether road has been previously visited
 				)
 				for road in j.roads_connected
-			] + [(-1,*[-1]*self.obs_road_features,-1)]*(Junction.max_roads_connected-len(j.roads_connected))
+			] + [ # placeholders for unavailable roads
+				(
+					-1,
+					*[-1]*self.obs_road_features,
+					-1
+				)
+			]*(Junction.max_roads_connected-len(j.roads_connected))
 			for j in (j1,j2)
 		], dtype=np.float32)
 		# print(junction_view.shape)
