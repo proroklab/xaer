@@ -84,7 +84,6 @@ class RoadNetwork:
 			min: min speed in m/s
 			max: max speed in m/s
 			current: current speed in m/s
-
 		Returns: speed normalised to range (0-120)
 		"""
 		return 120 * ((current - min) / (max - min))
