@@ -43,13 +43,13 @@ class GraphDriveEasy(gym.Env):
 	def get_state_shape(self):
 		return [
 			{  # Beginning and end of closest road to the agent (the one it's driving on)
-				'low': -15,
-				'high': 15,
+				'low': -1,
+				'high': 1,
 				'shape': (2 + 2 + self.obs_road_features + 1,), # current road view: road.start.pos + road.end.pos + road features + is_new_road
 			},
 			{  # Junctions
-				'low': -15,
-				'high': 15,
+				'low': -1,
+				'high': 1,
 				'shape': ( # closest junctions view
 					2, # number of junctions close to current road
 					Junction.max_roads_connected, 
@@ -59,7 +59,7 @@ class GraphDriveEasy(gym.Env):
 			{  # Agent features
 				'low': -1,
 				'high': self.max_speed/self.speed_lower_limit,
-				'shape': (self.get_concatenation_size() + self.obs_car_features,),
+				'shape': (self.get_agent_state_size() + self.obs_car_features,),
 			},
 		]
 
@@ -67,15 +67,15 @@ class GraphDriveEasy(gym.Env):
 		return (
 			*self.get_view(car_point, car_orientation), 
 			np.concatenate([
-				self.get_concatenation(),
+				self.get_agent_state(),
 				self.road_network.agent.binary_features(), 
 			], axis=-1),
 		)
 
-	def get_concatenation_size(self):
+	def get_agent_state_size(self):
 		return 3
 		
-	def get_concatenation(self):
+	def get_agent_state(self):
 		return np.array((
 			self.steering_angle/self.max_steering_angle, # normalised steering angle
 			self.speed/self.max_speed, # normalised speed
@@ -174,7 +174,7 @@ class GraphDriveEasy(gym.Env):
 			[
 				(
 					(road.get_orientation_relative_to(source_orientation) % two_pi)/two_pi, # in [0,1]
-					*road.binary_features(),
+					*road.binary_features(), # in [0,1]
 					1 if road.id in self.already_visited_roads else 0, # whether road has been previously visited
 				)
 				for road in j.roads_connected
@@ -182,7 +182,7 @@ class GraphDriveEasy(gym.Env):
 				(
 					-1,
 					*[-1]*self.obs_road_features,
-					-1
+					-1,
 				)
 			]*(Junction.max_roads_connected-len(j.roads_connected))
 			for j in (j1,j2)
