@@ -45,7 +45,7 @@ class GraphDriveEasy(gym.Env):
 			{  # Beginning and end of closest road to the agent (the one it's driving on)
 				'low': -15,
 				'high': 15,
-				'shape': (1, 2, 2), # current road view: relative coordinates of road.start.pos and road.end.pos
+				'shape': (2 + 2 + self.obs_road_features + 1,), # current road view: road.start.pos + road.end.pos + road features + is_new_road
 			},
 			{  # Junctions
 				'low': -15,
@@ -53,13 +53,13 @@ class GraphDriveEasy(gym.Env):
 				'shape': ( # closest junctions view
 					2, # number of junctions close to current road
 					Junction.max_roads_connected, 
-					1 + self.obs_road_features,  # relative heading vector + road features
+					1 + self.obs_road_features + 1,  # relative heading vector (instead of start/end positions) + road features + is_new_road
 				),
 			},
 			{  # Agent features
 				'low': -1,
 				'high': self.max_speed/self.speed_lower_limit,
-				'shape': (self.get_concatenation_size() + self.obs_car_features + self.obs_road_features,)
+				'shape': (self.get_concatenation_size() + self.obs_car_features,),
 			},
 		]
 
@@ -69,19 +69,17 @@ class GraphDriveEasy(gym.Env):
 			np.concatenate([
 				self.get_concatenation(),
 				self.road_network.agent.binary_features(), 
-				self.closest_road.binary_features(),
 			], axis=-1),
 		)
 
 	def get_concatenation_size(self):
-		return 4
+		return 3
 		
 	def get_concatenation(self):
 		return np.array((
 			self.steering_angle/self.max_steering_angle, # normalised steering angle
 			self.speed/self.max_speed, # normalised speed
 			self.speed/self.speed_upper_limit, # current speed against speed upper limit
-			1 if self.closest_road.id in self.already_visited_roads else 0, # whether road has been previously visited
 		), dtype=np.float32)
 
 	def get_reward(self, car_speed, car_point, old_car_point): # to finish
@@ -163,22 +161,21 @@ class GraphDriveEasy(gym.Env):
 		source_x, source_y = source_point
 		j1, j2 = self.closest_junctions
 		# Get road view
-		road_view = ( # 4x2
+		road_view = ( # 2x2
 			j1.pos,
 			j2.pos,
-			# *self.closest_road.binary_features(),
 		)
 		road_view = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_view)
 		road_view = map(self.normalize_point, road_view) # in [-1,1]
-		road_view = tuple(road_view)
-		road_view = np.array((road_view,), dtype=np.float32)
+		road_view = sum(road_view,()) + self.closest_road.binary_features() + (1 if self.closest_road.id in self.already_visited_roads else 0,)
+		road_view = np.array(road_view, dtype=np.float32)
 		# Get junction view
 		junction_view = np.array([ # 2 x Junction.max_roads_connected x (1+1)
 			[
 				(
 					(road.get_orientation_relative_to(source_orientation) % two_pi)/two_pi, # in [0,1]
 					*road.binary_features(),
-					# RoadNetwork.all_road_colours.index(road.colour)/len(RoadNetwork.all_road_colours), # in [0,1]
+					1 if road.id in self.already_visited_roads else 0, # whether road has been previously visited
 				)
 				for road in j.roads_connected
 			] + [(-1,*[-1]*self.obs_road_features)]*(Junction.max_roads_connected-len(j.roads_connected))
@@ -348,9 +345,10 @@ class GraphDriveEasy(gym.Env):
 		handles = [car_handle]
 		ax.legend(handles=handles)
 		# Draw plot
-		figure.suptitle(f"""[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orientation]{convert_radiant_to_degree(self.car_orientation):.2f}°
-[Speed]{self.speed:.2f} m/s [Limit]{self.speed_upper_limit:.2f} m/s [Step]{self._step}
-[IsOld]{self.closest_road.id in self.already_visited_roads} [Car]{self.road_network.agent.binary_features()}""")
+		figure.suptitle(f'\
+[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orientation]{convert_radiant_to_degree(self.car_orientation):.2f}°\
+[Speed]{self.speed:.2f} m/s [Limit]{self.speed_upper_limit:.2f} m/s [Step]{self._step}\
+[IsOld]{self.closest_road.id in self.already_visited_roads} [Car]{self.road_network.agent.binary_features()}')
 		canvas.draw()
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')
