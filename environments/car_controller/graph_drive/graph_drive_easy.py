@@ -204,6 +204,7 @@ class GraphDriveEasy(gym.Env):
 		self.car_point = self.road_network.set(self.junction_number)
 		self.car_orientation = (2*np.random.random()-1)*np.pi # in [-pi,pi]
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
+		self.last_closest_road = None
 		self.already_visited_roads = set()
 		# speed limit
 		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
@@ -273,11 +274,12 @@ class GraphDriveEasy(gym.Env):
 			speed=self.speed, 
 			add_noise=True
 		)
-		old_closest_road = self.closest_road
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point, self.closest_junctions)
-		# if a new road is visited, add the old one to the set of visited ones
-		if not self.is_in_junction(self.car_point) and old_closest_road != self.closest_road:
-			self.already_visited_roads.add(old_closest_road.id)
+		# if a new road is visited, add the old one to the set of visited ones	
+		if self.last_closest_road != self.closest_road and not self.is_in_junction(self.car_point):
+			if self.last_closest_road is not None: # if closest_road is not the first visited road
+				self.already_visited_roads.add(self.last_closest_road.id)
+			self.last_closest_road = self.closest_road # keep track of the current road
 		# compute perceived reward
 		reward, dead, reward_type = self.get_reward(
 			car_speed=self.speed, 
