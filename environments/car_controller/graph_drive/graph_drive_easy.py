@@ -45,7 +45,7 @@ class GraphDriveEasy(gym.Env):
 			{  # Beginning and end of closest road to the agent (the one it's driving on)
 				'low': -15,
 				'high': 15,
-				'shape': (1, 2, 2 + self.obs_road_features), # current road view: relative coordinates of road.start.pos and road.end.pos
+				'shape': (1, 2, 2), # current road view: relative coordinates of road.start.pos and road.end.pos
 			},
 			{  # Junctions
 				'low': -15,
@@ -59,14 +59,17 @@ class GraphDriveEasy(gym.Env):
 			{  # Agent features
 				'low': -1,
 				'high': self.max_speed/self.speed_lower_limit,
-				'shape': (self.get_concatenation_size() + self.obs_car_features,)
+				'shape': (self.get_concatenation_size() + self.obs_car_features + self.obs_road_features,)
 			},
 		]
 
 	def get_state(self, car_point, car_orientation):
 		return (
 			*self.get_view(car_point, car_orientation), 
-			np.concatenate([self.get_concatenation(), self.road_network.agent.binary_features()], axis=-1),
+			np.concatenate([self.get_concatenation(),
+							self.road_network.agent.binary_features(), self.closest_road.binary_features()],
+						    axis=-1),
+
 
 		)
 
@@ -161,7 +164,7 @@ class GraphDriveEasy(gym.Env):
 		road_view = ( # 4x2
 			j1.pos,
 			j2.pos,
-			*self.closest_road.binary_features(),
+			# *self.closest_road.binary_features(),
 		)
 		road_view = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_view)
 		road_view = map(self.normalize_point, road_view) # in [-1,1]
@@ -176,9 +179,10 @@ class GraphDriveEasy(gym.Env):
 					# RoadNetwork.all_road_colours.index(road.colour)/len(RoadNetwork.all_road_colours), # in [0,1]
 				)
 				for road in j.roads_connected
-			] + [(-1,-1)]*(Junction.max_roads_connected-len(j.roads_connected))
+			] + [(-1,*[-1]*self.obs_road_features)]*(Junction.max_roads_connected-len(j.roads_connected))
 			for j in (j1,j2)
 		], dtype=np.float32)
+		# print(junction_view.shape)
 		return road_view, junction_view
 	
 	def reset(self):
