@@ -178,7 +178,7 @@ class GraphDriveEasy(gym.Env):
 					1 if road.id in self.already_visited_roads else 0, # whether road has been previously visited
 				)
 				for road in j.roads_connected
-			] + [(-1,*[-1]*self.obs_road_features)]*(Junction.max_roads_connected-len(j.roads_connected))
+			] + [(-1,*[-1]*self.obs_road_features,-1)]*(Junction.max_roads_connected-len(j.roads_connected))
 			for j in (j1,j2)
 		], dtype=np.float32)
 		# print(junction_view.shape)
