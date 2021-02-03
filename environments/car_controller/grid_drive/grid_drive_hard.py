@@ -52,6 +52,7 @@ class GridDriveHard(gym.Env):
 		self.step_counter = 0
 
 	def reset(self):
+		self.viewer = None
 		# if self.step_counter%self.MAX_STEP == 0:
 		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.culture)
 		self.grid_features = np.array(self.grid.get_features(), dtype=np.int8)
@@ -103,3 +104,6 @@ class GridDriveHard(gym.Env):
 		self.grid_view[x][y][-2] = 1 # set current cell as visited
 		self.grid_view[x][y][-1] = 1 # set new position
 		return [self.get_state(), reward, is_terminal_step, {'explanation': explanation}]
+
+	def render(self, mode='human'):
+		print(self.get_state())

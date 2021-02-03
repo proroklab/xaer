@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+import scipy.integrate as integrate
 
 two_pi = 2*np.pi
 pi = np.pi
@@ -60,7 +61,7 @@ def angle(p, U, V):
 def get_poly_length(spline, integration_range): # quad is precise [Clenshaw-Curtis], romberg is generally faster
 	U,V = spline
 	start, end = integration_range
-	return scipy.integrate.romberg(lambda p:np.sqrt(poly(p,U)**2+poly(p,V)**2), start, end, tol=1e-02, rtol=1e-02)
+	return integrate.romberg(lambda p:np.sqrt(poly(p,U)**2+poly(p,V)**2), start, end, tol=1e-02, rtol=1e-02)
 	
 def norm(angle):
 	if angle >= np.pi:

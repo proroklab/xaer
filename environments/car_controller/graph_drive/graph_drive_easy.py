@@ -105,6 +105,7 @@ class GraphDriveEasy(gym.Env):
 		return step_reward(is_positive=True, label='move_forward')
 
 	def __init__(self):
+		self.viewer = None
 		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)
 		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
@@ -304,7 +305,18 @@ class GraphDriveEasy(gym.Env):
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')
 		data = data.reshape(figure.canvas.get_width_height()[::-1] + (3,))
 		figure.clear()
-		return {'RGB': data} # RGB array
+		return data # RGB array
+
+	def render(self, mode='human'):
+		img = self.get_screen()
+		if mode == 'rgb_array':
+			return img
+		elif mode == 'human':
+			from gym.envs.classic_control import rendering
+			if self.viewer is None:
+				self.viewer = rendering.SimpleImageViewer()
+			self.viewer.imshow(img)
+			return self.viewer.isopen
 				
 	def get_statistics(self):
 		return self.episode_statistics
