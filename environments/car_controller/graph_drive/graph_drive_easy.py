@@ -107,7 +107,7 @@ class GraphDriveEasy(gym.Env):
 		self.meters_per_step = 2*self.max_speed*self.mean_seconds_per_step
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
-		self.road_network = RoadNetwork(map_size=self.map_size, max_road_length=self.max_road_length)
+		self.road_network = RoadNetwork(self.CULTURE, map_size=self.map_size, max_road_length=self.max_road_length)
 		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
 
 		self.culture = self.CULTURE(road_options={
