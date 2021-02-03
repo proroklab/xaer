@@ -42,7 +42,7 @@ class GraphDriveEasy(gym.Env):
 
 	def get_state_shape(self):
 		return [
-			{  # Beginning and end of closest road to the agent (the one it's driving on)
+			{  # Closest road to the agent (the one it's driving on)
 				'low': -1,
 				'high': 1,
 				'shape': (2 + 2 + self.obs_road_features + 1,), # current road view: road.start.pos + road.end.pos + road features + is_new_road
