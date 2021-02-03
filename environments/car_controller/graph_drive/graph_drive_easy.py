@@ -102,7 +102,7 @@ class GraphDriveEasy(gym.Env):
 		# "Respect the speed limit" rule
 		if car_speed > self.speed_upper_limit:
 			return step_reward(is_positive=False, label='respect_speed_limit')
-		if self.closest_road.id in self.already_visited_roads:
+		if self.closest_road.is_visited:
 			return null_reward(label='visit_new_roads')
 		return step_reward(is_positive=True, label='move_forward')
 
@@ -134,8 +134,7 @@ class GraphDriveEasy(gym.Env):
 		self.road_network = RoadNetwork(self.culture, map_size=self.map_size, max_road_length=self.max_road_length)
 		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
 		self.obs_road_features = len(self.culture.properties)  # Number of binary ROAD features in Hard Culture
-		self.obs_car_features = len(
-			self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
+		self.obs_car_features = len(self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
 		# # Spaces
 		# self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32) # steering angle, continuous control without softmax
 		# shapes = [gym.spaces.Box(**shape, dtype=np.float32) for shape in self.get_state_shape()]
@@ -167,7 +166,7 @@ class GraphDriveEasy(gym.Env):
 		)
 		road_points = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_points)
 		road_points = map(self.normalize_point, road_points) # in [-1,1]
-		road_view = sum(road_points,()) + self.closest_road.binary_features() + (1 if self.closest_road.id in self.already_visited_roads else 0,)
+		road_view = sum(road_points,()) + self.closest_road.binary_features() + (1 if self.closest_road.is_visited else 0,)
 		road_view = np.array(road_view, dtype=np.float32)
 		# Get junction view
 		junction_view = np.array([ # 2 x Junction.max_roads_connected x (1+1)
@@ -175,7 +174,7 @@ class GraphDriveEasy(gym.Env):
 				(
 					(road.get_orientation_relative_to(source_orientation) % two_pi)/two_pi, # in [0,1]
 					*road.binary_features(), # in [0,1]
-					1 if road.id in self.already_visited_roads else 0, # whether road has been previously visited
+					1 if road.is_visited else 0, # whether road has been previously visited
 				)
 				for road in j.roads_connected
 			] + [ # placeholders for unavailable roads
@@ -205,7 +204,6 @@ class GraphDriveEasy(gym.Env):
 		self.car_orientation = (2*np.random.random()-1)*np.pi # in [-pi,pi]
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		self.last_closest_road = None
-		self.already_visited_roads = set()
 		# speed limit
 		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
 		# steering angle & speed
@@ -278,7 +276,7 @@ class GraphDriveEasy(gym.Env):
 		# if a new road is visited, add the old one to the set of visited ones	
 		if self.last_closest_road != self.closest_road and not self.is_in_junction(self.car_point):
 			if self.last_closest_road is not None: # if closest_road is not the first visited road
-				self.already_visited_roads.add(self.last_closest_road.id)
+				self.last_closest_road.is_visited = True
 			self.last_closest_road = self.closest_road # keep track of the current road
 		# compute perceived reward
 		reward, dead, reward_type = self.get_reward(
@@ -356,7 +354,7 @@ class GraphDriveEasy(gym.Env):
 		figure.suptitle(f'\
 [Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orientation]{convert_radiant_to_degree(self.car_orientation):.2f}°\
 [Speed]{self.speed:.2f} m/s [Limit]{self.speed_upper_limit:.2f} m/s [Step]{self._step}\
-[IsOld]{self.closest_road.id in self.already_visited_roads} [Car]{self.road_network.agent.binary_features()}')
+[IsOld]{self.closest_road.is_visited} [Car]{self.road_network.agent.binary_features()}')
 		canvas.draw()
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')

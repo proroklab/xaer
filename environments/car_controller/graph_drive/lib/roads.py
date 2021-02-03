@@ -40,6 +40,7 @@ class Road(RoadCell):
 		self.end = end
 		self.edge = (start.pos, end.pos)
 		self.is_connected = False
+		self.is_visited = False
 		if connect:
 			if self.start.can_connect() and self.end.can_connect():
 				self.connect_to_junctions()
