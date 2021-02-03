@@ -66,21 +66,22 @@ class GraphDriveEasy(gym.Env):
 	def get_state(self, car_point, car_orientation):
 		return (
 			*self.get_view(car_point, car_orientation), 
-			np.concatenate([self.get_concatenation(),
-							self.road_network.agent.binary_features(), self.closest_road.binary_features()],
-						    axis=-1),
-
-
+			np.concatenate([
+				self.get_concatenation(),
+				self.road_network.agent.binary_features(), 
+				self.closest_road.binary_features(),
+			], axis=-1),
 		)
 
 	def get_concatenation_size(self):
-		return 3
+		return 4
 		
 	def get_concatenation(self):
 		return np.array((
-			self.steering_angle/self.max_steering_angle, 
-			self.speed/self.max_speed, 
-			self.speed/self.speed_upper_limit,
+			self.steering_angle/self.max_steering_angle, # normalised steering angle
+			self.speed/self.max_speed, # normalised speed
+			self.speed/self.speed_upper_limit, # current speed against speed upper limit
+			1 if self.closest_road.id in self.already_visited_roads else 0, # whether road has been previously visited
 		), dtype=np.float32)
 
 	def get_reward(self, car_speed, car_point, old_car_point): # to finish
@@ -88,11 +89,11 @@ class GraphDriveEasy(gym.Env):
 			return (1 if is_positive else -1, True, label) # terminate episode
 		def step_reward(is_positive,label):
 			space_traveled = car_speed*self.seconds_per_step # space traveled
-			return (space_traveled if is_positive else -space_traveled, False, label) # terminate episode
+			return (space_traveled if is_positive else -space_traveled, False, label) # do not terminate episode
+		def null_reward(label):
+			return (0, False, label) # do not terminate episode
 		
-		distance_from_junction = min(euclidean_distance(self.closest_junctions[0].pos, car_point), euclidean_distance(self.closest_junctions[1].pos, car_point))
-		# print(distance_from_junction, self.junction_around)
-		if distance_from_junction > self.junction_around:
+		if not self.is_in_junction(car_point):
 			# "Valid colour" rule
 			# "Stay on the road" rule
 			if self.distance_to_closest_road > 2*self.max_distance_to_path: 
@@ -103,6 +104,8 @@ class GraphDriveEasy(gym.Env):
 		# "Respect the speed limit" rule
 		if car_speed > self.speed_upper_limit:
 			return step_reward(is_positive=False, label='respect_speed_limit')
+		if self.closest_road.id in self.already_visited_roads:
+			return null_reward(label='visit_new_roads')
 		return step_reward(is_positive=True, label='move_forward')
 
 	def __init__(self):
@@ -146,8 +149,7 @@ class GraphDriveEasy(gym.Env):
 		# })
 		# self.observation_space = gym.spaces.Tuple(shapes, )
 		# Spaces
-		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,),
-										   dtype=np.float32)  # steering angle, continuous control without softmax
+		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)  # steering angle, continuous control without softmax
 		self.observation_space = gym.spaces.Tuple([
 			gym.spaces.Box(**shape, dtype=np.float32)
 			for shape in self.get_state_shape()
@@ -199,6 +201,7 @@ class GraphDriveEasy(gym.Env):
 		self.car_point = self.road_network.set(self.junction_number)
 		self.car_orientation = (2*np.random.random()-1)*np.pi # in [-pi,pi]
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
+		self.already_visited_roads = set()
 		# speed limit
 		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
 		# steering angle & speed
@@ -245,6 +248,10 @@ class GraphDriveEasy(gym.Env):
 	def get_step_seconds(self):
 		return np.random.exponential(scale=self.mean_seconds_per_step)
 
+	def is_in_junction(self, car_point):
+		distance_from_junction = min(euclidean_distance(self.closest_junctions[0].pos, car_point), euclidean_distance(self.closest_junctions[1].pos, car_point))
+		return distance_from_junction <= self.junction_around
+
 	def step(self, action_vector):
 		# first of all, get the seconds passed from last step
 		self.seconds_per_step = self.get_step_seconds()
@@ -263,7 +270,11 @@ class GraphDriveEasy(gym.Env):
 			speed=self.speed, 
 			add_noise=True
 		)
+		old_closest_road = self.closest_road
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point, self.closest_junctions)
+		# if a new road is visited, add the old one to the set of visited ones
+		if not self.is_in_junction(self.car_point) and old_closest_road != self.closest_road:
+			self.already_visited_roads.add(old_closest_road.id)
 		# compute perceived reward
 		reward, dead, reward_type = self.get_reward(
 			car_speed=self.speed, 
@@ -337,7 +348,9 @@ class GraphDriveEasy(gym.Env):
 		handles = [car_handle]
 		ax.legend(handles=handles)
 		# Draw plot
-		figure.suptitle('[Angle]{1:.2f}° [Orientation]{4:.2f}° \n [Speed]{0:.2f} m/s [Limit]{3:.2f} m/s [Step]{2}'.format(self.speed, convert_radiant_to_degree(self.steering_angle), self._step, self.speed_upper_limit, convert_radiant_to_degree(self.car_orientation)))
+		figure.suptitle(f"""[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orientation]{convert_radiant_to_degree(self.car_orientation):.2f}°
+[Speed]{self.speed:.2f} m/s [Limit]{self.speed_upper_limit:.2f} m/s [Step]{self._step}
+[IsOld]{self.closest_road.id in self.already_visited_roads} [Car]{self.road_network.agent.binary_features()}""")
 		canvas.draw()
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')

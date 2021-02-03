@@ -46,6 +46,10 @@ class Road(RoadCell):
 	def __eq__(self, other):
 		return self.start == other.start and self.end == other.end
 
+	@property
+	def id(self):
+		return (self.start.pos, self.end.pos)
+
 	def connect_to_junctions(self):
 		self.start.connect(self)
 		self.end.connect(self)
