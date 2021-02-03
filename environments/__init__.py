@@ -15,6 +15,12 @@ register_env("CescoDrive-V1", lambda config: CescoDriveV1())
 from environments.car_controller.graph_drive.graph_drive_easy import GraphDriveEasy
 register_env("GraphDrive-Easy", lambda config: GraphDriveEasy())
 
+from environments.car_controller.graph_drive.graph_drive_medium import GraphDriveMedium
+register_env("GraphDrive-Medium", lambda config: GraphDriveMedium())
+
+from environments.car_controller.graph_drive.graph_drive_hard import GraphDriveHard
+register_env("GraphDrive-Hard", lambda config: GraphDriveHard())
+
 ### GridDrive
 from environments.car_controller.grid_drive.grid_drive_easy import GridDriveEasy
 register_env("GridDrive-Easy", lambda config: GridDriveEasy())

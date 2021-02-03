@@ -14,7 +14,7 @@ from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
 ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Easy"
+SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({
