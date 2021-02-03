@@ -2,6 +2,7 @@ import numpy as np
 
 class RoadAgent:
     def __init__(self):
+        self.sorted_properties = None
         self.road_culture = None
         pass
 

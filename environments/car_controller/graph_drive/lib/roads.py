@@ -75,6 +75,7 @@ class RoadNetwork:
 		else:
 			self.min_junction_distance = min_junction_distance
 		self.road_culture = culture
+		self.agent.set_culture(culture)
 		self.road_culture.initialise_random_agent(self.agent)
 
 	def normalise_speed(self, min, max, current):
