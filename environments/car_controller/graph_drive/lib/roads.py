@@ -15,6 +15,8 @@ class Junction:
 		self.roads_connected = []
 
 	def __eq__(self, other):
+		if not isinstance(other,Junction):
+			return False
 		return self.pos == other.pos
 
 	def can_connect(self):
@@ -44,6 +46,8 @@ class Road(RoadCell):
 				self.is_connected = True
 
 	def __eq__(self, other):
+		if not isinstance(other,Road):
+			return False
 		return self.start == other.start and self.end == other.end
 
 	@property
