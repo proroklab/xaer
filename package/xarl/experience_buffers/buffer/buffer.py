@@ -25,8 +25,8 @@ class Buffer(object):
 	def _add_type_if_not_exist(self, type_id): # private method
 		if type_id in self.types: # check it to avoid double insertion
 			return False
-		self.types[type_id] = sample_type = len(self.type_keys)
-		self.type_values.append(sample_type)
+		self.types[type_id] = type_ = len(self.type_keys)
+		self.type_values.append(type_)
 		self.type_keys.append(type_id)
 		self.batches.append(deque(maxlen=self.cluster_size))
 		logger.warning(f'Added a new cluster with id {type_id}, now there are {len(self.type_values)} different clusters.')
@@ -57,21 +57,19 @@ class Buffer(object):
 				return 0
 			return sum(len(batch) for batch in self.batches)
 		return len(self.batches[type_])
-		
-	def id_is_full(self, type_id):
-		return self.has(self.cluster_size, self.get_type(type_id))
-		
-	def is_full_cluster(self, type_=None):
-		if type_ is None:
-			return self.has(self.cluster_size*len(self.types))
-		return self.has(self.cluster_size, type_)
 
+	def get_min_cluster_size(self):
+		return 1
+
+	def get_max_cluster_size(self):
+		return self.cluster_size
+
+	def is_valid_cluster(self, type_id):
+		return self.has_atleast(self.get_min_cluster_size(), self.get_type(type_id))
+		
 	def is_full_buffer(self):
-		return self.has(self.global_size) if self.global_size else False
+		return self.has_atleast(self.global_size) if self.global_size else False
 
-	def is_full(self, type_=None):
-		return self.is_full_cluster(type_) or self.is_full_buffer()
-		
 	def is_empty(self, type_=None):
 		return not self.has_atleast(1, type_)
 		

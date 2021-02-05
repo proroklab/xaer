@@ -59,22 +59,28 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		self.num_added = 0
 
 	def add_batch(self, batch, on_policy=False):
-		# Make a copy so the replay buffer doesn't pin plasma memory.
-		batch = batch.copy()
-		batch['infos'] = copy.deepcopy(batch['infos'])
 		# Get batch's type
 		batch_type = get_batch_infos(batch)["batch_type"]
 		has_multiple_types = isinstance(batch_type,(tuple,list))
 		# Handle everything as if multiagent
 		if isinstance(batch, SampleBatch):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
+		self.num_added += len(batch.policy_batches)
 		with self.add_batch_timer:
-			self.num_added += len(batch.policy_batches)
-			random_type_id = random.choice(batch_type) if has_multiple_types else batch_type
 			self._buffer_lock.acquire_write()
-			for policy_id, b in batch.policy_batches.items():
-				# If has_multiple_types is True: no need for duplicating the batch across multiple clusters, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
-				self.replay_buffers[policy_id].add(batch=b, type_id=random_type_id, on_policy=on_policy)
+			for policy_id, sub_batch in batch.policy_batches.items():
+				if has_multiple_types:
+					# If has_multiple_types is True: no need for duplicating the batch across multiple clusters unless they are invalid, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
+					sub_type_list = tuple(filter(lambda x: not self.replay_buffers[policy_id].is_valid_cluster(x), batch_type))
+					if len(sub_type_list) == 0:
+						sub_type_list = (random.choice(batch_type),)
+				else:
+					sub_type_list = (batch_type,)
+				for sub_type in sub_type_list: 
+					# Make a deep copy so the replay buffer doesn't pin plasma memory.
+					sub_batch = sub_batch.copy()
+					sub_batch['infos'] = copy.deepcopy(sub_batch['infos'])
+					self.replay_buffers[policy_id].add(batch=sub_batch, type_id=sub_type, on_policy=on_policy)
 			self._buffer_lock.release_write()
 		return batch
 

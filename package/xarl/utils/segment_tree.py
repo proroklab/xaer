@@ -223,7 +223,9 @@ class SumSegmentTree(SegmentTree):
 				prefixsum -= value
 				idx = update_idx + 1
 		idx -= self._capacity
-		assert idx < self.inserted_elements, f"{idx} has to be lower than {self.inserted_elements}"
+		if idx == self.inserted_elements:
+			idx -= 1
+		assert 0 <= idx < self.inserted_elements, f"{idx} has to be lower than {self.inserted_elements} and greater than 0"
 		return idx
 	
 class MinSegmentTree(SegmentTree):

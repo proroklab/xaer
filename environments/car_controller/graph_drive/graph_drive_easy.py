@@ -92,29 +92,24 @@ class GraphDriveEasy(gym.Env):
 			return (0, False, label) # do not terminate episode
 
 		# Assign normalised speed to agent properties before running dialogues.
-		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed,
-																								 self.max_speed,
-																								 car_speed))
-		explanation_list = ['on_junction']
+		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
 		if not self.is_in_junction(car_point):
 			# Run dialogue against culture.
-			can_move, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent,
-														   				explanation_type="compact")
+			can_move, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
 			if not can_move:
 				return terminal_reward(is_positive=False, label=explanation_list)
-
 			# "Stay on the road" rule
 			if self.distance_to_closest_road > 2*self.max_distance_to_path: 
 				return terminal_reward(is_positive=False, label='stay_on_the_road')
 			# "Follow the lane" rule # this has an higher priority than the 'respect_speed_limit' rule
 			if self.distance_to_closest_road > self.max_distance_to_path:
-				return step_reward(is_positive=False, label=explanation_list.append('follow_lane'))
+				return step_reward(is_positive=False, label='follow_lane')
+			if self.closest_road.is_visited:
+				return null_reward(label='visit_new_roads')
 		# "Respect the speed limit" rule
-		# if car_speed > self.speed_upper_limit:
-		# 	return step_reward(is_positive=False, label='respect_speed_limit')
-		if self.closest_road.is_visited:
-			return null_reward(label='visit_new_roads')
-		return step_reward(is_positive=True, label=explanation_list)
+		if car_speed > self.speed_upper_limit:
+			return step_reward(is_positive=False, label='respect_speed_limit')
+		return step_reward(is_positive=True, label='move_forward')
 
 	def __init__(self):
 		self.viewer = None
