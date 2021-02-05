@@ -224,15 +224,10 @@ class PseudoPrioritizedBuffer(Buffer):
 		type_ = self.get_type(type_id)
 		type_batch = self.batches[type_]
 		idx = None
-		if self.is_full_cluster(type_): # full cluster, remove from it plus the less important batch in the whole buffer
+		if self.is_full_cluster(type_): # full cluster, remove from it
 			idx = self.get_less_important_batch(type_)
-		elif self.is_full_buffer(): # full buffer, remove the 2 less important batches in the whole buffer
+		elif self.is_full_buffer(): # full buffer but not full cluster, remove the less important batch in the whole buffer
 			self.remove_less_important_batches(1)
-			# biggest_cluster = max(filter(lambda x: self.count(x) >= self.min_cluster_size, self.type_values), key=self.count)
-			# if type_ == biggest_cluster:
-			# 	idx = self.get_less_important_batch(type_)
-			# else:
-			# 	self.remove_batch(biggest_cluster, self.get_less_important_batch(biggest_cluster))
 		if idx is None: # add new element to buffer
 			idx = len(type_batch)
 			type_batch.append(batch)

@@ -79,6 +79,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 				for sub_type in sub_type_list: 
 					# Make a deep copy so the replay buffer doesn't pin plasma memory.
 					sub_batch = sub_batch.copy()
+					# Make a deep copy of infos so that for every sub_type the infos dictionary is different
 					sub_batch['infos'] = copy.deepcopy(sub_batch['infos'])
 					self.replay_buffers[policy_id].add(batch=sub_batch, type_id=sub_type, on_policy=on_policy)
 			self._buffer_lock.release_write()
