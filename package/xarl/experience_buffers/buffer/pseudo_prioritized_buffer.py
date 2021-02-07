@@ -54,6 +54,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._it_capacity = 1
 		while self._it_capacity < self.cluster_size:
 			self._it_capacity *= 2
+		# self.priority_stats = RunningStats(window_size=self.global_size)
 		
 	def set(self, buffer): # O(1)
 		assert isinstance(buffer, PseudoPrioritizedBuffer)
@@ -160,12 +161,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		return segment_tree.inserted_elements/self.max_cluster_size
 
 	def get_cluster_priority(self, segment_tree):
-		if self._priority_can_be_negative:
-			average_min_priority = np.mean(tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree))) # O(log) # We are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
-		else:
-			average_min_priority = 0.
-		get_avg_cluster_priority = lambda x: x.sum()/x.inserted_elements - average_min_priority # Dividing by the optimal_cluster_size we are enforcing this number to be independent from the number of clusters, still being dependent to their size.
-		return self.get_cluster_capacity(segment_tree)*get_avg_cluster_priority(segment_tree) # A min_cluster_size_proportion lower than 1 guarantees that, taking the sum instead of the average, the resulting type priority is still relying on the average clusters' priority
+		avg_cluster_priority = segment_tree.sum()/segment_tree.inserted_elements # O(log)
+		return self.get_cluster_capacity(segment_tree)*avg_cluster_priority # A min_cluster_size_proportion lower than 1 guarantees that, taking the sum instead of the average, the resulting type priority is still relying on the average clusters' priority
 
 	def get_cluster_capacity_dict(self):
 		return dict(map(
@@ -269,17 +266,13 @@ class PseudoPrioritizedBuffer(Buffer):
 			if self._prioritised_cluster_sampling_strategy == 'average':
 				avg_type_priority = np.mean(type_priority)
 				type_priority = -np.absolute(type_priority-avg_type_priority) # the closer to the average, the higher the priority: the hardest tasks will be tackled last
-				worst_type_priority = np.min(type_priority)
-				if worst_type_priority < 0:
-					type_priority = type_priority - worst_type_priority + self._epsilon
 			elif self._prioritised_cluster_sampling_strategy == 'above_average':
 				avg_type_priority = np.mean(type_priority)
 				type_priority_above_avg = type_priority[type_priority>avg_type_priority]
 				best_after_mean = np.min(type_priority_above_avg) if type_priority_above_avg.size > 0 else type_priority[0]
 				type_priority = -np.absolute(type_priority-best_after_mean) # the closer to the best_after_mean, the higher the priority: the hardest tasks will be tackled last
-				worst_type_priority = np.min(type_priority)
-				if worst_type_priority < 0:
-					type_priority = type_priority - worst_type_priority + self._epsilon
+			eta_normalise = lambda x: self.eta_normalisation(x, np.min(x), np.max(x), np.abs(np.std(x)/np.mean(x)))
+			type_priority = eta_normalise(eta_normalise(type_priority)) # first eta-normalisation makes priorities in (0,1], but it inverts their magnitude # second eta-normalisation guarantees original priorities magnitude is preserved
 			type_cumsum = np.cumsum(type_priority) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
 			assert 0 <= type_mass, f'type_mass {type_mass} should be greater than 0'
@@ -309,6 +302,15 @@ class PseudoPrioritizedBuffer(Buffer):
 				self.update_beta_weights(batch, idx, type_)
 		return batch_list
 
+	@staticmethod
+	def eta_normalisation(priorities, min_priority, max_priority, eta):
+		priorities = np.clip(priorities, min_priority, max_priority)
+		upper_max_priority = max_priority*((1+eta) if max_priority >= 0 else (1-eta))
+		if upper_max_priority == min_priority: 
+			return 1.
+		assert upper_max_priority > min_priority, f"upper_max_priority must be > min_priority, but it is {upper_max_priority} while min_priority is {min_priority}"
+		return (upper_max_priority - priorities)/(upper_max_priority - min_priority) # in (0,1]: the closer is type_sum_tree[idx] to max_priority, the lower is the weight
+
 	def update_beta_weights(self, batch, idx, type_):
 		type_sum_tree = self._sample_priority_tree[type_]
 		if self._cluster_level_weighting: min_priority = type_sum_tree.min_tree.min()[0] # O(log)
@@ -318,12 +320,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		if self._priority_can_be_negative:
 			if self._cluster_level_weighting: max_priority = type_sum_tree.max_tree.max()[0] # O(log)
 			else: max_priority = max(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
-			batch_priority = min(max_priority, batch_priority)
-			upper_max_priority = max_priority*((1+self._eta) if max_priority >= 0 else (1-self._eta))
-			if upper_max_priority != min_priority: 
-				assert upper_max_priority > min_priority, f"upper_max_priority must be > min_priority, but it is {upper_max_priority} while min_priority is {min_priority}"
-				weight = (upper_max_priority - batch_priority)/(upper_max_priority - min_priority) # in (0,1]: the closer is type_sum_tree[idx] to max_priority, the lower is the weight
-			else: weight = 1.
+			weight = self.eta_normalisation(batch_priority, min_priority, max_priority, self._eta)
+			# print(weight, max_priority-min_priority)
 		else:
 			assert min_priority > 0, f"min_priority must be > 0, if beta is not None and priority_can_be_negative is False, but it is {min_priority}"
 			weight = min_priority / batch_priority # default, not compatible with negative priorities # in (0,1]: the closer is type_sum_tree[idx] to max_priority, the lower is the weight
@@ -344,6 +342,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		# 		print(k,v,new_batch[k])
 		new_priority = self.get_batch_priority(new_batch)
 		normalized_priority = self.normalize_priority(new_priority)
+		# self.priority_stats.push(normalized_priority)
 		# Update priority
 		self._sample_priority_tree[type_][idx] = normalized_priority # O(log)
 
