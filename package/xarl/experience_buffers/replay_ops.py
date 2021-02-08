@@ -10,7 +10,7 @@ from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_
 from ray.rllib.execution.learner_thread import LearnerThread, get_learner_stats
 from ray.rllib.execution.multi_gpu_learner import TFMultiGPULearner, get_learner_stats as get_gpu_learner_stats
 
-from xarl.experience_buffers.replay_buffer import LocalReplayBuffer, get_batch_infos
+from xarl.experience_buffers.replay_buffer import SimpleReplayBuffer, LocalReplayBuffer, get_batch_infos
 from xarl.experience_buffers.clustering_scheme import *
 
 def get_clustered_replay_buffer(config):
@@ -105,28 +105,40 @@ class MixInReplay:
 	number of replay slots.
 	"""
 
-	def __init__(self, local_buffer, replay_proportion, cluster_overview_size=None, update_replayed_fn=None):
+	def __init__(self, local_buffer, replay_proportion, cluster_overview_size=None, update_replayed_fn=None, sample_also_from_buffer_of_recent_elements=False):
 		self.replay_buffer = local_buffer
 		self.replay_proportion = replay_proportion
 		self.update_replayed_fn = update_replayed_fn
 		self.cluster_overview_size = cluster_overview_size
+		self.buffer_of_recent_elements = SimpleReplayBuffer(local_buffer.buffer_size) if sample_also_from_buffer_of_recent_elements else None
 
 	def __call__(self, sample_batch):
+		# n = np.random.poisson(self.replay_proportion)
+		n = int(self.replay_proportion//1)
+		if self.replay_proportion%1 > 0 and random.random() <= self.replay_proportion%1:
+			n += 1
 		# Put in the experience buffer
 		sample_batch = self.replay_buffer.add_batch(sample_batch, on_policy=True) # allow for duplicates in output_batches
+		if self.buffer_of_recent_elements:
+			self.buffer_of_recent_elements.add_batch(sample_batch)
 		output_batches = [sample_batch]
-		if self.replay_buffer.can_replay():
-			# n = np.random.poisson(self.replay_proportion)
-			n = int(self.replay_proportion//1)
-			if self.replay_proportion%1 > 0 and random.random() <= self.replay_proportion%1:
-				n += 1
-			if n > 0:
-				batch_list = self.replay_buffer.replay(
+		if self.replay_buffer.can_replay() and n > 0:
+			if self.buffer_of_recent_elements:
+				n_of_old_elements = random.randint(0,n)
+				if n_of_old_elements > 0:
+					output_batches += self.replay_buffer.replay(
+						batch_count=n_of_old_elements,
+						cluster_overview_size=self.cluster_overview_size,
+						update_replayed_fn=self.update_replayed_fn,
+					)
+				if n_of_old_elements != n:
+					output_batches += self.buffer_of_recent_elements.replay(n-n_of_old_elements)
+			else:
+				output_batches += self.replay_buffer.replay(
 					batch_count=n,
 					cluster_overview_size=self.cluster_overview_size,
 					update_replayed_fn=self.update_replayed_fn,
 				)
-				output_batches += batch_list
 		return output_batches
 
 class BatchLearnerThread(LearnerThread):

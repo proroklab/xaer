@@ -57,6 +57,7 @@ XAPPO_EXTRA_OPTIONS = {
 	"cluster_with_episode_type": False, # Most useful with sparse-reward environments. Whether to cluster experience using information at episode-level. It requires "batch_mode" == "complete_episodes".
 	"cluster_overview_size": 2, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
+	"sample_also_from_buffer_of_recent_elements": False, # Whether to sample in a randomised fashion from both a non-prioritised buffer of most recent elements and the XA prioritised buffer.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(
@@ -211,6 +212,7 @@ def xappo_execution_plan(workers, config):
 			cluster_overview_size=config["cluster_overview_size"],
 			# update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory) if not config['vtrace'] else lambda x:x,
 			update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory),
+			sample_also_from_buffer_of_recent_elements=config["sample_also_from_buffer_of_recent_elements"],
 		)) \
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
