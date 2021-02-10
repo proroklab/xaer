@@ -23,6 +23,7 @@ CONFIG.update({
 	# },
 	# "num_envs_per_worker": 2**3, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
 	"grad_clip": None,
+	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
 	##################################
 	"rollout_fragment_length": 2**6, # Divide episodes into fragments of this many steps each during rollouts.
 	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
