@@ -12,33 +12,15 @@ from ray.rllib.agents.ddpg.td3 import TD3Trainer, TD3_DEFAULT_CONFIG
 from ray.rllib.agents.ddpg.ddpg_tf_policy import DDPGTFPolicy
 from ray.rllib.agents.ddpg.ddpg_torch_policy import DDPGTorchPolicy
 
-MISSING_OPTIONS = {
-	"dueling": True,
-	"double_q": True,
-	"num_atoms": 21,
-	"v_max": 10,
-	"v_min": -10,
-}
-
 XADDPG_DEFAULT_CONFIG = DDPGTrainer.merge_trainer_configs(
 	DDPG_DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
 	XADQN_EXTRA_OPTIONS,
-	_allow_unknown_configs=True
-)
-XADDPG_DEFAULT_CONFIG = DDPGTrainer.merge_trainer_configs(
-	XADDPG_DEFAULT_CONFIG,
-	MISSING_OPTIONS,
 	_allow_unknown_configs=True
 )
 
 XATD3_DEFAULT_CONFIG = TD3Trainer.merge_trainer_configs(
 	TD3_DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
 	XADQN_EXTRA_OPTIONS,
-	_allow_unknown_configs=True
-)
-XATD3_DEFAULT_CONFIG = TD3Trainer.merge_trainer_configs(
-	XATD3_DEFAULT_CONFIG,
-	MISSING_OPTIONS,
 	_allow_unknown_configs=True
 )
 
