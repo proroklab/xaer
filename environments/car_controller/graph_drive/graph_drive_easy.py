@@ -31,8 +31,10 @@ class GraphDriveEasy(gym.Env):
 	max_step = 1000
 	max_distance_to_path = 0.3 # meters
 	min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
-	max_speed_noise = 0.25 # m/s
-	max_steering_noise_degree = 2
+	# max_speed_noise = 0.25 # m/s
+	# max_steering_noise_degree = 2
+	max_speed_noise = 0 # m/s
+	max_steering_noise_degree = 0
 	# multi-road related stuff
 	junction_number = 32
 	max_dimension = 64
@@ -253,7 +255,7 @@ class GraphDriveEasy(gym.Env):
 		return np.clip(speed + acceleration*self.seconds_per_step, self.min_speed, self.max_speed)
 		
 	def get_step_seconds(self):
-		return np.random.exponential(scale=self.mean_seconds_per_step)
+		return self.mean_seconds_per_step #np.random.exponential(scale=self.mean_seconds_per_step)
 
 	def is_in_junction(self, car_point):
 		distance_from_junction = min(euclidean_distance(self.closest_junctions[0].pos, car_point), euclidean_distance(self.closest_junctions[1].pos, car_point))
