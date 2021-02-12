@@ -14,6 +14,7 @@ import random
 import gym
 
 class GraphDriveEasy(gym.Env):
+	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
 	horizon_distance = 3 # meters
 	track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
@@ -255,7 +256,7 @@ class GraphDriveEasy(gym.Env):
 		return np.clip(speed + acceleration*self.seconds_per_step, self.min_speed, self.max_speed)
 		
 	def get_step_seconds(self):
-		return self.mean_seconds_per_step #np.random.exponential(scale=self.mean_seconds_per_step)
+		return np.random.exponential(scale=self.mean_seconds_per_step) if self.random_seconds_per_step is True else self.mean_seconds_per_step
 
 	def is_in_junction(self, car_point):
 		distance_from_junction = min(euclidean_distance(self.closest_junctions[0].pos, car_point), euclidean_distance(self.closest_junctions[1].pos, car_point))
