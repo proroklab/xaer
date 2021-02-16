@@ -4,12 +4,10 @@ from ...grid_drive.lib.road_cultures import * # FIXME: Move RoadCultures to a mo
 from ...grid_drive.lib.road_cell import RoadCell
 from ...grid_drive.lib.road_agent import RoadAgent
 from environments.car_controller.utils import *
-from environments.car_controller.graph_drive.lib.simple_culture import SimpleCulture
 from environments.utils.random_planar_graph.GenerateGraph import get_random_planar_graph, default_seed
 import random
 
 class Junction:
-	max_roads_connected = 8
 	def __init__(self, pos):
 		self.pos = pos
 		self.roads_connected = []
@@ -19,12 +17,10 @@ class Junction:
 			return False
 		return self.pos == other.pos
 
-	def can_connect(self):
-		return len(self.roads_connected) < self.max_roads_connected
+	def __len__(self):
+		return len(self.roads_connected)
 
 	def connect(self, road):
-		if not self.can_connect():
-			return False
 		if road not in self.roads_connected:
 			self.roads_connected.append(road)
 		return True
@@ -42,9 +38,8 @@ class Road(RoadCell):
 		self.is_connected = False
 		self.is_visited = False
 		if connect:
-			if self.start.can_connect() and self.end.can_connect():
-				self.connect_to_junctions()
-				self.is_connected = True
+			self.connect_to_junctions()
+			self.is_connected = True
 
 	def __eq__(self, other):
 		if not isinstance(other,Road):
@@ -73,11 +68,11 @@ class Road(RoadCell):
 
 class RoadNetwork:
 
-	def __init__(self, culture, map_size=(50, 50), max_road_length=15, min_junction_distance=None):
+	def __init__(self, culture, map_size=(50, 50), min_junction_distance=None, max_roads_per_junction=8):
 		self.junctions = []
 		self.roads = []
 		self.map_size = map_size
-		self.max_road_length = max_road_length
+		self.max_roads_per_junction = max_roads_per_junction
 		self.agent = RoadAgent()
 		if min_junction_distance is None:
 			self.min_junction_distance = map_size[0]/8
@@ -176,7 +171,7 @@ class RoadNetwork:
 
 		return motion_validated, explanation_list
 
-	def normalise_speed(self, min, max, current):
+	def normalise_speed(self, min_, max_, current):
 		"""
 		Normalises speed from Euclidean m/s to nominal speeds used in the culture rules (0-100)
 		Args:
@@ -185,7 +180,7 @@ class RoadNetwork:
 			current: current speed in m/s
 		Returns: speed normalised to range (0-120)
 		"""
-		return 120 * ((current - min) / (max - min))
+		return self.road_culture.agent_options.get('speed',120) * ((current - min_) / (max_ - min_))
 
 	def add_junction(self, junction):
 		if junction not in self.junctions:
@@ -251,7 +246,7 @@ class RoadNetwork:
 			"height": self.map_size[1], # "Height of the field on which to place points.  As above, neato might choose a different size."
 			"nodes": nodes_amount, # "Number of nodes to place."
 			"edges": 2*nodes_amount, # "Number of edges to use for connections.  Double edges aren't counted."
-			"radius": self.map_size[0]/8, # "Nodes will not be placed within this distance of each other."
+			"radius": self.min_junction_distance, # "Nodes will not be placed within this distance of each other."
 			"double": 0, # "Probability of an edge being doubled."
 			"hair": 0, # "Adjustment factor to favour dead-end nodes.  Ranges from 0.00 (least hairy) to 1.00 (most hairy).  Some dead-ends may exist even with a low hair factor."
 			"seed": default_seed(), # "Seed for the random number generator."
@@ -267,7 +262,7 @@ class RoadNetwork:
 			p1,p2 = edge
 			j1 = self.junction_dict[p1]
 			j2 = self.junction_dict[p2]
-			road = Road(j1, j2, connect=True)
+			road = Road(j1, j2, connect=len(j1) < self.max_roads_per_junction and len(j2) < self.max_roads_per_junction)
 			road.set_culture(self.road_culture)
 			self.road_culture.initialise_random_road(road)
 			self.roads.append(road)

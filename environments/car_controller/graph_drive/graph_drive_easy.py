@@ -38,9 +38,9 @@ class GraphDriveEasy(gym.Env):
 	max_steering_noise_degree = 0
 	# multi-road related stuff
 	junction_number = 32
+	max_roads_per_junction = 8
 	max_dimension = 64
 	map_size = (max_dimension, max_dimension)
-	max_road_length = max_dimension*2/3
 	CULTURE = EasyRoadCulture
 
 	def get_state_shape(self):
@@ -55,7 +55,7 @@ class GraphDriveEasy(gym.Env):
 				'high': 1,
 				'shape': ( # closest junctions view
 					2, # number of junctions close to current road
-					Junction.max_roads_connected, 
+					self.max_roads_per_junction, 
 					1 + self.obs_road_features + 1,  # relative heading vector (instead of start/end positions) + road features + is_new_road
 				),
 			},
@@ -139,7 +139,7 @@ class GraphDriveEasy(gym.Env):
 			'paid_charge': 1 / 2,
 			'speed': 120,
 		})
-		self.road_network = RoadNetwork(self.culture, map_size=self.map_size, max_road_length=self.max_road_length)
+		self.road_network = RoadNetwork(self.culture, map_size=self.map_size, max_roads_per_junction=self.max_roads_per_junction)
 		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
 		self.obs_road_features = len(self.culture.properties)  # Number of binary ROAD features in Hard Culture
 		self.obs_car_features = len(self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
@@ -177,7 +177,7 @@ class GraphDriveEasy(gym.Env):
 		road_view = sum(road_points,()) + self.closest_road.binary_features() + (1 if self.closest_road.is_visited else 0,)
 		road_view = np.array(road_view, dtype=np.float32)
 		# Get junction view
-		junction_view = np.array([ # 2 x Junction.max_roads_connected x (1+1)
+		junction_view = np.array([ # 2 x self.max_roads_per_junction x (1+1)
 			[
 				(
 					(road.get_orientation_relative_to(source_orientation) % two_pi)/two_pi, # in [0,1]
@@ -191,7 +191,7 @@ class GraphDriveEasy(gym.Env):
 					*[-1]*self.obs_road_features,
 					-1,
 				)
-			]*(Junction.max_roads_connected-len(j.roads_connected))
+			]*(self.max_roads_per_junction-len(j.roads_connected))
 			for j in (j1,j2)
 		], dtype=np.float32)
 		# print(junction_view.shape)
