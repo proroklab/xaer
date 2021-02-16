@@ -1,7 +1,7 @@
 import gym
 from environments import *
 
-env = GraphDriveEasy()
+env = GraphDriveHard()
 # env = CescoDriveV0()
 
 def run_one_episode (env):

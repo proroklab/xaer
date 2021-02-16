@@ -37,10 +37,11 @@ class GraphDriveEasy(gym.Env):
 	max_speed_noise = 0 # m/s
 	max_steering_noise_degree = 0
 	# multi-road related stuff
+	max_dimension = 32
+	map_size = (max_dimension, max_dimension)
 	junction_number = 32
 	max_roads_per_junction = 8
-	max_dimension = 64
-	map_size = (max_dimension, max_dimension)
+	junction_radius = 1
 	CULTURE = EasyRoadCulture
 
 	def get_state_shape(self):
@@ -76,13 +77,13 @@ class GraphDriveEasy(gym.Env):
 		)
 
 	def get_agent_state_size(self):
-		return 3
+		return 2
 		
 	def get_agent_state(self):
 		return np.array((
 			self.steering_angle/self.max_steering_angle, # normalised steering angle
 			self.speed/self.max_speed, # normalised speed
-			self.speed/self.speed_upper_limit, # current speed against speed upper limit
+			# self.speed/self.speed_upper_limit, # current speed against speed upper limit
 		), dtype=np.float32)
 
 	def get_reward(self, car_speed, car_point, old_car_point): # to finish
@@ -110,8 +111,8 @@ class GraphDriveEasy(gym.Env):
 			if self.closest_road.is_visited:
 				return null_reward(label='visit_new_roads')
 		# "Respect the speed limit" rule
-		if car_speed > self.speed_upper_limit:
-			return step_reward(is_positive=False, label='respect_speed_limit')
+		# if car_speed > self.speed_upper_limit:
+		# 	return step_reward(is_positive=False, label='respect_speed_limit')
 		return step_reward(is_positive=True, label='move_forward')
 
 	def __init__(self):
@@ -136,11 +137,16 @@ class GraphDriveEasy(gym.Env):
 			'heavy_vehicle': 1/4,
 			'worker_vehicle': 1/3,
 			'tasked': 1/2,
-			'paid_charge': 1 / 2,
+			'paid_charge': 1/2,
 			'speed': 120,
 		})
-		self.road_network = RoadNetwork(self.culture, map_size=self.map_size, max_roads_per_junction=self.max_roads_per_junction)
-		self.junction_around = min(self.max_distance_to_path*2, self.road_network.min_junction_distance/8)
+		self.road_network = RoadNetwork(
+			self.culture, 
+			map_size=self.map_size, 
+			min_junction_distance=self.junction_radius*2,
+			max_roads_per_junction=self.max_roads_per_junction,
+		)
+		self.junction_around = min(self.max_distance_to_path*2, self.junction_radius)
 		self.obs_road_features = len(self.culture.properties)  # Number of binary ROAD features in Hard Culture
 		self.obs_car_features = len(self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
 		# # Spaces
@@ -213,7 +219,7 @@ class GraphDriveEasy(gym.Env):
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		self.last_closest_road = None
 		# speed limit
-		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
+		# self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
 		# steering angle & speed
 		self.speed = self.min_speed + (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
 		self.steering_angle = 0
@@ -347,6 +353,13 @@ class GraphDriveEasy(gym.Env):
 		for road in self.road_network.roads:
 			road_pos = list(zip(*(road.start.pos, road.end.pos)))
 			# print("Drawing road {} {}".format(road[0], road[1]))
+			if road.colour is None:
+				for speed in [0,10,20,30,40]:
+					self.road_network.agent.assign_property_value("Speed", speed)
+					can_move, _ = self.road_network.run_dialogue(road, self.road_network.agent, explanation_type="compact")
+					if can_move:
+						break
+				road.colour = "Green" if can_move else "Red"
 			path_handle, = ax.plot(road_pos[0], road_pos[1], color=colour_to_hex(road.colour), lw=2, alpha=0.5, label='Roads')
 
 		# Adjust ax limits in order to get the same scale factor on both x and y
@@ -360,9 +373,7 @@ class GraphDriveEasy(gym.Env):
 		ax.legend(handles=handles)
 		# Draw plot
 		figure.suptitle(f'\
-[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orientation]{convert_radiant_to_degree(self.car_orientation):.2f}°\
-[Speed]{self.speed:.2f} m/s [Limit]{self.speed_upper_limit:.2f} m/s [Step]{self._step}\
-[IsOld]{self.closest_road.is_visited} [Car]{self.road_network.agent.binary_features()}')
+[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orient.]{convert_radiant_to_degree(self.car_orientation):.2f}° [Speed]{self.speed:.2f} m/s\n[Step]{self._step} [Old]{self.closest_road.is_visited} [Car]{self.road_network.agent.binary_features()}')
 		canvas.draw()
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')
