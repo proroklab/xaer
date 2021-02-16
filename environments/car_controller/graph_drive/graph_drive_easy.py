@@ -372,8 +372,7 @@ class GraphDriveEasy(gym.Env):
 		handles = [car_handle]
 		ax.legend(handles=handles)
 		# Draw plot
-		figure.suptitle(f'\
-[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orient.]{convert_radiant_to_degree(self.car_orientation):.2f}° [Speed]{self.speed:.2f} m/s\n[Step]{self._step} [Old]{self.closest_road.is_visited} [Car]{self.road_network.agent.binary_features()}')
+		figure.suptitle(f'[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orient.]{convert_radiant_to_degree(self.car_orientation):.2f}° [Speed]{self.speed:.2f} m/s\n[Step]{self._step} [Old]{self.closest_road.is_visited} [Car]{self.road_network.agent.binary_features()}')
 		canvas.draw()
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')
