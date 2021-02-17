@@ -112,7 +112,8 @@ def extend_edges(starting_edges, target_size, selections, hair_adjustment, rands
 		bad_hair_edges = set()
 
 	if len(starting_edges) + len(selections) < target_size:
-		raise ValueError("not enough unique items in selections", len(starting_edges) + len(selections), target_size)
+		target_size = len(starting_edges) + len(selections)
+		# raise ValueError("not enough unique items in selections", len(starting_edges) + len(selections), target_size)
 
 	extended = set(starting_edges)
 	while len(extended) < target_size:

@@ -37,11 +37,11 @@ class GraphDriveEasy(gym.Env):
 	max_speed_noise = 0 # m/s
 	max_steering_noise_degree = 0
 	# multi-road related stuff
-	max_dimension = 32
+	max_dimension = 64
 	map_size = (max_dimension, max_dimension)
 	junction_number = 32
-	max_roads_per_junction = 8
-	junction_radius = 1
+	max_roads_per_junction = 4
+	junction_radius = 2
 	CULTURE = EasyRoadCulture
 
 	def get_state_shape(self):
@@ -62,7 +62,7 @@ class GraphDriveEasy(gym.Env):
 			},
 			{  # Agent features
 				'low': -1,
-				'high': self.max_speed/self.speed_lower_limit,
+				'high': 1,
 				'shape': (self.get_agent_state_size() + self.obs_car_features,),
 			},
 		]
@@ -77,7 +77,7 @@ class GraphDriveEasy(gym.Env):
 		)
 
 	def get_agent_state_size(self):
-		return 2
+		return 2 # normalised steering angle + normalised speed
 		
 	def get_agent_state(self):
 		return np.array((
@@ -95,9 +95,9 @@ class GraphDriveEasy(gym.Env):
 		def null_reward(label):
 			return (0, False, label) # do not terminate episode
 
-		# Assign normalised speed to agent properties before running dialogues.
-		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
 		if not self.is_in_junction(car_point):
+			# Assign normalised speed to agent properties before running dialogues.
+			self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
 			# Run dialogue against culture.
 			can_move, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
 			if not can_move:
@@ -168,7 +168,7 @@ class GraphDriveEasy(gym.Env):
 
 	@staticmethod
 	def normalize_point(p):
-		return (p[0]/GraphDriveEasy.map_size[0], p[1]/GraphDriveEasy.map_size[1])
+		return (np.clip(p[0]/GraphDriveEasy.map_size[0],-1,1), np.clip(p[1]/GraphDriveEasy.map_size[1],-1,1))
 
 	def get_view(self, source_point, source_orientation): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		source_x, source_y = source_point
@@ -338,7 +338,7 @@ class GraphDriveEasy(gym.Env):
 		
 		# [Junctions]
 		if len(self.road_network.junctions) > 0:
-			junctions = [Circle(junction.pos,0.2,color='r') for junction in self.road_network.junctions]
+			junctions = [Circle(junction.pos, self.junction_radius, color='y', alpha=0.25) for junction in self.road_network.junctions]
 			patch_collection = PatchCollection(junctions, match_original=True)
 			ax.add_collection(patch_collection)
 
@@ -346,7 +346,7 @@ class GraphDriveEasy(gym.Env):
 		car_x, car_y = self.car_point
 		car_handle = ax.scatter(car_x, car_y, marker='o', color='g', label='Car')
 		# [Heading Vector]
-		dir_x, dir_y = get_heading_vector(angle=self.car_orientation)
+		dir_x, dir_y = get_heading_vector(angle=self.car_orientation, space=self.max_dimension/16)
 		heading_vector_handle, = ax.plot([car_x, car_x+dir_x],[car_y, car_y+dir_y], color='g', alpha=0.5, label='Heading Vector')
 
 		# [Roads]
