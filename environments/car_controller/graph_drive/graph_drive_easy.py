@@ -93,7 +93,7 @@ class GraphDriveEasy(gym.Env):
 			# space_traveled = car_speed*self.seconds_per_step # space traveled
 			# max_space_traveled = self.max_speed*self.seconds_per_step # space traveled
 			# normalised_space_traveled = space_traveled/max_space_traveled
-			normalised_space_traveled = (car_speed - self.min_speed)/(self.max_speed-self.min_speed) # in [0,1]
+			normalised_space_traveled = (car_speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
 			return (normalised_space_traveled if is_positive else -normalised_space_traveled, False, label) # do not terminate episode
 		def null_reward(label):
 			return (0, False, label) # do not terminate episode
@@ -110,12 +110,12 @@ class GraphDriveEasy(gym.Env):
 				return terminal_reward(is_positive=False, label='stay_on_the_road')
 			# "Follow the lane" rule # this has an higher priority than the 'respect_speed_limit' rule
 			if self.distance_to_closest_road > self.max_distance_to_path:
-				return step_reward(is_positive=False, label='follow_lane')
+				# return step_reward(is_positive=False, label='follow_lane')
+				return null_reward(label='follow_lane')
+			# "Visit new roads" rule
 			if self.closest_road.is_visited:
 				return null_reward(label='visit_new_roads')
-		# "Respect the speed limit" rule
-		# if car_speed > self.speed_upper_limit:
-		# 	return step_reward(is_positive=False, label='respect_speed_limit')
+		# "Move forward" rule
 		return step_reward(is_positive=True, label='move_forward')
 
 	def __init__(self):
