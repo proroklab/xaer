@@ -90,8 +90,11 @@ class GraphDriveEasy(gym.Env):
 		def terminal_reward(is_positive,label):
 			return (1 if is_positive else -1, True, label) # terminate episode
 		def step_reward(is_positive,label):
-			space_traveled = car_speed*self.seconds_per_step # space traveled
-			return (space_traveled if is_positive else -space_traveled, False, label) # do not terminate episode
+			# space_traveled = car_speed*self.seconds_per_step # space traveled
+			# max_space_traveled = self.max_speed*self.seconds_per_step # space traveled
+			# normalised_space_traveled = space_traveled/max_space_traveled
+			normalised_space_traveled = (car_speed - self.min_speed)/(self.max_speed-self.min_speed) # in [0,1]
+			return (normalised_space_traveled if is_positive else -normalised_space_traveled, False, label) # do not terminate episode
 		def null_reward(label):
 			return (0, False, label) # do not terminate episode
 
