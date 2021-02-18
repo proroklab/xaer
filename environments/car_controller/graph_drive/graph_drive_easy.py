@@ -115,8 +115,10 @@ class GraphDriveEasy(gym.Env):
 			# "Visit new roads" rule
 			if self.closest_road.is_visited:
 				return null_reward(label='visit_new_roads')
-		# "Move forward" rule
-		return step_reward(is_positive=True, label='move_forward')
+			# "Move forward" rule
+			return step_reward(is_positive=True, label='move_forward')
+		else:
+			return null_reward(label='is_in_junction')
 
 	def __init__(self):
 		self.viewer = None

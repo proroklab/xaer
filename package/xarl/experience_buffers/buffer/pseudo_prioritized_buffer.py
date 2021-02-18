@@ -30,6 +30,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		prioritized_drop_probability=0.5, 
 		global_distribution_matching=False, 
 		prioritised_cluster_sampling_strategy='highest',
+		prioritised_cluster_sampling_smoothness_degree=2, # The higher it is, the more uniform sampling will be. How many standard deviations to consider for estimating the maximum priority in eta-normalisation of clusters' priorities.
 		cluster_level_weighting=True,
 		min_cluster_size_proportion=0.5,
 		priority_can_be_negative=True,
@@ -43,6 +44,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._alpha = alpha # How much prioritization is used (0 - no prioritization, 1 - full prioritization)
 		self._beta = beta # To what degree to use importance weights (0 - no corrections, 1 - full correction).
 		self._eta = eta # Eta is a value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
+		self._prioritised_cluster_sampling_smoothness_degree = prioritised_cluster_sampling_smoothness_degree
 		self._epsilon = epsilon # Epsilon to add to the priorities when updating priorities.
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
@@ -271,8 +273,9 @@ class PseudoPrioritizedBuffer(Buffer):
 				type_priority_above_avg = type_priority[type_priority>avg_type_priority]
 				best_after_mean = np.min(type_priority_above_avg) if type_priority_above_avg.size > 0 else type_priority[0]
 				type_priority = -np.absolute(type_priority-best_after_mean) # the closer to the best_after_mean, the higher the priority: the hardest tasks will be tackled last
-			eta_normalise = lambda x: self.eta_normalisation(x, np.min(x), np.max(x), np.abs(np.std(x)/np.mean(x)))
+			eta_normalise = lambda x: self.eta_normalisation(x, np.min(x), np.max(x), self._prioritised_cluster_sampling_smoothness_degree*np.abs(np.std(x)/np.max(x)))
 			type_priority = eta_normalise(eta_normalise(type_priority)) # first eta-normalisation makes priorities in (0,1], but it inverts their magnitude # second eta-normalisation guarantees original priorities magnitude is preserved
+			# print(tuple(zip(list(type_priority),self.type_keys)))
 			type_cumsum = np.cumsum(type_priority) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
 			assert 0 <= type_mass, f'type_mass {type_mass} should be greater than 0'
