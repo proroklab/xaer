@@ -162,8 +162,10 @@ class PseudoPrioritizedBuffer(Buffer):
 	def get_cluster_capacity(self, segment_tree):
 		return segment_tree.inserted_elements/self.max_cluster_size
 
-	def get_cluster_priority(self, segment_tree, min_priority=0):
+	def get_cluster_priority(self, segment_tree, min_priority=0, avg_priority=None):
 		avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
+		if avg_priority is not None:
+			avg_cluster_priority = avg_cluster_priority/(avg_priority - min_priority) # scale by the global average priority
 		return self.get_cluster_capacity(segment_tree)*avg_cluster_priority # A min_cluster_size_proportion lower than 1 guarantees that, taking the sum instead of the average, the resulting type priority is still relying on the average clusters' priority
 
 	def get_cluster_capacity_dict(self):
@@ -174,8 +176,9 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def get_cluster_priority_dict(self):
 		min_priority = min(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)) # O(log)
+		avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
 		return dict(map(
-			lambda x: (str(self.type_keys[x[0]]), self.get_cluster_priority(x[1], min_priority)), 
+			lambda x: (str(self.type_keys[x[0]]), self.get_cluster_priority(x[1], min_priority, avg_priority)), 
 			enumerate(self._sample_priority_tree)
 		))
 
@@ -264,7 +267,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		]
 		if self._cluster_prioritisation_strategy is not None and len(tree_list)>1:
 			min_priority = min(map(lambda x: x[-1].min_tree.min()[0], tree_list)) # O(log)
-			type_priority = map(lambda x: self.get_cluster_priority(x[-1], min_priority), tree_list) # always > 0
+			avg_priority = sum(map(lambda x: x[-1].sum(), tree_list))/sum(map(lambda x: x[-1].inserted_elements, tree_list)) # O(log)
+			type_priority = map(lambda x: self.get_cluster_priority(x[-1], min_priority, avg_priority), tree_list) # always > 0
 			type_priority = np.array(tuple(type_priority))
 			# type_priority = type_priority/np.mean(type_priority)
 			# print(type_priority)
