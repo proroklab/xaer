@@ -29,7 +29,7 @@ CONFIG.update({
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
 	"prioritized_replay_alpha": 0.6,
-	"prioritized_replay_beta": 0.6, # The smaller, the stronger is over-sampling
+	"prioritized_replay_beta": 0.4, # The smaller, the stronger is over-sampling
 	"prioritized_replay_eps": 1e-6,
 	###########################
 	"grad_clip": 40, # This prevents giant gradients and so improves robustness

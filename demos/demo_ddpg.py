@@ -18,16 +18,23 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	# "num_envs_per_worker": 2**3, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
-	"grad_clip": None,
-	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
-	##################################
+	# "model": {
+	# 	"custom_model": "adaptive_multihead_network",
+	# },
 	"rollout_fragment_length": 2**6, # Divide episodes into fragments of this many steps each during rollouts.
 	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
 	"train_batch_size": 2**8, # Number of transitions per train-batch
-	"learning_starts": 1500, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
-	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	"batch_mode": "truncate_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	###########################
+	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
+	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
+	"prioritized_replay_alpha": 0.6,
+	"prioritized_replay_beta": 0.4, # The smaller, the stronger is over-sampling
+	"prioritized_replay_eps": 1e-6,
+	###########################
+	"grad_clip": 40, # This prevents giant gradients and so improves robustness
+	"l2_reg": 1e-6, # This mitigates over-fitting
+	"tau": 1e-3, # The smaller, the lower the value over-estimation, the higher the bias
 })
 
 ####################################################################################
