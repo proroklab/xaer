@@ -36,6 +36,7 @@ CONFIG.update({
 	"grad_clip": 40, # This prevents giant gradients and so improves robustness
 	"l2_reg": 1e-6, # This mitigates over-fitting
 	"tau": 1e-3, # The smaller, the lower the value over-estimation, the higher the bias
+	"smooth_target_policy": False,
 })
 
 ####################################################################################

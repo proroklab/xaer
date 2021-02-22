@@ -9,6 +9,7 @@ from xarl.utils.workflow import train
 from environments import *
 
 def get_algorithm_by_name(alg_name):
+	# DQN
 	if alg_name == 'dqn':
 		from ray.rllib.agents.dqn.dqn import DQNTrainer, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
 		from xarl.models.dqn import TFAdaptiveMultiHeadDQN
@@ -19,6 +20,7 @@ def get_algorithm_by_name(alg_name):
 		from xarl.models.dqn import TFAdaptiveMultiHeadDQN
 		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
 		return XADQN_DEFAULT_CONFIG.copy(), XADQNTrainer
+	# DDPG
 	if alg_name == 'ddpg':
 		from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
 		from ray.rllib.agents.ddpg.ddpg import DDPGTrainer, DEFAULT_CONFIG as DDPG_DEFAULT_CONFIG
@@ -29,6 +31,7 @@ def get_algorithm_by_name(alg_name):
 		from xarl.agents.xaddpg import XADDPGTrainer, XADDPG_DEFAULT_CONFIG
 		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 		return XADDPG_DEFAULT_CONFIG.copy(), XADDPGTrainer
+	# TD3
 	if alg_name == 'td3':
 		from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
 		from ray.rllib.agents.ddpg.td3 import TD3Trainer, TD3_DEFAULT_CONFIG
@@ -39,6 +42,14 @@ def get_algorithm_by_name(alg_name):
 		from xarl.agents.xaddpg import XATD3Trainer, XATD3_DEFAULT_CONFIG
 		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 		return XATD3_DEFAULT_CONFIG.copy(), XATD3Trainer
+	# SAC
+	if alg_name == 'sac':
+		from ray.rllib.agents.sac.sac import SACTrainer, DEFAULT_CONFIG as SAC_DEFAULT_CONFIG
+		return SAC_DEFAULT_CONFIG.copy(), SACTrainer
+	if alg_name == 'xasac':
+		from xarl.agents.xasac import XASACTrainer, XASAC_DEFAULT_CONFIG
+		return XASAC_DEFAULT_CONFIG.copy(), XASACTrainer
+	# PPO
 	if alg_name in ['appo','ppo']:
 		from ray.rllib.agents.ppo.appo import APPOTrainer, DEFAULT_CONFIG as APPO_DEFAULT_CONFIG
 		from xarl.models.appo import TFAdaptiveMultiHeadNet

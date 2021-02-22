@@ -8,16 +8,13 @@ import ray
 import time
 from xarl.utils.workflow import train
 
-from ray.rllib.agents.ddpg.td3 import TD3Trainer, TD3_DEFAULT_CONFIG
+from ray.rllib.agents.sac.sac import SACTrainer, DEFAULT_CONFIG as SAC_DEFAULT_CONFIG
 from environments import *
-from ray.rllib.models import ModelCatalog
-from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
-ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 
 # SELECT_ENV = "CescoDrive-V1"
 SELECT_ENV = "GraphDrive-Hard"
 
-CONFIG = TD3_DEFAULT_CONFIG.copy()
+CONFIG = SAC_DEFAULT_CONFIG.copy()
 CONFIG.update({
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
@@ -33,10 +30,6 @@ CONFIG.update({
 	"prioritized_replay_beta": 0.4, # The smaller, the stronger is over-sampling
 	"prioritized_replay_eps": 1e-6,
 	###########################
-	"grad_clip": 40, # This prevents giant gradients and so improves robustness
-	"l2_reg": 1e-6, # This mitigates over-fitting
-	"tau": 1e-3, # The smaller, the lower the value over-estimation, the higher the bias
-	"smooth_target_policy": False,
 })
 
 ####################################################################################
@@ -45,4 +38,4 @@ CONFIG.update({
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-train(TD3Trainer, CONFIG, SELECT_ENV, test_every_n_step=1000, stop_training_after_n_step=None)
+train(SACTrainer, CONFIG, SELECT_ENV, test_every_n_step=1000, stop_training_after_n_step=None)
