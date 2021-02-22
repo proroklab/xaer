@@ -339,7 +339,7 @@ class GraphDriveEasy(gym.Env):
 	def get_screen(self): # RGB array
 		# First set up the figure and the axis
 		# fig, ax = matplotlib.pyplot.subplots(nrows=1, ncols=1, sharey=False, sharex=False, figsize=(10,10)) # this method causes memory leaks
-		figure = Figure(figsize=(5,5))
+		figure = Figure(figsize=(5,5), tight_layout=True)
 		canvas = FigureCanvas(figure)
 		ax = figure.add_subplot(111) # nrows=1, ncols=1, index=1
 		
@@ -390,6 +390,7 @@ class GraphDriveEasy(gym.Env):
 		ax.legend(handles=handles)
 		# Draw plot
 		figure.suptitle(f'[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orient.]{convert_radiant_to_degree(self.car_orientation):.2f}° [Speed]{self.speed:.2f} m/s\n[Step]{self._step} [Old]{self.closest_road.is_visited} [Car]{self.road_network.agent.binary_features()} [Reward]{self.last_reward}')
+		# figure.tight_layout()
 		canvas.draw()
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')

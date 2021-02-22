@@ -20,7 +20,7 @@ import json
 import numbers
 
 font_dict = {'size':22}
-matplotlib_rc('font', **font_dict)
+# matplotlib_rc('font', **font_dict)
 
 flags = SimpleNamespace(**{
 	"gif_speed": 0.1, # "GIF frame speed in seconds."
