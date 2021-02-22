@@ -1,12 +1,10 @@
 # Read this guide for how to use this script: https://medium.com/distributed-computing-with-ray/intro-to-rllib-example-environments-3a113f532c70
 import os
 os.environ["TUNE_RESULT_DIR"] = 'tmp/ray_results'
-import multiprocessing
 import json
-import shutil
 import ray
 from ray.rllib.models import ModelCatalog
-import time
+from xarl.utils.workflow import train
 
 from environments import *
 
@@ -55,8 +53,10 @@ def get_algorithm_by_name(alg_name):
 import sys
 CONFIG, TRAINER = get_algorithm_by_name(sys.argv[1])
 ENVIRONMENT = sys.argv[2]
-if len(sys.argv) > 3:
-	OPTIONS = json.loads(' '.join(sys.argv[3:]))
+TEST_EVERY_N_STEP = sys.argv[3]
+STOP_TRAINING_AFTER_N_STEP = sys.argv[4]
+if len(sys.argv) > 5:
+	OPTIONS = json.loads(' '.join(sys.argv[5:]))
 	CONFIG.update(OPTIONS)
 print(CONFIG)
 
@@ -66,22 +66,4 @@ print(CONFIG)
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-# Configure RLlib to train a policy using the given environment and trainer
-agent = TRAINER(CONFIG, env=ENVIRONMENT)
-
-n = 0
-while True:
-	n += 1
-	last_time = time.time()
-	result = agent.train()
-	episode = {
-		'n': n, 
-		'episode_reward_min': result['episode_reward_min'], 
-		'episode_reward_mean': result['episode_reward_mean'], 
-		'episode_reward_max': result['episode_reward_max'],  
-		'episode_len_mean': result['episode_len_mean']
-	}
-	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {result["info"]["num_steps_trained"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
-	# file_name = agent.save(checkpoint_root)
-	# print(f'Checkpoint saved to {file_name}')
-
+train(TRAINER, CONFIG, ENVIRONMENT, test_every_n_step=TEST_EVERY_N_STEP, stop_training_after_n_step=STOP_TRAINING_AFTER_N_STEP)

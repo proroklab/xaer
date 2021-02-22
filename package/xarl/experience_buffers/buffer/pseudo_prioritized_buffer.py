@@ -190,6 +190,9 @@ class PseudoPrioritizedBuffer(Buffer):
 			return False
 		return self.has_atleast(self.min_cluster_size, self.get_type(type_id))
 
+	def get_valid_cluster_ids_gen(self):
+		return filter(lambda x: self.has_atleast(self.min_cluster_size, x), self.type_values)
+
 	def remove_less_important_batches(self, n):
 		# Pick the right tree list
 		if random() <= self._prioritized_drop_probability: 
@@ -206,8 +209,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		# Therefore, we have that the minimum cluster's size pY = N/(C+q).
 		less_important_batch_gen = (
 			(*tree_list[type_].min(), type_) # O(log)
-			for type_ in self.type_values
-			if tree_list[type_].inserted_elements >= self.min_cluster_size
+			for type_ in self.get_valid_cluster_ids_gen()
 		)
 		less_important_batch_gen_len = len(self.type_values)
 		# Remove the first N less important batches
@@ -312,22 +314,21 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def update_beta_weights(self, batch, idx, type_):
 		type_sum_tree = self._sample_priority_tree[type_]
-		if self._cluster_level_weighting: min_priority = type_sum_tree.min_tree.min()[0] # O(log)
-		else: min_priority = np.mean(tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree))) # O(log) # Using the average min priority we are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
+		if self._cluster_level_weighting: 
+			min_priority = type_sum_tree.min_tree.min()[0] # O(log)
+		else:
+			min_priority = np.mean(tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree))) # O(log) # Using the average min priority we are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
 		batch_priority = type_sum_tree[idx]
-		batch_priority = max(min_priority, batch_priority)
 		if self._priority_lower_limit is None:
-			if self._cluster_level_weighting: max_priority = type_sum_tree.max_tree.max()[0] # O(log)
-			else: max_priority = max(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
-			weight = self.eta_normalisation(
-				batch_priority, 
-				min_priority, 
-				max_priority, 
-				self._prioritization_importance_eta, 
-			)
+			if self._cluster_level_weighting:
+				max_priority = type_sum_tree.max_tree.max()[0] # O(log)
+			else:
+				max_priority = max(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
+			weight = self.eta_normalisation(batch_priority, min_priority, max_priority, self._prioritization_importance_eta)
 			# print(weight, max_priority-min_priority)
 		else:
 			assert min_priority > self._priority_lower_limit, f"min_priority must be > priority_lower_limit, if beta is not None and priority_can_be_negative is False, but it is {min_priority}"
+			batch_priority = np.maximum(batch_priority, min_priority) # no need for this instruction if we are not averaging/maxing clusters' min priorities
 			weight = (min_priority - self._priority_lower_limit) / (batch_priority - self._priority_lower_limit) # default, not compatible with negative priorities # in (0,1]: the closer is type_sum_tree[idx] to max_priority, the lower is the weight
 		weight = weight**self._prioritization_importance_beta
 		batch['weights'] = np.full(batch.count, weight, dtype=np.float32)

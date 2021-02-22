@@ -6,6 +6,7 @@ import json
 import shutil
 import ray
 import time
+from xarl.utils.workflow import train
 
 from xarl.agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
 from environments import *
@@ -64,38 +65,4 @@ CONFIG.update({
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-# Configure RLlib to train a policy using the “Taxi-v3” environment and a PPO optimizer
-agent = XADQNTrainer(CONFIG, env=SELECT_ENV)
-
-# Inspect the trained policy and model, to see the results of training in detail
-policy = agent.get_policy()
-model = policy.model
-if hasattr(model, 'q_value_head'):
-	print(model.q_value_head.summary())
-if hasattr(model, 'heads_model'):
-	print(model.heads_model.summary())
-
-# Train a policy. The following code runs 30 iterations and that’s generally enough to begin to see improvements in the “Taxi-v3” problem
-# results = []
-# episode_data = []
-# episode_json = []
-n = 0
-while True:
-	n += 1
-	last_time = time.time()
-	result = agent.train()
-	# print(result)
-	# results.append(result)
-	episode = {
-		'n': n, 
-		'episode_reward_min': result['episode_reward_min'], 
-		'episode_reward_mean': result['episode_reward_mean'], 
-		'episode_reward_max': result['episode_reward_max'],  
-		'episode_len_mean': result['episode_len_mean']
-	}
-	# episode_data.append(episode)
-	# episode_json.append(json.dumps(episode))
-	# file_name = agent.save(checkpoint_root)
-	print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {result["info"]["num_steps_trained"]:8.4f}, train ratio: {(result["info"]["num_steps_trained"]/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
-	# print(f'Checkpoint saved to {file_name}')
-
+train(XADQNTrainer, CONFIG, SELECT_ENV, test_every_n_step=1000, stop_training_after_n_step=None)
