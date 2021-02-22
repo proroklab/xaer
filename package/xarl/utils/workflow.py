@@ -7,15 +7,15 @@ import zipfile
 
 def test(tester_class, config, environment_class, checkpoint, save_gif=True, delete_screens_after_making_gif=True, compress_gif=True, n_episodes=10):
 	"""Tests and renders a previously trained model"""
-	test_config = config.copy()
-	test_config['explore'] = False
-	agent = tester_class(test_config, env=environment_class)
+	# test_config = config.copy()
+	# test_config['explore'] = False
+	agent = tester_class(config, env=environment_class)
 	if checkpoint is None:
 		raise ValueError(f"A previously trained checkpoint must be provided for algorithm {alg}")
 	agent.restore(checkpoint)
 	
 	checkpoint_directory = os.path.dirname(checkpoint)
-	env = agent.env_creator(test_config["env_config"])
+	env = agent.env_creator(config["env_config"])
 	for episode_id in range(n_episodes):
 		episode_directory = os.path.join(checkpoint_directory, f'episode_{episode_id}')
 		os.mkdir(episode_directory)
@@ -29,8 +29,8 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 		state = env.reset()
 		while not done:
 			# action = env.action_space.sample()
-			action = agent.compute_action(state)
-			state, reward, done, info = env.step(action)
+			action = agent.compute_action(state, full_fetch=True, explore=False)
+			state, reward, done, info = env.step(action[0])
 			sum_reward += reward
 			filename = os.path.join(screens_directory, f'frame{step}.jpg')
 			plt.rgb_array_image(
@@ -38,7 +38,7 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 				filename
 			)
 			file_list.append(filename)
-			log_list.append(f'step: {step}, reward: {reward}, done:{done}, info:{info}, action:{action}')
+			log_list.append(f'step: {step}, reward: {reward}, done:{done}, info:{info}, action:{action}\n')
 			step += 1
 		with open(episode_directory + f'/episode_{step}_{sum_reward}.log', 'w') as f:
 			f.writelines(log_list)
