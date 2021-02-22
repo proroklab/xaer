@@ -15,7 +15,7 @@ import gym
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
-	mean_seconds_per_step = 0.1 # in average, a step every n seconds
+	mean_seconds_per_step = 0.5 # in average, a step every n seconds
 	horizon_distance = 3 # meters
 	track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
 	wheelbase = 0.9 # meters # https://en.wikipedia.org/wiki/Wheelbase
@@ -24,12 +24,12 @@ class GraphDriveEasy(gym.Env):
 	max_speed = 1.6 # m/s
 	# the fastest car has max_acceleration 9.25 m/s^2 (https://en.wikipedia.org/wiki/List_of_fastest_production_cars_by_acceleration)
 	# the slowest car has max_acceleration 0.7 m/s^2 (http://automdb.com/max_acceleration)
-	max_acceleration = 0.7 # m/s^2
+	max_acceleration = 1 # m/s^2
 	# the best car has max_deceleration 29.43 m/s^2 (https://www.quora.com/What-can-be-the-maximum-deceleration-during-braking-a-car?share=1)
 	# a normal car has max_deceleration 7.1 m/s^2 (http://www.batesville.k12.in.us/Physics/PhyNet/Mechanics/Kinematics/BrakingDistData.html)
-	max_deceleration = 7.1 # m/s^2
+	max_deceleration = 7 # m/s^2
 	max_steering_degree = 30
-	max_step = 1000
+	max_step = 200
 	max_distance_to_path = 0.3 # meters
 	min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
@@ -41,7 +41,7 @@ class GraphDriveEasy(gym.Env):
 	map_size = (max_dimension, max_dimension)
 	junction_number = 32
 	max_roads_per_junction = 4
-	junction_radius = 2
+	junction_radius = 1.5
 	CULTURE = EasyRoadCulture
 
 	def get_state_shape(self):
@@ -89,6 +89,8 @@ class GraphDriveEasy(gym.Env):
 	def get_reward(self, car_speed, car_point, old_car_point): # to finish
 		def terminal_reward(is_positive,label):
 			return (1 if is_positive else -1, True, label) # terminate episode
+		def non_terminal_reward(is_positive,label):
+			return (1 if is_positive else -1, False, label) # terminate episode
 		def step_reward(is_positive,label):
 			# space_traveled = car_speed*self.seconds_per_step # space traveled
 			# max_space_traveled = self.max_speed*self.seconds_per_step # space traveled
@@ -365,7 +367,17 @@ class GraphDriveEasy(gym.Env):
 					if can_move:
 						break
 				road.colour = "Green" if can_move else "Red"
-			path_handle, = ax.plot(road_pos[0], road_pos[1], color=colour_to_hex(road.colour), lw=2, alpha=0.5, label='Roads')
+			self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, self.speed))
+			correct_properties, _ = self.road_network.run_dialogue(road, self.road_network.agent, explanation_type="compact")
+			road_colour = road.colour
+			if road_colour == "Green" and not correct_properties:
+				road_colour = "Gold"
+			path_handle, = ax.plot(road_pos[0], road_pos[1], color=colour_to_hex(road_colour), ls='--' if road==self.closest_road else '-', lw=2, alpha=0.5, label="Road")
+
+		path1_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Green"), lw=2, alpha=0.5, label="OK")
+		path2_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Red"), lw=2, alpha=0.5, label="Unfeasible")
+		path3_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Gold"), lw=2, alpha=0.5, label="Wrong Speed")
+		path4_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Black"), ls='--', lw=2, alpha=0.5, label="Current Road")
 
 		# Adjust ax limits in order to get the same scale factor on both x and y
 		a,b = ax.get_xlim()
@@ -374,10 +386,10 @@ class GraphDriveEasy(gym.Env):
 		ax.set_xlim([a,a+max_length])
 		ax.set_ylim([c,c+max_length])
 		# Build legend
-		handles = [car_handle]
+		handles = [car_handle, path1_handle, path2_handle, path3_handle, path4_handle]
 		ax.legend(handles=handles)
 		# Draw plot
-		figure.suptitle(f'[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orient.]{convert_radiant_to_degree(self.car_orientation):.2f}° [Speed]{self.speed:.2f} m/s\n[Step]{self._step} [Old]{self.closest_road.is_visited} [Car]{self.road_network.agent.binary_features()}')
+		figure.suptitle(f'[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}° [Orient.]{convert_radiant_to_degree(self.car_orientation):.2f}° [Speed]{self.speed:.2f} m/s\n[Step]{self._step} [Old]{self.closest_road.is_visited} [Car]{self.road_network.agent.binary_features()} [Reward]{self.last_reward}')
 		canvas.draw()
 		# Save plot into RGB array
 		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')

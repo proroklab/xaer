@@ -37,10 +37,6 @@ XADDPGTorchPolicy = DDPGTorchPolicy.with_updates(
 	postprocess_fn=xa_postprocess_nstep_and_prio,
 )
 
-def get_policy_class(config):
-	if config["framework"] == "torch": return XADDPGTorchPolicy
-	return XADDPGTFPolicy
-
 ########################
 # XADDPG's Execution Plan
 ########################
@@ -49,12 +45,12 @@ XADDPGTrainer = DDPGTrainer.with_updates(
 	name="XADDPG", 
 	default_config=XADDPG_DEFAULT_CONFIG,
 	execution_plan=xadqn_execution_plan,
-	get_policy_class=get_policy_class,
+	get_policy_class=lambda config: XADDPGTorchPolicy if config["framework"] == "torch" else XADDPGTFPolicy,
 )
 
 XATD3Trainer = TD3Trainer.with_updates(
     name="XATD3",
     default_config=XATD3_DEFAULT_CONFIG,
     execution_plan=xadqn_execution_plan,
-	get_policy_class=get_policy_class,
+	get_policy_class=lambda config: XADDPGTorchPolicy if config["framework"] == "torch" else XADDPGTFPolicy,
 )

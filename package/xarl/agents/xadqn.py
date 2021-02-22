@@ -78,10 +78,6 @@ XADQNTorchPolicy = DQNTorchPolicy.with_updates(
 	postprocess_fn=xa_postprocess_nstep_and_prio,
 )
 
-def get_policy_class(config):
-	if config["framework"] == "torch": return XADQNTorchPolicy
-	return XADQNTFPolicy
-
 ########################
 # XADQN's Execution Plan
 ########################
@@ -172,5 +168,5 @@ XADQNTrainer = DQNTrainer.with_updates(
 	name="XADQN", 
 	default_config=XADQN_DEFAULT_CONFIG,
 	execution_plan=xadqn_execution_plan,
-	get_policy_class=get_policy_class,
+	get_policy_class=lambda config: XADQNTorchPolicy if config["framework"] == "torch" else XADQNTFPolicy,
 )
