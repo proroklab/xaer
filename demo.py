@@ -53,8 +53,8 @@ def get_algorithm_by_name(alg_name):
 import sys
 CONFIG, TRAINER = get_algorithm_by_name(sys.argv[1])
 ENVIRONMENT = sys.argv[2]
-TEST_EVERY_N_STEP = int(sys.argv[3])
-STOP_TRAINING_AFTER_N_STEP = int(sys.argv[4])
+TEST_EVERY_N_STEP = int(float(sys.argv[3]))
+STOP_TRAINING_AFTER_N_STEP = int(float(sys.argv[4]))
 if len(sys.argv) > 5:
 	OPTIONS = json.loads(' '.join(sys.argv[5:]))
 	CONFIG.update(OPTIONS)
