@@ -5,7 +5,7 @@ import time
 import xarl.utils.plot_lib as plt
 import zipfile
 
-def test(tester_class, config, environment_class, checkpoint, save_gif=True, delete_screens_after_making_gif=True, compress_gif=True):
+def test(tester_class, config, environment_class, checkpoint, save_gif=True, delete_screens_after_making_gif=True, compress_gif=True, n_episodes=10):
 	"""Tests and renders a previously trained model"""
 	test_config = config.copy()
 	test_config['explore'] = False
@@ -14,41 +14,46 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 		raise ValueError(f"A previously trained checkpoint must be provided for algorithm {alg}")
 	agent.restore(checkpoint)
 	
-	episode_directory = os.path.dirname(checkpoint)
-	screens_directory = os.path.join(episode_directory,'screen')
-	# os.mkdir(episode_directory)
-	os.mkdir(screens_directory)
-	file_list = []
-
+	checkpoint_directory = os.path.dirname(checkpoint)
 	env = agent.env_creator(test_config["env_config"])
-	sum_reward = 0
-	step = 0
-	done = False
-	state = env.reset()
-	while not done:
-		# action = env.action_space.sample()
-		action = agent.compute_action(state)
-		state, reward, done, info = env.step(action)
-		sum_reward += reward
-		filename = os.path.join(screens_directory, f'frame{step}.jpg')
-		plt.rgb_array_image(
-			env.render(mode='rgb_array'), 
-			filename
-		)
-		file_list.append(filename)
-		step += 1
-	if save_gif:
-		gif_filename = os.path.join(episode_directory, f'episode_{sum_reward}.gif')
-		plt.make_gif(file_list=file_list, gif_path=gif_filename)
-		# Delete screens, to save memory
-		if delete_screens_after_making_gif:
-			shutil.rmtree(screens_directory, ignore_errors=True)
-		# Zip GIF, to save memory
-		if compress_gif:
-			with zipfile.ZipFile(gif_filename+'.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as zip:
-				zip.write(gif_filename)
-			# Remove unzipped GIF
-			os.remove(gif_filename)
+	for episode_id in range(n_episodes):
+		episode_directory = os.path.join(checkpoint_directory, f'episode_{episode_id}')
+		os.mkdir(episode_directory)
+		screens_directory = os.path.join(episode_directory, 'screen')
+		os.mkdir(screens_directory)
+		file_list = []
+		log_list = []
+		sum_reward = 0
+		step = 0
+		done = False
+		state = env.reset()
+		while not done:
+			# action = env.action_space.sample()
+			action = agent.compute_action(state)
+			state, reward, done, info = env.step(action)
+			sum_reward += reward
+			filename = os.path.join(screens_directory, f'frame{step}.jpg')
+			plt.rgb_array_image(
+				env.render(mode='rgb_array'), 
+				filename
+			)
+			file_list.append(filename)
+			log_list.append(f'step: {step}, reward: {reward}, done:{done}, info:{info}, action:{action}')
+			step += 1
+		with open(episode_directory + f'/episode_{step}_{sum_reward}.log', 'w') as f:
+			f.writelines(log_list)
+		if save_gif:
+			gif_filename = os.path.join(episode_directory, f'episode.gif')
+			plt.make_gif(file_list=file_list, gif_path=gif_filename)
+			# Delete screens, to save memory
+			if delete_screens_after_making_gif:
+				shutil.rmtree(screens_directory, ignore_errors=True)
+			# Zip GIF, to save memory
+			if compress_gif:
+				with zipfile.ZipFile(gif_filename+'.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as zip:
+					zip.write(gif_filename)
+				# Remove unzipped GIF
+				os.remove(gif_filename)
 
 def train(trainer_class, config, environment_class, test_every_n_step=None, stop_training_after_n_step=None):
 	# Configure RLlib to train a policy using the given environment and trainer
