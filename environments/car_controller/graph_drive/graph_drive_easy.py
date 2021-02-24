@@ -175,10 +175,8 @@ class GraphDriveEasy(gym.Env):
 			j1.pos,
 			j2.pos,
 		)
-		road_points = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_points)
-		road_points = map(self.normalize_point, road_points) # in [-1,1]
-		road_points = sorted(road_points) # sort by relative position
-		road_view = sum(road_points,()) + self.closest_road.binary_features() + (1 if self.closest_road.is_visited else 0,)
+		relative_road_points = tuple(map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_points))
+		road_view = sum(sorted(map(self.normalize_point, relative_road_points)),()) + self.closest_road.binary_features() + (1 if self.closest_road.is_visited else 0,)
 		road_view = np.array(road_view, dtype=np.float32)
 		# Get junction view
 		junction_view = np.array([ # 2 x self.max_roads_per_junction x (1+1)
@@ -196,7 +194,7 @@ class GraphDriveEasy(gym.Env):
 					-1,
 				)
 			]*(self.max_roads_per_junction-len(j.roads_connected))
-			for j in sorted([j1,j2],key=lambda x:x.pos)
+			for _,j in sorted(enumerate([j1,j2]),key=lambda x:relative_road_points[x[0]])
 		], dtype=np.float32)
 		# print(junction_view.shape)
 		return road_view, junction_view
