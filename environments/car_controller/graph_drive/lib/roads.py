@@ -263,9 +263,10 @@ class RoadNetwork:
 			p1,p2 = edge
 			j1 = self.junction_dict[p1]
 			j2 = self.junction_dict[p2]
-			road = Road(j1, j2, connect=len(j1) < self.max_roads_per_junction and len(j2) < self.max_roads_per_junction)
-			road.set_culture(self.road_culture)
-			self.road_culture.initialise_random_road(road)
-			self.roads.append(road)
+			if len(j1) < self.max_roads_per_junction and len(j2) < self.max_roads_per_junction:
+				road = Road(j1, j2, connect=True)
+				road.set_culture(self.road_culture)
+				self.road_culture.initialise_random_road(road)
+				self.roads.append(road)
 		starting_point = random.choice(random_planar_graph['spanning_tree'])[0]
 		return starting_point

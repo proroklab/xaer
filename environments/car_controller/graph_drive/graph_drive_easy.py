@@ -29,7 +29,7 @@ class GraphDriveEasy(gym.Env):
 	max_deceleration = 7 # m/s^2
 	max_steering_degree = 35
 	max_step = 200
-	max_distance_to_path = 1.5 # meters
+	max_distance_to_path = 1 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
@@ -177,25 +177,26 @@ class GraphDriveEasy(gym.Env):
 		)
 		road_points = map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_points)
 		road_points = map(self.normalize_point, road_points) # in [-1,1]
+		road_points = sorted(road_points) # sort by relative position
 		road_view = sum(road_points,()) + self.closest_road.binary_features() + (1 if self.closest_road.is_visited else 0,)
 		road_view = np.array(road_view, dtype=np.float32)
 		# Get junction view
 		junction_view = np.array([ # 2 x self.max_roads_per_junction x (1+1)
-			[
+			sorted([
 				(
 					(road.get_orientation_relative_to(source_orientation) % two_pi)/two_pi, # in [0,1]
 					*road.binary_features(), # in [0,1]
 					1 if road.is_visited else 0, # whether road has been previously visited
 				)
 				for road in j.roads_connected
-			] + [ # placeholders for unavailable roads
+			], key=lambda x:x[0]) + [ # placeholders for unavailable roads
 				(
 					-1,
 					*[-1]*self.obs_road_features,
 					-1,
 				)
 			]*(self.max_roads_per_junction-len(j.roads_connected))
-			for j in (j1,j2)
+			for j in sorted([j1,j2],key=lambda x:x.pos)
 		], dtype=np.float32)
 		# print(junction_view.shape)
 		return road_view, junction_view

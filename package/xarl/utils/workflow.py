@@ -38,7 +38,15 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 				filename
 			)
 			file_list.append(filename)
-			log_list.append(f'step: {step}, reward: {reward}, done:{done}, info:{info}, action:{action}\n')
+			log_list.append(', '.join([
+				f'step: {step}',
+				f'reward: {reward}',
+				f'done: {done}',
+				f'info: {info}',
+				f'action: {action}',
+				f'state: {state}',
+				f'\n\n',
+			]))
 			step += 1
 		with open(episode_directory + f'/episode_{step}_{sum_reward}.log', 'w') as f:
 			f.writelines(log_list)
