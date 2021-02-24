@@ -15,12 +15,12 @@ import gym
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
-	mean_seconds_per_step = 0.5 # in average, a step every n seconds
+	mean_seconds_per_step = 0.25 # in average, a step every n seconds
 	# track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
 	wheelbase = 0.45 # meters # https://en.wikipedia.org/wiki/Wheelbase
 	# information about speed parameters: http://www.ijtte.com/uploads/2012-10-01/5ebd8343-9b9c-b1d4IJTTE%20vol2%20no3%20%287%29.pdf
-	min_speed = 0.1 # m/s
-	max_speed = 1.6 # m/s
+	min_speed = 0.2 # m/s
+	max_speed = 1.2 # m/s
 	# the fastest car has max_acceleration 9.25 m/s^2 (https://en.wikipedia.org/wiki/List_of_fastest_production_cars_by_acceleration)
 	# the slowest car has max_acceleration 0.7 m/s^2 (http://automdb.com/max_acceleration)
 	max_acceleration = 1 # m/s^2
@@ -29,16 +29,16 @@ class GraphDriveEasy(gym.Env):
 	max_deceleration = 7 # m/s^2
 	max_steering_degree = 35
 	max_step = 200
-	max_distance_to_path = 0.5 # meters
+	max_distance_to_path = 1.5 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
 	max_speed_noise = 0 # m/s
 	max_steering_noise_degree = 0
 	# multi-road related stuff
-	max_dimension = 64
+	max_dimension = 32
 	map_size = (max_dimension, max_dimension)
-	junction_number = 64
+	junction_number = 16
 	max_roads_per_junction = 4
 	junction_radius = 1.5
 	min_junction_distance = 3*junction_radius
@@ -212,7 +212,7 @@ class GraphDriveEasy(gym.Env):
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		self.last_closest_road = None
 		# steering angle & speed
-		self.speed = self.min_speed + (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
+		self.speed = self.min_speed #+ (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
 		self.steering_angle = 0
 		# init concat variables
 		self.last_reward = 0
@@ -277,7 +277,7 @@ class GraphDriveEasy(gym.Env):
 			speed=self.speed, 
 			add_noise=True
 		)
-		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point, self.closest_junctions)
+		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		# if a new road is visited, add the old one to the set of visited ones	
 		if self.last_closest_road != self.closest_road and not self.is_in_junction(self.car_point):
 			visiting_new_road = True
@@ -368,7 +368,7 @@ class GraphDriveEasy(gym.Env):
 		path2_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Red"), lw=2, alpha=0.5, label="Unfeasible")
 		path3_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Gold"), lw=2, alpha=0.5, label="Wrong Speed")
 		path4_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Black"), ls='--', lw=2, alpha=0.5, label="Current Road")
-		junction_handle = ax.scatter(0, 0, marker='o', color='y', label='Junction')
+		# junction_handle = ax.scatter(0, 0, marker='o', color='y', label='Junction')
 
 		# Adjust ax limits in order to get the same scale factor on both x and y
 		a,b = ax.get_xlim()
@@ -377,7 +377,7 @@ class GraphDriveEasy(gym.Env):
 		ax.set_xlim([a,a+max_length])
 		ax.set_ylim([c,c+max_length])
 		# Build legend
-		handles = [car_handle, junction_handle, path1_handle, path2_handle, path3_handle, path4_handle]
+		handles = [car_handle, path1_handle, path2_handle, path3_handle, path4_handle]
 		ax.legend(handles=handles)
 		# Draw plot
 		figure.suptitle(' '.join([
