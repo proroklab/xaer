@@ -29,7 +29,7 @@ class GraphDriveEasy(gym.Env):
 	max_deceleration = 7 # m/s^2
 	max_steering_degree = 35
 	max_step = 200
-	max_distance_to_path = 1 # meters
+	max_distance_to_path = 0.5 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
@@ -92,12 +92,9 @@ class GraphDriveEasy(gym.Env):
 			return (1 if is_positive else -1, True, label) # terminate episode
 		def non_terminal_reward(is_positive,label):
 			return (1 if is_positive else -1, False, label) # terminate episode
-		# def step_reward(is_positive,label):
-		# 	# space_traveled = car_speed*self.seconds_per_step # space traveled
-		# 	# max_space_traveled = self.max_speed*self.seconds_per_step # space traveled
-		# 	# normalised_space_traveled = space_traveled/max_space_traveled
-		# 	normalised_space_traveled = (car_speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
-		# 	return (normalised_space_traveled if is_positive else -normalised_space_traveled, False, label) # do not terminate episode
+		def step_reward(is_positive,label):
+			normalised_space_traveled = (car_speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+			return (normalised_space_traveled if is_positive else -normalised_space_traveled, False, label) # do not terminate episode
 		def null_reward(label):
 			return (0, False, label) # do not terminate episode
 
@@ -106,25 +103,25 @@ class GraphDriveEasy(gym.Env):
 			self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
 			# "Follow regulation" rule. # Run dialogue against culture.
 			can_move, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
-			# explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
+			explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
 			if not can_move:
-				# return terminal_reward(is_positive=False, label=explanation_list_with_label('follow_regulation'))
-				return terminal_reward(is_positive=False, label=explanation_list)
+				return terminal_reward(is_positive=False, label=explanation_list_with_label('follow_regulation'))
 			# "Stay on the road" rule
 			if self.distance_to_closest_road >= self.max_distance_to_path: 
-				# return terminal_reward(is_positive=False, label=explanation_list_with_label('stay_on_the_road'))
-				return terminal_reward(is_positive=False, label='stay_on_the_road')
+				return terminal_reward(is_positive=False, label=explanation_list_with_label('stay_on_the_road'))
 			# "Visit new roads" rule
 			if self.closest_road.is_visited:
-				# return null_reward(label=explanation_list_with_label('visit_new_roads'))
-				return null_reward(label='visit_new_roads')
+				return null_reward(label=explanation_list_with_label('visit_new_roads'))
+			#######################################
 			# "Explore the whole graph" rule
 			if visiting_new_road:
-				# return non_terminal_reward(is_positive=True, label=explanation_list_with_label('explore_the_whole_graph'))
-				return non_terminal_reward(is_positive=True, label='explore_the_whole_graph')
+				return non_terminal_reward(is_positive=True, label=explanation_list_with_label('explore_the_whole_graph'))
 			# "Move forward" rule
-			# return null_reward(label=explanation_list_with_label('move_forward'))
-			return null_reward(label='move_forward')
+			return null_reward(label=explanation_list_with_label('move_forward'))
+			#######################################
+			# # "Move forward" rule
+			# return step_reward(is_positive=True, label=explanation_list_with_label('move_forward'))
+			#######################################
 		else:
 			return null_reward(label='is_in_junction')
 
@@ -157,11 +154,10 @@ class GraphDriveEasy(gym.Env):
 			min_junction_distance=self.min_junction_distance,
 			max_roads_per_junction=self.max_roads_per_junction,
 		)
-		self.junction_around = min(self.max_distance_to_path*2, self.junction_radius)
 		self.obs_road_features = len(self.culture.properties)  # Number of binary ROAD features in Hard Culture
 		self.obs_car_features = len(self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
 		# Spaces
-		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)  # steering angle, continuous control without softmax
+		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)  # steering angle and speed
 		self.observation_space = gym.spaces.Tuple([
 			gym.spaces.Box(**shape, dtype=np.float32)
 			for shape in self.get_state_shape()
@@ -261,7 +257,7 @@ class GraphDriveEasy(gym.Env):
 
 	def is_in_junction(self, car_point):
 		distance_from_junction = min(euclidean_distance(self.closest_junctions[0].pos, car_point), euclidean_distance(self.closest_junctions[1].pos, car_point))
-		return distance_from_junction <= self.junction_around
+		return distance_from_junction <= self.junction_radius
 
 	def step(self, action_vector):
 		# first of all, get the seconds passed from last step
@@ -372,6 +368,7 @@ class GraphDriveEasy(gym.Env):
 		path2_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Red"), lw=2, alpha=0.5, label="Unfeasible")
 		path3_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Gold"), lw=2, alpha=0.5, label="Wrong Speed")
 		path4_handle, = ax.plot((0,0), (0,0), color=colour_to_hex("Black"), ls='--', lw=2, alpha=0.5, label="Current Road")
+		junction_handle = ax.scatter(0, 0, marker='o', color='y', label='Junction')
 
 		# Adjust ax limits in order to get the same scale factor on both x and y
 		a,b = ax.get_xlim()
@@ -380,7 +377,7 @@ class GraphDriveEasy(gym.Env):
 		ax.set_xlim([a,a+max_length])
 		ax.set_ylim([c,c+max_length])
 		# Build legend
-		handles = [car_handle, path1_handle, path2_handle, path3_handle, path4_handle]
+		handles = [car_handle, junction_handle, path1_handle, path2_handle, path3_handle, path4_handle]
 		ax.legend(handles=handles)
 		# Draw plot
 		figure.suptitle(' '.join([
