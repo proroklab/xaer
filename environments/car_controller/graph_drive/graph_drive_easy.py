@@ -94,9 +94,9 @@ class GraphDriveEasy(gym.Env):
 			return (1 if is_positive else -1, True, label) # terminate episode
 		def non_terminal_reward(is_positive,label):
 			return (1 if is_positive else -1, False, label) # terminate episode
-		def step_reward(is_positive,label):
-			normalised_space_traveled = (car_speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
-			return (normalised_space_traveled if is_positive else -normalised_space_traveled, False, label) # do not terminate episode
+		# def step_reward(is_positive,label):
+		# 	normalised_space_traveled = (car_speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+		# 	return (normalised_space_traveled if is_positive else -normalised_space_traveled, False, label) # do not terminate episode
 		def null_reward(label):
 			return (0, False, label) # do not terminate episode
 
@@ -316,18 +316,18 @@ class GraphDriveEasy(gym.Env):
 		self.avg_speed_per_steps += self.speed
 		# update step
 		self._step += 1
-		completed_track = self.last_reward_type == 'goal'
 		out_of_time = self._step >= self.max_step
-		terminal = dead or completed_track or out_of_time
+		terminal = dead or out_of_time
+		info_dict = {'explanation':reward_type}
 		if terminal: # populate statistics
 			self.is_over = True
 			stats = {
 				"avg_speed": self.avg_speed_per_steps/self._step,
-				"completed_track": 1 if completed_track else 0,
 				"out_of_time": 1 if out_of_time else 0,
 			}
+			info_dict.update(stats)
 			self.episode_statistics = stats
-		return [state, reward, terminal, {'explanation':reward_type}]
+		return [state, reward, terminal, info_dict]
 			
 	def get_info(self):
 		return f"speed={self.speed}, steering_angle={self.steering_angle}, orientation={self.car_orientation}\n"
