@@ -15,7 +15,7 @@ import gym
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
-	mean_seconds_per_step = 0.25 # in average, a step every n seconds
+	mean_seconds_per_step = 0.5 # in average, a step every n seconds
 	# track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
 	wheelbase = 0.45 # meters # https://en.wikipedia.org/wiki/Wheelbase
 	# information about speed parameters: http://www.ijtte.com/uploads/2012-10-01/5ebd8343-9b9c-b1d4IJTTE%20vol2%20no3%20%287%29.pdf
@@ -27,7 +27,7 @@ class GraphDriveEasy(gym.Env):
 	# the best car has max_deceleration 29.43 m/s^2 (https://www.quora.com/What-can-be-the-maximum-deceleration-during-braking-a-car?share=1)
 	# a normal car has max_deceleration 7.1 m/s^2 (http://www.batesville.k12.in.us/Physics/PhyNet/Mechanics/Kinematics/BrakingDistData.html)
 	max_deceleration = 7 # m/s^2
-	max_steering_degree = 35
+	max_steering_degree = 45
 	max_step = 200
 	max_distance_to_path = 1 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
@@ -36,28 +36,30 @@ class GraphDriveEasy(gym.Env):
 	max_speed_noise = 0 # m/s
 	max_steering_noise_degree = 0
 	# multi-road related stuff
-	max_dimension = 32
+	max_dimension = 16
 	map_size = (max_dimension, max_dimension)
 	junction_number = 16
 	max_roads_per_junction = 4
-	junction_radius = 1.5
-	min_junction_distance = 3*junction_radius
+	junction_radius = 1
+	min_junction_distance = 2.5*junction_radius
 	CULTURE = EasyRoadCulture
 
 	def get_state_shape(self):
 		return [
-			{  # Closest road to the agent (the one it's driving on)
+			{  # Closest road to the agent (the one it's driving on), sorted by relative position
 				'low': -1,
 				'high': 1,
-				'shape': (2 + 2 + self.obs_road_features + 1,), # current road view: road.start.pos + road.end.pos + road features + is_new_road
+				'shape': (
+					2 + 2 + self.obs_road_features + 1, # road properties: road.start.pos + road.end.pos + road.af_features + road.is_new_road
+				),
 			},
-			{  # Junctions
+			{  # Roads directly connected to the closest road to the agent (the one it's driving on), sorted by relative position
 				'low': -1,
 				'high': 1,
 				'shape': ( # closest junctions view
-					2, # number of junctions close to current road
-					self.max_roads_per_junction, 
-					1 + self.obs_road_features + 1,  # relative heading vector (instead of start/end positions) + road features + is_new_road
+					2, # junctions attached to the current road
+					self.max_roads_per_junction, # maximum number of roads per junction
+					2 + 2 + self.obs_road_features + 1,  # road properties: road.start.pos + road.end.pos + road.af_features + road.is_new_road
 				),
 			},
 			{  # Agent features
@@ -169,32 +171,39 @@ class GraphDriveEasy(gym.Env):
 
 	def get_view(self, source_point, source_orientation): # source_orientation is in radians, source_point is in meters, source_position is quantity of past splines
 		source_x, source_y = source_point
+		shift_rotate_normalise_point = lambda x: self.normalize_point(shift_and_rotate(*x, -source_x, -source_y, -source_orientation))
 		j1, j2 = self.closest_junctions
 		# Get road view
 		road_points = ( # 2x2
 			j1.pos,
 			j2.pos,
 		)
-		relative_road_points = tuple(map(lambda x: shift_and_rotate(*x, -source_x, -source_y, -source_orientation), road_points))
-		road_view = sum(sorted(map(self.normalize_point, relative_road_points)),()) + self.closest_road.binary_features() + (1 if self.closest_road.is_visited else 0,)
+		relative_road_points = tuple(map(shift_rotate_normalise_point, road_points))
+		road_view = sum(sorted(relative_road_points),()) + self.closest_road.binary_features() + (1 if self.closest_road.is_visited else 0,)
 		road_view = np.array(road_view, dtype=np.float32)
 		# Get junction view
 		junction_view = np.array([ # 2 x self.max_roads_per_junction x (1+1)
 			sorted([
 				(
-					(road.get_orientation_relative_to(source_orientation) % two_pi)/two_pi, # in [0,1]
+					*shift_rotate_normalise_point(road.start.pos),
+					*shift_rotate_normalise_point(road.end.pos),
+					*road.binary_features(), # in [0,1]
+					1 if road.is_visited else 0, # whether road has been previously visited
+				) if euclidean_distance(road.start.pos,j.pos) < euclidean_distance(road.end.pos,j.pos) else (
+					*shift_rotate_normalise_point(road.end.pos),
+					*shift_rotate_normalise_point(road.start.pos),
 					*road.binary_features(), # in [0,1]
 					1 if road.is_visited else 0, # whether road has been previously visited
 				)
 				for road in j.roads_connected
-			], key=lambda x:x[0]) + [ # placeholders for unavailable roads
+			], key=lambda x:(x[0:4])) + [ # placeholders for unavailable roads
 				(
-					-1,
+					-1,-1,-1,-1,
 					*[-1]*self.obs_road_features,
 					-1,
 				)
 			]*(self.max_roads_per_junction-len(j.roads_connected))
-			for _,j in sorted(enumerate([j1,j2]),key=lambda x:relative_road_points[x[0]])
+			for j,_ in sorted(zip((j1,j2),relative_road_points),key=lambda x:x[1])
 		], dtype=np.float32)
 		# print(junction_view.shape)
 		return road_view, junction_view
@@ -211,7 +220,8 @@ class GraphDriveEasy(gym.Env):
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		self.last_closest_road = None
 		# steering angle & speed
-		self.speed = self.min_speed #+ (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
+		self.speed = self.min_speed + (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
+		# self.speed = self.min_speed+(self.max_speed-self.min_speed)*(70/120) # for testing
 		self.steering_angle = 0
 		# init concat variables
 		self.last_reward = 0
@@ -276,7 +286,7 @@ class GraphDriveEasy(gym.Env):
 			speed=self.speed, 
 			add_noise=True
 		)
-		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
+		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point, self.closest_junctions)
 		# if a new road is visited, add the old one to the set of visited ones	
 		if self.last_closest_road != self.closest_road and not self.is_in_junction(self.car_point):
 			visiting_new_road = True

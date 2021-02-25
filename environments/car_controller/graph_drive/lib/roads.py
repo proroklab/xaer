@@ -29,9 +29,6 @@ class Road(RoadCell):
 	def __init__(self, start: Junction, end: Junction, connect=False):
 		# arbitrary sorting by x-coordinate to avoid mirrored duplicates
 		super().__init__()
-		if start.pos[0] < end.pos[0]:
-			start, end = end, start
-		self.orientation = np.arctan2(end.pos[1] - start.pos[1], end.pos[0] - start.pos[0]) # get slope
 		self.start = start
 		self.end = end
 		self.edge = (start.pos, end.pos)
@@ -54,18 +51,6 @@ class Road(RoadCell):
 	def connect_to_junctions(self):
 		self.start.connect(self)
 		self.end.connect(self)
-
-	def get_orientation_relative_to(self, source_orientation):
-		# normalise orientations
-		source_orientation %= two_pi
-		road_a_orientation = self.orientation % two_pi
-		road_b_orientation = (road_a_orientation+np.pi) % two_pi
-		road_a_orientation_relative_to_source = get_orientation_of_a_relative_to_b(road_a_orientation,source_orientation)
-		road_b_orientation_relative_to_source = get_orientation_of_a_relative_to_b(road_b_orientation,source_orientation)
-		# roads are two-way, get the closest orientation to source_orientation
-		if abs(road_a_orientation_relative_to_source) < abs(road_b_orientation_relative_to_source):
-			return road_a_orientation_relative_to_source
-		return road_b_orientation_relative_to_source
 
 class RoadNetwork:
 
