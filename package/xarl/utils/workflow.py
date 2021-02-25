@@ -51,17 +51,17 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 		with open(episode_directory + f'/episode_{step}_{sum_reward}.log', 'w') as f:
 			f.writelines(log_list)
 		if save_gif:
-			gif_filename = os.path.join(episode_directory, f'episode.gif')
-			plt.make_gif(file_list=file_list, gif_path=f'episode.gif')
+			gif_filename = os.path.join(episode_directory, 'episode.gif')
+			plt.make_gif(file_list=file_list, gif_path=gif_filename)
 			# Delete screens, to save memory
 			if delete_screens_after_making_gif:
 				shutil.rmtree(screens_directory, ignore_errors=True)
 			# Zip GIF, to save memory
 			if compress_gif:
-				with zipfile.ZipFile(gif_filename+'.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as zip:
-					zip.write(f'episode.gif')
+				with zipfile.ZipFile(gif_filename+'.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as z:
+					z.write(gif_filename,'episode.gif')
 				# Remove unzipped GIF
-				os.remove(f'episode.gif')
+				os.remove(gif_filename)
 
 def train(trainer_class, config, environment_class, test_every_n_step=None, stop_training_after_n_step=None):
 	# Configure RLlib to train a policy using the given environment and trainer
