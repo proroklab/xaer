@@ -319,10 +319,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		else:
 			# min_priority = self.priority_stats.mean - 2*self.priority_stats.std # O(1)
 			min_priority_list = tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)) # O(log)
-			if self._priority_lower_limit is None: # Using the 1st quartile we are trying to smooth the effect of outliers, that are hard to be removed from the buffer, when the lower in -inf.
-				min_priority = np.percentile(min_priority_list, 25)
-			else:
-				min_priority = min(min_priority_list)
+			# min_priority = np.percentile(min_priority_list, 25) # Using the 1st quartile we are trying to smooth the effect of outliers, that are hard to be removed from the buffer, when the lower in -inf.
+			min_priority = min(min_priority_list)
 		batch_priority = type_sum_tree[idx]
 		if self._priority_lower_limit is None:
 			if self._cluster_level_weighting:
