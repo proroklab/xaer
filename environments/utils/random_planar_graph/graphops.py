@@ -16,12 +16,18 @@ def test_node_placement(proposed_node, nodes, exclusion_dist):
 			return False
 	return True
 
-def generate_nodes(n, width, height, exclusion_dist, randstream):
+def generate_nodes(n, width, height, exclusion_dist, randstream, max_trials=10):
 	nodes = []
+	wrong_nodes = 0
 	while len(nodes) < n:
 		proposed_node = generate_node(width, height, randstream)
 		if test_node_placement(proposed_node, nodes, exclusion_dist):
 			nodes.append(proposed_node)
+			wrong_nodes = 0
+		else:
+			wrong_nodes += 1
+		if wrong_nodes >= max_trials: # prevent divergent loop returning what there is
+			return nodes
 	return nodes
 
 def triangle_edges(tri):

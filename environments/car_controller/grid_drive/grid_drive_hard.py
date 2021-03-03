@@ -22,6 +22,41 @@ class GridDriveHard(gym.Env):
 	MAX_GAPPED_SPEED			= MAX_SPEED//SPEED_GAP
 	MAX_STEP					= 2**5
 	DIRECTIONS					= 4 # N,S,W,E
+
+	def get_state(self):
+		fc_dict = {
+			"neighbours": np.array(self.grid.neighbour_features(), dtype=np.int8), 
+		}
+		if self.obs_car_features > 0:
+			fc_dict["agent"] = np.array(self.grid.agent.binary_features(), dtype=np.int8)
+		return {
+			"cnn": {
+				"grid": self.grid_view,
+			},
+			"fc": fc_dict,
+		}
+
+	def get_reward(self, following_regulation, explanation_list):
+		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
+		x, y = self.grid.agent_position
+		if not following_regulation:
+			return (
+				-(self.speed+1)/self.MAX_SPEED, # in [-1,0)
+				True, # terminal state
+				explanation_list_with_label('follow_regulation')
+			)
+		visiting_old_cell = self.grid_view[x][y][-2] > 0
+		if visiting_old_cell: # already visited cell
+			return (
+				0,
+				False, # non-terminal state
+				explanation_list_with_label('visit_new_cells')
+			)
+		return (
+			(self.speed+1)/self.MAX_SPEED, # in (0,1]
+			False, # non-terminal state
+			explanation_list_with_label('move_forward')
+		)
 	
 	def __init__(self):
 		self.culture = self.CULTURE(road_options={
@@ -76,44 +111,24 @@ class GridDriveHard(gym.Env):
 		self.grid_view[x][y][-2] = 1 # set current cell as visited
 		return self.get_state()
 
-	def get_state(self):
-		fc_dict = {
-			"neighbours": np.array(self.grid.neighbour_features(), dtype=np.int8), 
-		}
-		if self.obs_car_features > 0:
-			fc_dict["agent"] = np.array(self.grid.agent.binary_features(), dtype=np.int8)
-		return {
-			"cnn": {
-				"grid": self.grid_view,
-			},
-			"fc": fc_dict,
-		}
-
 	def step(self, action_vector):
-		direction = action_vector//self.MAX_GAPPED_SPEED
+		self.direction = action_vector//self.MAX_GAPPED_SPEED
 		gapped_speed = action_vector%self.MAX_GAPPED_SPEED
 		# direction, gapped_speed = action_vector
 		self.step_counter += 1
 		x, y = self.grid.agent_position
 		self.grid_view[x][y][-1] = 0 # remove old position
-		speed = gapped_speed*self.SPEED_GAP
-		can_move, explanation = self.grid.move_agent(direction, speed)
-		is_terminal_step = self.step_counter >= self.MAX_STEP
-		x, y = self.grid.agent_position
-		if not can_move:
-			reward = -(speed+1)/self.MAX_SPEED # in [-1,0)
-			is_terminal_step = True
-		else:
-			if self.grid_view[x][y][-2] > 0: # already visited cell
-				reward = 0
-				explanation = 'Old cell'
-			else:
-				reward = (speed+1)/self.MAX_SPEED # in (0,1]
-				explanation = 'OK'
-		# do it aftwer checking positions
+		self.speed = gapped_speed*self.SPEED_GAP
+		reward, terminal, explanatory_labels = self.get_reward(*self.grid.move_agent(self.direction, self.speed))
+		# do it aftwer checking positions with get_reward
 		self.grid_view[x][y][-2] = 1 # set current cell as visited
 		self.grid_view[x][y][-1] = 1 # set new position
-		return [self.get_state(), reward, is_terminal_step, {'explanation': explanation}]
+		return [
+			self.get_state(), # observation
+			reward, 
+			terminal or self.step_counter >= self.MAX_STEP, # terminal
+			{'explanation': explanatory_labels} # info_dict
+		]
 
 	def get_screen(self):  # RGB array
 		# First set up the figure and the axis
@@ -154,7 +169,6 @@ class GridDriveHard(gym.Env):
 				right = left + cell_side
 				bottom = y * cell_side
 				top = bottom + cell_side
-				print("Rectangle {} {} size {}".format( left, bottom, cell_side))
 				if self.grid_view[x][y][-2] > 0:  # Already visited cell
 					cell_handle = Rectangle((left, bottom), cell_side, cell_side, color='gray', alpha=0.25)
 				elif road_limits[road] == (None, None):  # Unfeasible road

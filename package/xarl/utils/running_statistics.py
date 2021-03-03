@@ -1,6 +1,25 @@
 # -*- coding: utf-8 -*-
 from runstats import Statistics, Regression
 
+class RunningPercentile:
+	def __init__(self, percentile=0.5, step=0.1):
+		self.step = step
+		self.step_up = 1.0 - percentile
+		self.step_down = percentile
+		self.x = None
+
+	def push(self, observation):
+		if self.x is None:
+			self.x = observation
+			return
+
+		if self.x > observation:
+			self.x -= self.step * self.step_up
+		elif self.x < observation:
+			self.x += self.step * self.step_down
+		if abs(observation - self.x) < self.step:
+			self.step /= 2.0
+
 class RunningStats(object):
 	
 	def __init__(self, window_size=None):

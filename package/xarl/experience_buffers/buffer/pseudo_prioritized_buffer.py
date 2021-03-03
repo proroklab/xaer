@@ -317,13 +317,19 @@ class PseudoPrioritizedBuffer(Buffer):
 		if self._cluster_level_weighting: 
 			min_priority = type_sum_tree.min_tree.min()[0] # O(log)
 		else:
-			min_priority = np.mean(tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree))) # O(log) # Using the average min priority we are trying to smooth the effect of outliers, that are hard to be removed from the buffer.
+			# min_priority = self.priority_stats.mean - 2*self.priority_stats.std # O(1)
+			min_priority_list = tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)) # O(log)
+			# min_priority = np.percentile(min_priority_list, 25) # Using the 1st quartile we are trying to smooth the effect of outliers, that are hard to be removed from the buffer, when the lower in -inf.
+			min_priority = min(min_priority_list)
 		batch_priority = type_sum_tree[idx]
 		if self._priority_lower_limit is None:
 			if self._cluster_level_weighting:
 				max_priority = type_sum_tree.max_tree.max()[0] # O(log)
 			else:
-				max_priority = max(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
+				# max_priority = self.priority_stats.mean + 2*self.priority_stats.std # O(1)
+				max_priority_list = tuple(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
+				# max_priority = np.percentile(max_priority_list, 75)
+				max_priority = max(max_priority_list)
 			weight = self.eta_normalisation(batch_priority, min_priority, max_priority, self._prioritization_importance_eta)
 			# print(weight, max_priority-min_priority)
 		else:
