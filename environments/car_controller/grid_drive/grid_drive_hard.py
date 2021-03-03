@@ -1,6 +1,16 @@
 # -*- coding: utf-8 -*-
 import gym
 import numpy as np
+import copy
+from matplotlib import use as matplotlib_use, patches
+
+matplotlib_use('Agg',force=True) # no display
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
+from matplotlib.patches import Circle, Rectangle
+from matplotlib.collections import PatchCollection
+from matplotlib.lines import Line2D
+
 from environments.car_controller.grid_drive.lib.road_grid import RoadGrid
 from environments.car_controller.grid_drive.lib.road_cultures import HardRoadCulture
 
@@ -105,5 +115,124 @@ class GridDriveHard(gym.Env):
 		self.grid_view[x][y][-1] = 1 # set new position
 		return [self.get_state(), reward, is_terminal_step, {'explanation': explanation}]
 
+	def get_screen(self):  # RGB array
+		# First set up the figure and the axis
+		# fig, ax = matplotlib.pyplot.subplots(nrows=1, ncols=1, sharey=False, sharex=False, figsize=(10,10)) # this method causes memory leaks
+		figure = Figure(figsize=(10, 10), tight_layout=True)
+		canvas = FigureCanvas(figure)
+		ax = figure.add_subplot(111)  # nrows=1, ncols=1, index=1
+
+		cell_side = 20
+
+		# Compute speed limits for all cells.
+		road_limits = {}
+		columns = self.grid.width
+		rows = self.grid.height
+		temp_agent = copy.deepcopy(self.grid.agent)
+		for x in range(columns):
+			for y in range(rows):
+				road = self.grid.cells[x][y]
+				min_speed = None
+				max_speed = None
+				for speed in range(0, 121, 10):
+					temp_agent.assign_property_value("Speed", speed)
+					can_move, _ = self.grid.run_dialogue(road, temp_agent, explanation_type="compact")
+					if can_move:
+						if min_speed is None or speed < min_speed:
+							min_speed = speed
+						if max_speed is None or speed > max_speed:
+							max_speed = speed
+				road_limits[road] = (min_speed, max_speed)  # (None,None) if road is unfeasible
+
+		# Draw cells
+		shapes = []
+		for x in range(columns):
+			for y in range(rows):
+				road = self.grid.cells[x][y]
+				# Draw rectangle
+				left = x * cell_side
+				right = left + cell_side
+				bottom = y * cell_side
+				top = bottom + cell_side
+				print("Rectangle {} {} size {}".format( left, bottom, cell_side))
+				if self.grid_view[x][y][-2] > 0:  # Already visited cell
+					cell_handle = Rectangle((left, bottom), cell_side, cell_side, color='gray', alpha=0.25)
+				elif road_limits[road] == (None, None):  # Unfeasible road
+					cell_handle = Rectangle((left, bottom), cell_side, cell_side, color='red', alpha=0.25)
+				else: # new road with possible speed limits
+					cell_handle = Rectangle((left, bottom), cell_side, cell_side, fill=False)
+				shapes.append(cell_handle)
+
+				# Do not add label if agent is on top of cell.
+				if (x, y) == self.grid.agent_position:
+					continue
+				# Add speed limit label
+				min_speed, max_speed = road_limits[road]
+				label = f'{min_speed}-{max_speed}' if min_speed is not None else 'N/A'
+				ax.text(0.5*(left + right), 0.5*(bottom + top), label,
+							horizontalalignment='center', verticalalignment='center', size=18)
+
+
+
+		# Draw agent and agent label
+		agent_x, agent_y = self.grid.agent_position
+		left = agent_x * cell_side
+		right = left + cell_side
+		bottom = agent_y * cell_side
+		top = agent_y * cell_side
+		agent_circle = Circle((left + (cell_side/2), bottom + (cell_side/2)), cell_side/2, color='b', alpha=0.5)
+		shapes.append(agent_circle)
+
+		patch_collection = PatchCollection(shapes, match_original=True)
+		ax.add_collection(patch_collection)
+
+		# Adjust view around agent
+		zoom_factor = 3
+		left_view = agent_x - zoom_factor
+		right_view = agent_x + zoom_factor
+		bottom_view = agent_y - zoom_factor
+		top_view = agent_y + zoom_factor
+		if agent_x > (columns - zoom_factor):  # Too far right
+			left_view -= (agent_x + zoom_factor) - columns
+		elif agent_x < zoom_factor:  		   # Too far left
+			right_view += (zoom_factor - agent_x)
+		if agent_y > (rows - zoom_factor):     # Too far up
+			bottom_view -= (agent_y + zoom_factor) - rows
+		elif agent_y < zoom_factor: 		   # Too far down
+			top_view += (zoom_factor - agent_y)
+		ax.set_xlim([max(0, left_view * cell_side),
+					 min(columns * cell_side, right_view * cell_side)])
+		ax.set_ylim([max(0, bottom_view * cell_side),
+					 min(rows * cell_side, top_view * cell_side)])
+		# ax.set_ylim([0, rows * cell_side])
+
+		# Draw agent commanded speed on top of circle
+		label = str(self.grid.agent["Speed"])
+		ax.text(left + (cell_side/2), bottom + (cell_side/2), label,
+					horizontalalignment='center', verticalalignment='center', size=18)
+
+		# # Adjust ax limits in order to get the same scale factor on both x and y
+		# a, b = ax.get_xlim()
+		# c, d = ax.get_ylim()
+		# max_length = max(d - c, b - a)
+		# ax.set_xlim([a, a + max_length])
+		# ax.set_ylim([c, c + max_length])
+
+		# figure.tight_layout()
+		canvas.draw()
+		# Save plot into RGB array
+		data = np.fromstring(figure.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+		data = data.reshape(figure.canvas.get_width_height()[::-1] + (3,))
+		figure.clear()
+		return data  # RGB array
+
 	def render(self, mode='human'):
-		print(self.get_state())
+		img = self.get_screen()
+		if mode == 'rgb_array':
+			return img
+		elif mode == 'human':
+			from gym.envs.classic_control import rendering
+			if self.viewer is None:
+				self.viewer = rendering.SimpleImageViewer()
+			self.viewer.imshow(img)
+			return self.viewer.isopen
