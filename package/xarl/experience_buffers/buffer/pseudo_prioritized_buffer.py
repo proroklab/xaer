@@ -162,12 +162,15 @@ class PseudoPrioritizedBuffer(Buffer):
 	def get_cluster_capacity(self, segment_tree):
 		return segment_tree.inserted_elements/self.max_cluster_size
 
+	def get_relative_cluster_capacity(self, segment_tree):
+		return segment_tree.inserted_elements/max(map(self.count, self.type_values))
+
 	def get_cluster_priority(self, segment_tree, min_priority=0, avg_priority=None):
 		avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
 		if avg_priority is not None:
-			avg_cluster_priority = avg_cluster_priority/(avg_priority - min_priority) # scale by the global average priority
-		relative_cluster_capacity = segment_tree.inserted_elements/max(map(self.count, self.type_values))
-		return relative_cluster_capacity*avg_cluster_priority
+			avg_cluster_priority = avg_cluster_priority/(avg_priority - min_priority) # avg_priority >= min_priority # scale by the global average priority
+		assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+		return self.get_relative_cluster_capacity(segment_tree)*avg_cluster_priority
 
 	def get_cluster_capacity_dict(self):
 		return dict(map(
