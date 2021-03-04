@@ -166,7 +166,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
 		if avg_priority is not None:
 			avg_cluster_priority = avg_cluster_priority/(avg_priority - min_priority) # scale by the global average priority
-		return self.get_cluster_capacity(segment_tree)*avg_cluster_priority # A min_cluster_size_proportion lower than 1 guarantees that, taking the sum instead of the average, the resulting type priority is still relying on the average clusters' priority
+		relative_cluster_capacity = segment_tree.inserted_elements/max(map(self.count, self.type_values))
+		return relative_cluster_capacity*avg_cluster_priority
 
 	def get_cluster_capacity_dict(self):
 		return dict(map(
@@ -317,8 +318,13 @@ class PseudoPrioritizedBuffer(Buffer):
 		if self._cluster_level_weighting: 
 			min_priority = type_sum_tree.min_tree.min()[0] # O(log)
 		else:
+			get_min = lambda x: x.min_tree.min()[0]
+			# min_priority_list = [
+			# 	get_min(self._sample_priority_tree[type_])
+			# 	for type_ in self.get_valid_cluster_ids_gen()
+			# ]+[get_min(type_sum_tree)]
+			min_priority_list = tuple(map(get_min, self._sample_priority_tree)) # O(log)
 			# min_priority = self.priority_stats.mean - 2*self.priority_stats.std # O(1)
-			min_priority_list = tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)) # O(log)
 			# min_priority = np.percentile(min_priority_list, 25) # Using the 1st quartile we are trying to smooth the effect of outliers, that are hard to be removed from the buffer, when the lower in -inf.
 			min_priority = min(min_priority_list)
 		batch_priority = type_sum_tree[idx]
