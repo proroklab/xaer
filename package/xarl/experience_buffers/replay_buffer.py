@@ -131,7 +131,9 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 				if batch_count%cluster_overview_size > 0:
 					batch_size_list.append(batch_count%cluster_overview_size)
 				self._buffer_lock.acquire_read()
-				batch_iter = sum(map(replay_buffer.sample,batch_size_list), [])
+				batch_iter = []
+				for i,n in enumerate(batch_size_list):
+					batch_iter += replay_buffer.sample(n,recompute_priorities=i==0)
 				self._buffer_lock.release_read()
 				if update_replayed_fn:
 					self._buffer_lock.acquire_write()
