@@ -42,6 +42,9 @@ class SimpleReplayBuffer:
 		self.replay_batches = []
 		self.replay_index = 0
 
+	def can_replay(self):
+		return len(self.replay_batches) >= num_slots
+
 	def add_batch(self, sample_batch):
 		if self.num_slots > 0:
 			if len(self.replay_batches) < self.num_slots:
@@ -83,7 +86,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		self.update_priorities_timer = TimerStat()
 		self.num_added = 0
 
-	def add_batch(self, batch, on_policy=False):
+	def add_batch(self, batch, update_prioritisation_weights=False):
 		# Get batch's type
 		batch_type = get_batch_infos(batch)["batch_type"]
 		has_multiple_types = isinstance(batch_type,(tuple,list))
@@ -106,7 +109,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					sub_batch = sub_batch.copy()
 					# Make a deep copy of infos so that for every sub_type the infos dictionary is different
 					sub_batch['infos'] = copy.deepcopy(sub_batch['infos'])
-					self.replay_buffers[policy_id].add(batch=sub_batch, type_id=sub_type, on_policy=on_policy)
+					self.replay_buffers[policy_id].add(batch=sub_batch, type_id=sub_type, update_prioritisation_weights=update_prioritisation_weights)
 			self._buffer_lock.release_write()
 		return batch
 

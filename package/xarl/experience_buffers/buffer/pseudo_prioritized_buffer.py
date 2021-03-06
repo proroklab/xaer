@@ -230,7 +230,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			_, idx, type_ = min(less_important_batch_gen, key=lambda x: x[0])
 			self.remove_batch(type_, idx)
 		
-	def add(self, batch, type_id=0, on_policy=False): # O(log)
+	def add(self, batch, type_id=0, update_prioritisation_weights=False): # O(log)
 		self._add_type_if_not_exist(type_id)
 		type_ = self.get_type(type_id)
 		type_batch = self.batches[type_]
@@ -258,11 +258,12 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._drop_priority_tree[type_][idx] = (random(), idx) # O(log)
 		# Set priority
 		self.update_priority(batch, idx, type_id) # add batch
-		# if self._prioritization_importance_beta and 'weights' not in batch: # Add default weights
-		# 	batch['weights'] = np.ones(batch.count, dtype=np.float32)
-		if self._prioritization_importance_beta and on_policy: # Update weights after updating priority
-			self._cache_priorities()
-			self.update_beta_weights(batch, idx, type_)
+		if self._prioritization_importance_beta:
+			if update_prioritisation_weights: # Update weights after updating priority
+				self._cache_priorities()
+				self.update_beta_weights(batch, idx, type_)
+			elif 'weights' not in batch: # Add default weights
+				batch['weights'] = np.ones(batch.count, dtype=np.float32)
 		if self.global_size:
 			assert self.count() <= self.global_size, 'Memory leak in replay buffer; v1'
 			assert super().count() <= self.global_size, 'Memory leak in replay buffer; v2'
