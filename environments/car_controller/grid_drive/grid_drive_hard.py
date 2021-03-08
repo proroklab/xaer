@@ -25,10 +25,10 @@ class GridDriveHard(gym.Env):
 
 	def get_state(self):
 		fc_dict = {
-			"neighbours": np.array(self.grid.neighbour_features(), dtype=np.int8), 
+			"neighbours": self.grid.neighbour_features(), 
 		}
 		if self.obs_car_features > 0:
-			fc_dict["agent"] = np.array(self.grid.agent.binary_features(), dtype=np.int8)
+			fc_dict["agent"] = self.grid.agent.binary_features()
 		return {
 			"cnn": {
 				"grid": self.grid_view,

@@ -2,6 +2,7 @@
 from environments.car_controller.grid_drive.lib.road_cell import RoadCell
 from environments.car_controller.grid_drive.lib.road_agent import RoadAgent
 from random import randrange
+import numpy as np
 
 NORTH = 0
 SOUTH = 1
@@ -76,8 +77,7 @@ class RoadGrid:
 		east_features  = self.cells[(x + 1)%self.height][y].binary_features() #if self.within_bounds((x + 1, y)) else self.inaccessible
 		west_features  = self.cells[(x - 1)%self.height][y].binary_features() #if self.within_bounds((x - 1, y)) else self.inaccessible
 
-		total_features = north_features + south_features + east_features + west_features
-		return total_features
+		return np.concatenate([north_features, south_features, east_features, west_features], -1)
 
 	def get_features(self):
 		return [

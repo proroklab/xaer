@@ -34,7 +34,7 @@ class RoadCell:
         #     print("RoadCell::assign_property_value: Property {} not found within road cell.".format(property_))
         #     return
         self.__setattr__(property_, value)
-        self.features = tuple((
+        self.features = np.array([
             0 if not self[prop] else 1
             for prop in self.sorted_properties
-        ))
+        ], dtype=np.int8)
