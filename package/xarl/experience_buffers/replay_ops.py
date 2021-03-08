@@ -137,7 +137,7 @@ class MixInReplay:
 					update_replayed_fn=self.update_replayed_fn,
 				)
 		# Put sample_batch in the experience buffer and add it to the output_batches
-		sample_batch = self.replay_buffer.add_batch(sample_batch, update_prioritisation_weights=True) # Set update_prioritisation_weights=True for updating importance weights
+		sample_batch = self.replay_buffer.add_batch(sample_batch, update_prioritisation_weights=False) # Set update_prioritisation_weights=True for updating importance weights
 		if self.buffer_of_recent_elements:
 			self.buffer_of_recent_elements.add_batch(sample_batch)
 		output_batches.append(sample_batch)
