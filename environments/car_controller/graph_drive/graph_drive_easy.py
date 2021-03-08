@@ -179,7 +179,7 @@ class GraphDriveEasy(gym.Env):
 			j2.pos,
 		)
 		relative_road_points = tuple(map(shift_rotate_normalise_point, road_points))
-		road_view = sum(sorted(relative_road_points),()) + self.closest_road.binary_features() + (1 if self.closest_road.is_visited else 0,)
+		road_view = sum(sorted(relative_road_points),()) + self.closest_road.binary_features(as_tuple=True) + (1 if self.closest_road.is_visited else 0,)
 		road_view = np.array(road_view, dtype=np.float32)
 		# Get junction view
 		junction_view = np.array([ # 2 x self.max_roads_per_junction x (1+1)
@@ -187,12 +187,12 @@ class GraphDriveEasy(gym.Env):
 				(
 					*shift_rotate_normalise_point(road.start.pos),
 					*shift_rotate_normalise_point(road.end.pos),
-					*road.binary_features(), # in [0,1]
+					*road.binary_features(as_tuple=True), # in [0,1]
 					1 if road.is_visited else 0, # whether road has been previously visited
 				) if euclidean_distance(road.start.pos,j.pos) < euclidean_distance(road.end.pos,j.pos) else (
 					*shift_rotate_normalise_point(road.end.pos),
 					*shift_rotate_normalise_point(road.start.pos),
-					*road.binary_features(), # in [0,1]
+					*road.binary_features(as_tuple=True), # in [0,1]
 					1 if road.is_visited else 0, # whether road has been previously visited
 				)
 				for road in j.roads_connected

@@ -17,8 +17,8 @@ class RoadCell:
             return None
         return self.road_culture.__dict__.get("properties", None)
 
-    def binary_features(self): # O(1)
-        return self.features
+    def binary_features(self, as_tuple=False): # O(1)
+        return self.features if not as_tuple else self.features_tuple
 
     def set_culture(self, culture):
         self.road_culture = culture
@@ -34,7 +34,8 @@ class RoadCell:
         #     print("RoadCell::assign_property_value: Property {} not found within road cell.".format(property_))
         #     return
         self.__setattr__(property_, value)
-        self.features = np.array([
+        self.features_tuple = tuple(
             0 if not self[prop] else 1
             for prop in self.sorted_properties
-        ], dtype=np.int8)
+        )
+        self.features = np.array(self.features_tuple, dtype=np.int8)
