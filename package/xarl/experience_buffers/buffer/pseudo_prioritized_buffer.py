@@ -327,7 +327,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		if self._cluster_level_weighting: min_priority = cluster_sum_tree.min_tree.min()[0] # O(log)
 		else: min_priority = self.__min_priority
 		batch_priority = cluster_sum_tree[idx]
-		if self._priority_lower_limit is None:
+		if self._priority_lower_limit is None: # We still need to prevent over-fitting on most frequent batches: https://datascience.stackexchange.com/questions/32873/prioritized-replay-what-does-importance-sampling-really-do
 			if self._cluster_level_weighting: max_priority = cluster_sum_tree.max_tree.max()[0] # O(log)
 			else: max_priority = self.__max_priority
 			weight = self.eta_normalisation(batch_priority, min_priority, max_priority, self._prioritization_importance_eta)
