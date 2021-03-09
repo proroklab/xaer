@@ -172,7 +172,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		if avg_priority is not None:
 			avg_cluster_priority = avg_cluster_priority/(avg_priority - min_priority) # avg_priority >= min_priority # scale by the global average priority
 		assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-		return self.get_relative_cluster_capacity(segment_tree)*avg_cluster_priority
+		return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
 
 	def get_cluster_capacity_dict(self):
 		return dict(map(
@@ -271,9 +271,11 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def _cache_priorities(self):
 		if self._prioritization_importance_beta or self._cluster_prioritisation_strategy is not None:
-			self.__min_priority = min(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)) # O(log)
+			self.__min_priority_list = tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)) # O(log)
+			self.__min_priority = min(self.__min_priority_list)
 		if self._prioritization_importance_beta and self._priority_lower_limit is None:
-			self.__max_priority = max(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
+			self.__max_priority_list = tuple(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
+			self.__max_priority = max(self.__max_priority_list)
 		if self._cluster_prioritisation_strategy is not None:
 			self.__avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
 			self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)) # always > 0
@@ -323,21 +325,18 @@ class PseudoPrioritizedBuffer(Buffer):
 		return (upper_max_priority - priorities)/(upper_max_priority - min_priority) # in (0,1]: the closer is cluster_sum_tree[idx] to max_priority, the lower is the weight
 
 	def update_beta_weights(self, batch, idx, type_):
-		cluster_sum_tree = self._sample_priority_tree[type_]
-		if self._cluster_level_weighting: min_priority = cluster_sum_tree.min_tree.min()[0] # O(log)
-		else: min_priority = self.__min_priority
-		batch_priority = cluster_sum_tree[idx]
+		batch_priority = self._sample_priority_tree[type_][idx]
+		min_priority = self.__min_priority_list[type_] if self._cluster_level_weighting else self.__min_priority
 		if self._priority_lower_limit is None: # We still need to prevent over-fitting on most frequent batches: https://datascience.stackexchange.com/questions/32873/prioritized-replay-what-does-importance-sampling-really-do
-			if self._cluster_level_weighting: max_priority = cluster_sum_tree.max_tree.max()[0] # O(log)
-			else: max_priority = self.__max_priority
+			max_priority = self.__max_priority_list[type_] if self._cluster_level_weighting else self.__max_priority
 			weight = self.eta_normalisation(batch_priority, min_priority, max_priority, self._prioritization_importance_eta)
-			if self._cluster_prioritisation_strategy is not None and self.__cluster_priority_list[type_] != 0:
+			if self._cluster_level_weighting and self._cluster_prioritisation_strategy is not None and self.__cluster_priority_list[type_] != 0:
 				weight *= min(self.__cluster_priority_list) / self.__cluster_priority_list[type_]
 		else:
 			assert min_priority > self._priority_lower_limit, f"min_priority must be > priority_lower_limit, if beta is not None and priority_can_be_negative is False, but it is {min_priority}"
 			batch_priority = np.maximum(batch_priority, min_priority) # no need for this instruction if we are not averaging/maxing clusters' min priorities
 			weight = (min_priority - self._priority_lower_limit) / (batch_priority - self._priority_lower_limit) # default, not compatible with negative priorities # in (0,1]: the closer is cluster_sum_tree[idx] to max_priority, the lower is the weight
-			if self._cluster_prioritisation_strategy is not None and self.__cluster_priority_list[type_] != 0:
+			if self._cluster_level_weighting and self._cluster_prioritisation_strategy is not None and self.__cluster_priority_list[type_] != 0:
 				weight *= min(self.__cluster_priority_list) / self.__cluster_priority_list[type_]
 		weight = weight**self._prioritization_importance_beta
 		batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
