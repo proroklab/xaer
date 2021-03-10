@@ -113,10 +113,10 @@ class MixInReplay:
 		self.buffer_of_recent_elements = SimpleReplayBuffer(local_buffer.buffer_size) if sample_also_from_buffer_of_recent_elements else None
 
 	def __call__(self, sample_batch):
-		# n = np.random.poisson(self.replay_proportion)
-		n = int(self.replay_proportion//1)
-		if self.replay_proportion%1 > 0 and random.random() <= self.replay_proportion%1:
-			n += 1
+		n = np.random.poisson(self.replay_proportion)
+		# n = int(self.replay_proportion//1)
+		# if self.replay_proportion%1 > 0 and random.random() <= self.replay_proportion%1:
+		# 	n += 1
 		# Sample n batches from the buffer
 		output_batches = []
 		if self.replay_buffer.can_replay() and n > 0:

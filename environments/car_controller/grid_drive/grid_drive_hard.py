@@ -100,7 +100,7 @@ class GridDriveHard(gym.Env):
 		self.viewer = None
 		# if self.step_counter%self.MAX_STEP == 0:
 		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.culture)
-		self.grid_features = np.array(self.grid.get_features(), dtype=np.int8)
+		self.grid_features = np.array(self.grid.get_features(), ndmin=3, dtype=np.int8)
 		self.step_counter = 0
 		self.grid_view = np.concatenate([
 			self.grid_features,
@@ -109,20 +109,21 @@ class GridDriveHard(gym.Env):
 		self.grid.set_random_position()
 		x,y = self.grid.agent_position
 		self.grid_view[x][y][-2] = 1 # set current cell as visited
+		self.grid_view[x][y][-1] = 1 # set new position
 		return self.get_state()
 
 	def step(self, action_vector):
-		self.direction = action_vector//self.MAX_GAPPED_SPEED
-		gapped_speed = action_vector%self.MAX_GAPPED_SPEED
-		# direction, gapped_speed = action_vector
 		self.step_counter += 1
-		x, y = self.grid.agent_position
-		self.grid_view[x][y][-1] = 0 # remove old position
-		self.speed = gapped_speed*self.SPEED_GAP
+		self.direction = action_vector//self.MAX_GAPPED_SPEED
+		self.speed = (action_vector%self.MAX_GAPPED_SPEED)*self.SPEED_GAP
+		# direction, gapped_speed = action_vector
+		old_x, old_y = self.grid.agent_position # get this before moving the agent
 		reward, terminal, explanatory_labels = self.get_reward(*self.grid.move_agent(self.direction, self.speed))
-		# do it aftwer checking positions with get_reward
-		self.grid_view[x][y][-2] = 1 # set current cell as visited
-		self.grid_view[x][y][-1] = 1 # set new position
+		new_x, new_y = self.grid.agent_position # get this after moving the agent
+		# do the following aftwer moving the agent and checking positions with get_reward
+		self.grid_view[old_x][old_y][-1] = 0 # remove old position
+		self.grid_view[new_x][new_y][-1] = 1 # set new position
+		self.grid_view[new_x][new_y][-2] = 1 # set current cell as visited
 		return [
 			self.get_state(), # observation
 			reward, 
