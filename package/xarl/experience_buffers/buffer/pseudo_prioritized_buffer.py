@@ -54,6 +54,9 @@ class PseudoPrioritizedBuffer(Buffer):
 		while self._it_capacity < self.cluster_size:
 			self._it_capacity *= 2
 		# self.priority_stats = RunningStats(window_size=self.global_size)
+
+	def is_weighting_expected_values(self):
+		return self._prioritization_importance_beta
 		
 	def set(self, buffer): # O(1)
 		assert isinstance(buffer, PseudoPrioritizedBuffer)

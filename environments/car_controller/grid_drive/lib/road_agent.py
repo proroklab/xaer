@@ -2,9 +2,7 @@ import numpy as np
 
 class RoadAgent:
     def __init__(self):
-        self.sorted_properties = None
         self.road_culture = None
-        pass
 
     def __getitem__(self, item):
         return self.__dict__.get(item, None)
@@ -25,18 +23,23 @@ class RoadAgent:
         if self.culture_properties() is None:
             print("RoadCell::set_culture: Culture {} has no properties.".format(culture.name))
             return
+        for p, v in self.culture_properties().items():
+            self.__setattr__(p, v)
         self.sorted_properties = sorted(self.culture_properties().keys())
-        for property_, default_value in self.culture_properties().items():
-            self.assign_property_value(property_, default_value)
+        ####
+        self.build_features()
 
-    def assign_property_value(self, property_, value):
-        # if hasattr(self, property_) is False:
-        #     print("RoadCell::assign_property_value: Property {} not found within road cell.".format(property_))
-        #     return
-        self.__setattr__(property_, value)
+    def build_features(self):
         self.features_tuple = tuple(
             0 if not self[prop] else 1
             for prop in self.sorted_properties
             if prop != "Speed"
         )
         self.features = np.array(self.features_tuple, dtype=np.int8)
+
+    def assign_property_value(self, property_, value):
+        # if hasattr(self, property_) is False:
+        #     print("RoadCell::assign_property_value: Property {} not found within road cell.".format(property_))
+        #     return
+        self.__setattr__(property_, value)
+        self.build_features()

@@ -22,6 +22,8 @@ class GridDriveHard(gym.Env):
 	MAX_GAPPED_SPEED			= MAX_SPEED//SPEED_GAP
 	MAX_STEP					= 2**5
 	DIRECTIONS					= 4 # N,S,W,E
+	VISITED_CELL_GRID_IDX		= -2
+	AGENT_CELL_GRID_IDX			= -1
 
 	def get_state(self):
 		fc_dict = {
@@ -45,7 +47,7 @@ class GridDriveHard(gym.Env):
 				True, # terminal state
 				explanation_list_with_label('follow_regulation')
 			)
-		visiting_old_cell = self.grid_view[x][y][-2] > 0
+		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
 		if visiting_old_cell: # already visited cell
 			return (
 				0,
@@ -108,8 +110,8 @@ class GridDriveHard(gym.Env):
 		], -1)
 		self.grid.set_random_position()
 		x,y = self.grid.agent_position
-		self.grid_view[x][y][-2] = 1 # set current cell as visited
-		self.grid_view[x][y][-1] = 1 # set new position
+		self.grid_view[x][y][self.AGENT_CELL_GRID_IDX] = 1 # set new position
+		self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] = 1 # set current cell as visited
 		return self.get_state()
 
 	def step(self, action_vector):
@@ -121,9 +123,9 @@ class GridDriveHard(gym.Env):
 		reward, terminal, explanatory_labels = self.get_reward(*self.grid.move_agent(self.direction, self.speed))
 		new_x, new_y = self.grid.agent_position # get this after moving the agent
 		# do the following aftwer moving the agent and checking positions with get_reward
-		self.grid_view[old_x][old_y][-1] = 0 # remove old position
-		self.grid_view[new_x][new_y][-1] = 1 # set new position
-		self.grid_view[new_x][new_y][-2] = 1 # set current cell as visited
+		self.grid_view[old_x][old_y][self.AGENT_CELL_GRID_IDX] = 0 # remove old position
+		self.grid_view[new_x][new_y][self.AGENT_CELL_GRID_IDX] = 1 # set new position
+		self.grid_view[new_x][new_y][self.VISITED_CELL_GRID_IDX] = 1 # set current cell as visited
 		return [
 			self.get_state(), # observation
 			reward, 
@@ -170,7 +172,7 @@ class GridDriveHard(gym.Env):
 				right = left + cell_side
 				bottom = y * cell_side
 				top = bottom + cell_side
-				if self.grid_view[x][y][-2] > 0:  # Already visited cell
+				if self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0:  # Already visited cell
 					cell_handle = Rectangle((left, bottom), cell_side, cell_side, color='gray', alpha=0.25)
 				elif road_limits[road] == (None, None):  # Unfeasible road
 					cell_handle = Rectangle((left, bottom), cell_side, cell_side, color='red', alpha=0.25)

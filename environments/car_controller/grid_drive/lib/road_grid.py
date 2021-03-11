@@ -13,7 +13,6 @@ class RoadGrid:
 	def __init__(self, x_dim, y_dim, culture):
 		self.agent = RoadAgent()
 		self.agent_position = (0, 0)
-		self.cells = []
 		self.width = x_dim
 		self.height = y_dim
 
@@ -22,7 +21,7 @@ class RoadGrid:
 		self.road_culture.initialise_random_agent(self.agent)
 		# self.inaccessible = tuple([0] * (len(self.road_culture.properties) + 1))
 
-		self.initialise_random_grid()
+		self.cells = self.initialise_random_grid()
 
 	def set_random_position(self):
 		self.agent_position = (randrange(0,self.width), randrange(0,self.height))
@@ -80,26 +79,31 @@ class RoadGrid:
 		return np.concatenate([north_features, south_features, east_features, west_features], -1)
 
 	def get_features(self):
-		return [
-			[
+		return tuple(
+			tuple(
 				e.binary_features()
 				for e in row
-			]
+			)
 			for row in self.cells
-		]
+		)
 
 	def initialise_random_grid(self):
 		"""
 		Fills a grid with random RoadCells, each initialised by the current culture.
 		:return:
 		"""
-		for i in range(self.width):
-			self.cells.append([])
-			for j in range(self.height):
-				road = RoadCell(i, j)
-				road.set_culture(self.road_culture)
-				self.road_culture.initialise_random_road(road)
-				self.cells[i].append(road)
+		def build_road(i,j):
+			road = RoadCell(i, j)
+			road.set_culture(self.road_culture)
+			self.road_culture.initialise_random_road(road)
+			return road
+		return tuple(
+			tuple(
+				build_road(i,j)
+				for j in range(self.height)	
+			)
+			for i in range(self.width)	
+		)
 
 	def run_dialogue(self, road, agent, explanation_type="verbose"):
 		"""

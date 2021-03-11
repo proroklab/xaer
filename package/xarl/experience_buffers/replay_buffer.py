@@ -69,7 +69,9 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	):
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
-		self.buffer_size = PseudoPrioritizedBuffer(**self.buffer_options).global_size
+		dummy_buffer = PseudoPrioritizedBuffer(**self.buffer_options)
+		self.buffer_size = dummy_buffer.global_size
+		self.is_weighting_expected_values = dummy_buffer.is_weighting_expected_values()
 		self.replay_starts = learning_starts
 		self._buffer_lock = ReadWriteLock() 
 
@@ -106,7 +108,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					sub_type_list = (batch_type,)
 				for sub_type in sub_type_list: 
 					# Make a deep copy so the replay buffer doesn't pin plasma memory.
-					sub_batch = sub_batch.copy()
+					batch.policy_batches[policy_id] = sub_batch = sub_batch.copy()
 					# Make a deep copy of infos so that for every sub_type the infos dictionary is different
 					sub_batch['infos'] = copy.deepcopy(sub_batch['infos'])
 					self.replay_buffers[policy_id].add(batch=sub_batch, type_id=sub_type, update_prioritisation_weights=update_prioritisation_weights)

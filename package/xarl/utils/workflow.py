@@ -95,5 +95,7 @@ def train(trainer_class, config, environment_class, test_every_n_step=None, stop
 			checkpoint = agent.save()
 			print(f'Checkpoint saved in {checkpoint}')
 			print(f'Testing..')
-			test(trainer_class, config, environment_class, checkpoint)
-
+			try:
+				test(trainer_class, config, environment_class, checkpoint)
+			except Exception as e:
+				print(e)

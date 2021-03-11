@@ -113,12 +113,17 @@ class MixInReplay:
 		self.buffer_of_recent_elements = SimpleReplayBuffer(local_buffer.buffer_size) if sample_also_from_buffer_of_recent_elements else None
 
 	def __call__(self, sample_batch):
-		n = np.random.poisson(self.replay_proportion)
-		# n = int(self.replay_proportion//1)
-		# if self.replay_proportion%1 > 0 and random.random() <= self.replay_proportion%1:
-		# 	n += 1
-		# Sample n batches from the buffer
+		# n = np.random.poisson(self.replay_proportion)
+		n = int(self.replay_proportion//1)
+		if self.replay_proportion%1 > 0 and random.random() <= self.replay_proportion%1:
+			n += 1
 		output_batches = []
+		# Put sample_batch in the experience buffer and add it to the output_batches
+		sample_batch = self.replay_buffer.add_batch(sample_batch, update_prioritisation_weights=True) # Set update_prioritisation_weights=True for updating importance weights
+		if self.buffer_of_recent_elements:
+			self.buffer_of_recent_elements.add_batch(sample_batch)
+		output_batches.append(sample_batch)
+		# Sample n batches from the buffer
 		if self.replay_buffer.can_replay() and n > 0:
 			if self.buffer_of_recent_elements and self.buffer_of_recent_elements.can_replay():
 				n_of_old_elements = random.randint(0,n)
@@ -136,11 +141,6 @@ class MixInReplay:
 					cluster_overview_size=self.cluster_overview_size,
 					update_replayed_fn=self.update_replayed_fn,
 				)
-		# Put sample_batch in the experience buffer and add it to the output_batches
-		sample_batch = self.replay_buffer.add_batch(sample_batch, update_prioritisation_weights=True) # Set update_prioritisation_weights=True for updating importance weights
-		if self.buffer_of_recent_elements:
-			self.buffer_of_recent_elements.add_batch(sample_batch)
-		output_batches.append(sample_batch)
 		return output_batches
 
 class BatchLearnerThread(LearnerThread):

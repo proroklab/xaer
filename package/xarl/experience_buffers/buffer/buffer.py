@@ -15,6 +15,9 @@ class Buffer(object):
 		self.cluster_size = min(cluster_size,global_size) if global_size else cluster_size
 		self.global_size = global_size
 		self.clean()
+
+	def is_weighting_expected_values(self):
+		return False
 		
 	def clean(self):
 		self.types = {}
