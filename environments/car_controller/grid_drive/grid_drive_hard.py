@@ -45,19 +45,22 @@ class GridDriveHard(gym.Env):
 			return (
 				-(self.speed+1)/self.MAX_SPEED, # in [-1,0)
 				True, # terminal state
-				explanation_list_with_label('follow_regulation')
+				# explanation_list
+				explanation_list_with_label('not_following_regulation'),
 			)
 		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
 		if visiting_old_cell: # already visited cell
 			return (
 				0,
 				False, # non-terminal state
-				explanation_list_with_label('visit_new_cells')
+				'not_visiting_new_cells',
+				# explanation_list_with_label('not_visiting_new_cells'),
 			)
 		return (
 			(self.speed+1)/self.MAX_SPEED, # in (0,1]
 			False, # non-terminal state
-			explanation_list_with_label('move_forward')
+			# 'moving_forward',
+			explanation_list_with_label('moving_forward'),
 		)
 	
 	def __init__(self):

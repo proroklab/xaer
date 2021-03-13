@@ -43,7 +43,7 @@ class SimpleReplayBuffer:
 		self.replay_index = 0
 
 	def can_replay(self):
-		return len(self.replay_batches) >= num_slots
+		return len(self.replay_batches) >= self.num_slots
 
 	def add_batch(self, sample_batch):
 		if self.num_slots > 0:
@@ -89,9 +89,6 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		self.num_added = 0
 
 	def add_batch(self, batch, update_prioritisation_weights=False):
-		# Get batch's type
-		batch_type = get_batch_infos(batch)["batch_type"]
-		has_multiple_types = isinstance(batch_type,(tuple,list))
 		# Handle everything as if multiagent
 		if isinstance(batch, SampleBatch):
 			batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
@@ -99,11 +96,13 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		with self.add_batch_timer:
 			self._buffer_lock.acquire_write()
 			for policy_id, sub_batch in batch.policy_batches.items():
-				if has_multiple_types:
-					# If has_multiple_types is True: no need for duplicating the batch across multiple clusters unless they are invalid, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
-					sub_type_list = tuple(filter(lambda x: not self.replay_buffers[policy_id].is_valid_cluster(x), batch_type))
-					if len(sub_type_list) == 0:
-						sub_type_list = (random.choice(batch_type),)
+				batch_type = get_batch_infos(sub_batch)["batch_type"]
+				if isinstance(batch_type,(tuple,list)):
+					# # If has_multiple_types is True: no need for duplicating the batch across multiple clusters unless they are invalid, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
+					# sub_type_list = tuple(filter(lambda x: not self.replay_buffers[policy_id].is_valid_cluster(x), batch_type))
+					# if len(sub_type_list) == 0:
+					# 	sub_type_list = (random.choice(batch_type),)
+					sub_type_list = batch_type
 				else:
 					sub_type_list = (batch_type,)
 				for sub_type in sub_type_list: 
