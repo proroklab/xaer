@@ -39,6 +39,8 @@ def triangle_edges(tri):
 
 def triangulate(nodes, randstream, tri_mode):
 	"""Return the list of edges which achieves a Delaunay triangulation of the specified nodes."""
+	if len(nodes) < 3:
+		return []
 	triangles = triangulation.triangulate(nodes, randstream, tri_mode)
 	edges = set()
 	for tri in triangles:
