@@ -103,12 +103,13 @@ class GraphDriveEasy(gym.Env):
 		if not self.is_in_junction(car_point):
 			# Assign normalised speed to agent properties before running dialogues.
 			self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
+			#######################################
 			# "Follow regulation" rule. # Run dialogue against culture.
 			following_regulation, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
-			explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
+			# explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
 			if not following_regulation:
-				return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
-				# return terminal_reward(is_positive=False, label=explanation_list)
+				# return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
+				return terminal_reward(is_positive=False, label=explanation_list)
 			#######################################
 			# "Stay on the road" rule
 			if self.distance_to_closest_road >= self.max_distance_to_path: 
@@ -122,12 +123,12 @@ class GraphDriveEasy(gym.Env):
 			#######################################
 			# "Explore new roads" rule
 			if visiting_new_road: # visiting a new road for the first time is equivalent to get a bonus reward
-				return non_terminal_reward(is_positive=True, label=explanation_list_with_label('exploring_a_new_road'))
-				# return non_terminal_reward(is_positive=True, label='exploring_a_new_road')
+				# return non_terminal_reward(is_positive=True, label=explanation_list_with_label('exploring_a_new_road'))
+				return non_terminal_reward(is_positive=True, label='exploring_a_new_road')
 			#######################################
 			# "Move forward" rule
-			return null_reward(label=explanation_list_with_label('moving_forward'))
-			# return null_reward(label='moving_forward')
+			# return null_reward(label=explanation_list_with_label('moving_forward'))
+			return null_reward(label='moving_forward')
 		else:
 			return null_reward(label='is_in_junction')
 

@@ -77,7 +77,7 @@ def train(trainer_class, config, environment_class, test_every_n_step=None, stop
 		print(model.heads_model.summary())
 	# Start training
 	n = 0
-	train_steps = 0
+	sample_steps = 0
 	check_steps = test_every_n_step if test_every_n_step is not None else float('inf')
 	def save_checkpoint():
 		checkpoint = agent.save()
@@ -87,11 +87,12 @@ def train(trainer_class, config, environment_class, test_every_n_step=None, stop
 			test(trainer_class, config, environment_class, checkpoint)
 		except Exception as e:
 			print(e)
-	while stop_training_after_n_step is None or train_steps < stop_training_after_n_step:
+	while stop_training_after_n_step is None or sample_steps < stop_training_after_n_step:
 		n += 1
 		last_time = time.time()
 		result = agent.train()
 		train_steps = result["info"]["num_steps_trained"]
+		sample_steps = result["info"]["num_steps_sampled"]
 		episode = {
 			'n': n, 
 			'episode_reward_min': result['episode_reward_min'], 
@@ -99,10 +100,9 @@ def train(trainer_class, config, environment_class, test_every_n_step=None, stop
 			'episode_reward_max': result['episode_reward_max'],  
 			'episode_len_mean': result['episode_len_mean']
 		}
-		print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {train_steps:8.4f}, train ratio: {(train_steps/result["info"]["num_steps_sampled"]):8.4f}, seconds: {time.time()-last_time}')
+		# print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {train_steps:8.4f}, train ratio: {(train_steps/sample_steps):8.4f}, seconds: {time.time()-last_time}')
 		# file_name = agent.save(checkpoint_root)
 		# print(f'Checkpoint saved to {file_name}')
-		if train_steps>=check_steps:
+		if sample_steps>=check_steps or sample_steps>=stop_training_after_n_step:
 			check_steps += test_every_n_step
 			save_checkpoint()
-	save_checkpoint()

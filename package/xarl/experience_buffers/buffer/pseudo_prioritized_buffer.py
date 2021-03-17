@@ -286,8 +286,7 @@ class PseudoPrioritizedBuffer(Buffer):
 	def sample_cluster(self):
 		if self._cluster_prioritisation_strategy is not None:
 			type_priority = np.array(self.__cluster_priority_list)
-			# type_priority = type_priority/np.mean(type_priority)
-			# print(type_priority)
+			# assert self.__cluster_priority_list==tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)), "Wrong clusters' prioritised sampling"
 			type_cumsum = np.cumsum(type_priority) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
 			assert 0 <= type_mass, f'type_mass {type_mass} should be greater than 0'
@@ -330,6 +329,7 @@ class PseudoPrioritizedBuffer(Buffer):
 	def update_beta_weights(self, batch, idx, type_):
 		batch_priority = self._sample_priority_tree[type_][idx]
 		min_priority = self.__min_priority_list[type_] if self._cluster_level_weighting else self.__min_priority
+		# assert self.__min_priority_list == tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)), "Wrong beta updates"
 		if self._priority_lower_limit is None: # We still need to prevent over-fitting on most frequent batches: https://datascience.stackexchange.com/questions/32873/prioritized-replay-what-does-importance-sampling-really-do
 			max_priority = self.__max_priority_list[type_] if self._cluster_level_weighting else self.__max_priority
 			weight = self.eta_normalisation(batch_priority, min_priority, max_priority, self._prioritization_importance_eta)

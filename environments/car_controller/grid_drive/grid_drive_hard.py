@@ -39,14 +39,14 @@ class GridDriveHard(gym.Env):
 		}
 
 	def get_reward(self, following_regulation, explanation_list):
-		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
+		# explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
 		x, y = self.grid.agent_position
 		if not following_regulation:
 			return (
 				-(self.speed+1)/self.MAX_SPEED, # in [-1,0)
 				True, # terminal state
-				# explanation_list
-				explanation_list_with_label('not_following_regulation'),
+				explanation_list
+				# explanation_list_with_label('not_following_regulation'),
 			)
 		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
 		if visiting_old_cell: # already visited cell
@@ -59,8 +59,8 @@ class GridDriveHard(gym.Env):
 		return (
 			(self.speed+1)/self.MAX_SPEED, # in (0,1]
 			False, # non-terminal state
-			# 'moving_forward',
-			explanation_list_with_label('moving_forward'),
+			'moving_forward',
+			# explanation_list_with_label('moving_forward'),
 		)
 	
 	def __init__(self):

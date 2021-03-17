@@ -102,7 +102,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					# sub_type_list = tuple(filter(lambda x: not self.replay_buffers[policy_id].is_valid_cluster(x), batch_type))
 					# if len(sub_type_list) == 0:
 					# 	sub_type_list = (random.choice(batch_type),)
-					sub_type_list = batch_type
+					sub_type_list = (random.choice(batch_type),)
+					# sub_type_list = batch_type
 				else:
 					sub_type_list = (batch_type,)
 				for sub_type in sub_type_list: 
