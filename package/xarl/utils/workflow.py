@@ -63,7 +63,7 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 				# Remove unzipped GIF
 				os.remove(gif_filename)
 
-def train(trainer_class, config, environment_class, test_every_n_step=None, stop_training_after_n_step=None):
+def train(trainer_class, config, environment_class, test_every_n_step=None, stop_training_after_n_step=None, log=True):
 	# Configure RLlib to train a policy using the given environment and trainer
 	agent = trainer_class(config, env=environment_class)
 	# Inspect the trained policy and model, to see the results of training in detail
@@ -100,9 +100,8 @@ def train(trainer_class, config, environment_class, test_every_n_step=None, stop
 			'episode_reward_max': result['episode_reward_max'],  
 			'episode_len_mean': result['episode_len_mean']
 		}
-		# print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {train_steps:8.4f}, train ratio: {(train_steps/sample_steps):8.4f}, seconds: {time.time()-last_time}')
-		# file_name = agent.save(checkpoint_root)
-		# print(f'Checkpoint saved to {file_name}')
+		if log:
+			print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {train_steps:8.4f}, train ratio: {(train_steps/sample_steps):8.4f}, seconds: {time.time()-last_time}')
 		if sample_steps>=check_steps or sample_steps>=stop_training_after_n_step:
 			check_steps += test_every_n_step
 			save_checkpoint()
