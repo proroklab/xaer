@@ -32,7 +32,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		cluster_level_weighting=True,
 		min_cluster_size_proportion=0.5,
 		priority_lower_limit=None,
-		weight_importance_by_update_time=False,
+		max_age_window=None,
 	): # O(1)
 		assert not prioritization_importance_beta or prioritization_importance_beta > 0., f"prioritization_importance_beta must be > 0, but it is {prioritization_importance_beta}"
 		assert not prioritization_importance_eta or prioritization_importance_eta > 0, f"prioritization_importance_eta must be > 0, but it is {prioritization_importance_eta}"
@@ -50,7 +50,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._cluster_prioritisation_strategy = cluster_prioritisation_strategy
 		self._cluster_level_weighting = cluster_level_weighting
 		self._min_cluster_size_proportion = min_cluster_size_proportion
-		self._weight_importance_by_update_time = weight_importance_by_update_time
+		self._weight_importance_by_update_time = self._max_age_window = max_age_window
 		super().__init__(cluster_size=cluster_size, global_size=global_size)
 		self._it_capacity = 1
 		while self._it_capacity < self.cluster_size:
@@ -135,10 +135,10 @@ class PseudoPrioritizedBuffer(Buffer):
 				self._drop_priority_tree[type_][idx] = None # O(log)
 			if self._prioritized_drop_probability < 1:
 				self._insertion_time_tree[type_][idx] = None # O(log)
-			self._sample_priority_tree[type_][idx] = None # O(log)
-			self.batches[type_].pop()
 			if self._weight_importance_by_update_time:
 				self._update_times[type_].pop()
+			self._sample_priority_tree[type_][idx] = None # O(log)
+			self.batches[type_].pop()
 		elif idx < last_idx: # swap idx with the last element and then remove it
 			if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
 				self._drop_priority_tree[type_][idx] = (self._drop_priority_tree[type_][last_idx][0],idx) # O(log)
@@ -146,11 +146,11 @@ class PseudoPrioritizedBuffer(Buffer):
 			if self._prioritized_drop_probability < 1:
 				self._insertion_time_tree[type_][idx] = (self._insertion_time_tree[type_][last_idx][0],idx) # O(log)
 				self._insertion_time_tree[type_][last_idx] = None # O(log)
+			if self._weight_importance_by_update_time:
+				self._update_times[type_][idx] = self._update_times[type_].pop()
 			self._sample_priority_tree[type_][idx] = self._sample_priority_tree[type_][last_idx] # O(log)
 			self._sample_priority_tree[type_][last_idx] = None # O(log)
 			batch = self.batches[type_][idx] = self.batches[type_].pop()
-			if self._weight_importance_by_update_time:
-				self._update_times[type_][idx] = self._update_times[type_].pop()
 			get_batch_indexes(batch)[type_id] = idx
 
 	def count(self, type_=None):
@@ -258,12 +258,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			idx = len(type_batch)
 			type_batch.append(batch)
 			if self._weight_importance_by_update_time:
-				self._update_times[type_].append(self.get_relative_time())
+				self._update_times[type_].append(self.timesteps)
 		else:
 			del get_batch_indexes(type_batch[idx])[type_id]
 			type_batch[idx] = batch
-			if self._weight_importance_by_update_time:
-				self._update_times[type_][idx] = self.get_relative_time()
 		batch_infos = get_batch_infos(batch)
 		if 'batch_index' not in batch_infos:
 			batch_infos['batch_index'] = {}
@@ -298,12 +296,12 @@ class PseudoPrioritizedBuffer(Buffer):
 		if self._cluster_prioritisation_strategy is not None:
 			self.__avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
 			self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)) # always > 0
+			self.__min_cluster_priority = min(self.__cluster_priority_list)
 
 	def sample_cluster(self):
 		if self._cluster_prioritisation_strategy is not None:
-			type_priority = np.array(self.__cluster_priority_list)
 			# assert self.__cluster_priority_list==tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)), "Wrong clusters' prioritised sampling"
-			type_cumsum = np.cumsum(type_priority) # O(|self.type_keys|)
+			type_cumsum = np.cumsum(self.__cluster_priority_list) # O(|self.type_keys|)
 			type_mass = random() * type_cumsum[-1] # O(1)
 			assert 0 <= type_mass, f'type_mass {type_mass} should be greater than 0'
 			assert type_mass <= type_cumsum[-1], f'type_mass {type_mass} should be lower than {type_cumsum[-1]}'
@@ -352,18 +350,20 @@ class PseudoPrioritizedBuffer(Buffer):
 			max_priority = self.__max_priority_list[type_] if self._cluster_level_weighting else self.__max_priority
 			weight = self.eta_normalisation(batch_priority, min_priority, max_priority, self._prioritization_importance_eta)
 			if self._cluster_level_weighting and self._cluster_prioritisation_strategy is not None and self.__cluster_priority_list[type_] != 0:
-				weight *= min(self.__cluster_priority_list) / self.__cluster_priority_list[type_]
+				weight *= self.__min_cluster_priority / self.__cluster_priority_list[type_]
 		else:
 			assert min_priority > self._priority_lower_limit, f"min_priority must be > priority_lower_limit, if beta is not None and priority_can_be_negative is False, but it is {min_priority}"
 			batch_priority = np.maximum(batch_priority, min_priority) # no need for this instruction if we are not averaging/maxing clusters' min priorities
 			weight = (min_priority - self._priority_lower_limit) / (batch_priority - self._priority_lower_limit) # default, not compatible with negative priorities # in (0,1]: the closer is cluster_sum_tree[idx] to max_priority, the lower is the weight
 			if self._cluster_level_weighting and self._cluster_prioritisation_strategy is not None and self.__cluster_priority_list[type_] != 0:
-				weight *= min(self.__cluster_priority_list) / self.__cluster_priority_list[type_]
+				weight *= self.__min_cluster_priority / self.__cluster_priority_list[type_]
 		weight = weight**self._prioritization_importance_beta
 		##########
 		# Add age weight
 		if self._weight_importance_by_update_time:
-			weight *= self._update_times[type_][idx] / self.get_relative_time() # batches with outdated priorities should have a lower weight, they might be just noise
+			relative_age = self.timesteps - self._update_times[type_][idx]
+			age_weight = max(1,(self._max_age_window - relative_age))/self._max_age_window
+			weight *= age_weight # batches with outdated priorities should have a lower weight, they might be just noise
 		##########
 		batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
 
@@ -385,7 +385,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		# Update priority
 		self._sample_priority_tree[type_][idx] = normalized_priority # O(log)
 		if self._weight_importance_by_update_time:
-			self._update_times[type_][idx] = self.get_relative_time() # O(1)
+			self._update_times[type_][idx] = self.timesteps # O(1)
 
 	def get_relative_time(self):
 		return time.time()-self._base_time

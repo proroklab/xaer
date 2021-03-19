@@ -151,6 +151,10 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			for samples in batch_list
 		)
 
+	def increase_train_steps(self, t=1):
+		for replay_buffer in self.replay_buffers.values():
+			replay_buffer.increase_steps(t)
+
 	def update_priorities(self, prio_dict):
 		if not self.prioritized_replay:
 			return

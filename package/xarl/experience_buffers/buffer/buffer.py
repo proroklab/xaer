@@ -14,7 +14,11 @@ class Buffer(object):
 		if not cluster_size: cluster_size = global_size
 		self.cluster_size = min(cluster_size,global_size) if global_size else cluster_size
 		self.global_size = global_size
+		self.timesteps = 0
 		self.clean()
+
+	def increase_steps(self, t=1):
+		self.timesteps += t
 
 	def is_weighting_expected_values(self):
 		return False
