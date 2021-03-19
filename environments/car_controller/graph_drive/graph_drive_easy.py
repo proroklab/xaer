@@ -43,6 +43,7 @@ class GraphDriveEasy(gym.Env):
 	junction_radius = 1
 	min_junction_distance = 2.5*junction_radius
 	CULTURE = EasyRoadCulture
+	MAX_NORMALISED_SPEED = 120
 
 	def get_state_shape(self):
 		return [
@@ -93,44 +94,40 @@ class GraphDriveEasy(gym.Env):
 		def terminal_reward(is_positive,label):
 			return (1 if is_positive else -1, True, label) # terminate episode
 		def non_terminal_reward(is_positive,label):
-			return (1 if is_positive else -1, False, label) # terminate episode
+			return (1 if is_positive else -1, False, label) # do not terminate episode
 		# def step_reward(is_positive,label):
 		# 	normalised_space_traveled = (car_speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
 		# 	return (normalised_space_traveled if is_positive else -normalised_space_traveled, False, label) # do not terminate episode
 		def null_reward(label):
 			return (0, False, label) # do not terminate episode
 
-		if not self.is_in_junction(car_point):
-			# Assign normalised speed to agent properties before running dialogues.
-			self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
-			#######################################
-			# "Follow regulation" rule. # Run dialogue against culture.
-			following_regulation, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
-			# explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
-			if not following_regulation:
-				# return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
-				return terminal_reward(is_positive=False, label=explanation_list)
-			#######################################
-			# "Stay on the road" rule
-			if self.distance_to_closest_road >= self.max_distance_to_path: 
-				# return terminal_reward(is_positive=False, label=explanation_list_with_label('not_staying_on_the_road'))
-				return terminal_reward(is_positive=False, label='not_staying_on_the_road')
-			#######################################
-			# "Visit new roads" rule
-			if self.closest_road.is_visited: # visiting a previously seen reward gives no bonus
-				# return null_reward(label=explanation_list_with_label('not_visiting_new_roads'))
-				return null_reward(label='not_visiting_new_roads')
-			#######################################
-			# "Explore new roads" rule
-			if visiting_new_road: # visiting a new road for the first time is equivalent to get a bonus reward
-				# return non_terminal_reward(is_positive=True, label=explanation_list_with_label('exploring_a_new_road'))
-				return non_terminal_reward(is_positive=True, label='exploring_a_new_road')
-			#######################################
-			# "Move forward" rule
-			# return null_reward(label=explanation_list_with_label('moving_forward'))
-			return null_reward(label='moving_forward')
-		else:
+		#######################################
+		# "Is in junction" rule
+		if self.is_in_junction(car_point):
 			return null_reward(label='is_in_junction')
+		#######################################
+		# "Stay on the road" rule
+		if self.distance_to_closest_road >= self.max_distance_to_path:
+			return terminal_reward(is_positive=False, label='not_staying_on_the_road')
+		#######################################
+		# "Follow regulation" rule. # Run dialogue against culture.
+		# Assign normalised speed to agent properties before running dialogues.
+		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
+		following_regulation, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
+		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
+		if not following_regulation:
+			return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
+		#######################################
+		# "Visit new roads" rule
+		if self.closest_road.is_visited: # visiting a previously seen reward gives no bonus
+			return null_reward(label=explanation_list_with_label('not_visiting_new_roads'))
+		#######################################
+		# "Explore new roads" rule
+		if visiting_new_road: # visiting a new road for the first time is equivalent to get a bonus reward
+			return non_terminal_reward(is_positive=True, label=explanation_list_with_label('exploring_a_new_road'))
+		#######################################
+		# "Move forward" rule
+		return null_reward(label=explanation_list_with_label('moving_forward'))
 
 	def __init__(self):
 		self.viewer = None
@@ -153,7 +150,7 @@ class GraphDriveEasy(gym.Env):
 			'worker_vehicle': 1/3,
 			'tasked': 1/2,
 			'paid_charge': 1/2,
-			'speed': 120,
+			'speed': self.MAX_NORMALISED_SPEED,
 		})
 		self.road_network = RoadNetwork(
 			self.culture, 

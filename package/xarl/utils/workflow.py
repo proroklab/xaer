@@ -78,6 +78,8 @@ def train(trainer_class, config, environment_class, test_every_n_step=None, stop
 	# Start training
 	n = 0
 	sample_steps = 0
+	if stop_training_after_n_step is None:
+		stop_training_after_n_step = float('inf')
 	check_steps = test_every_n_step if test_every_n_step is not None else float('inf')
 	def save_checkpoint():
 		checkpoint = agent.save()
@@ -87,7 +89,7 @@ def train(trainer_class, config, environment_class, test_every_n_step=None, stop
 			test(trainer_class, config, environment_class, checkpoint)
 		except Exception as e:
 			print(e)
-	while stop_training_after_n_step is None or sample_steps < stop_training_after_n_step:
+	while sample_steps < stop_training_after_n_step:
 		n += 1
 		last_time = time.time()
 		result = agent.train()

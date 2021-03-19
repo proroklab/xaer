@@ -4,7 +4,7 @@ from random import choice, random, randint
 import numpy as np
 import time
 from xarl.experience_buffers.buffer.buffer import Buffer
-from xarl.utils.segment_tree import SumSegmentTree, MinSegmentTree
+from xarl.utils.segment_tree import SumSegmentTree, MinSegmentTree, MaxSegmentTree
 import copy
 import uuid
 from xarl.utils.running_statistics import RunningStats
@@ -32,6 +32,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		cluster_level_weighting=True,
 		min_cluster_size_proportion=0.5,
 		priority_lower_limit=None,
+		weight_importance_by_update_time=False,
 	): # O(1)
 		assert not prioritization_importance_beta or prioritization_importance_beta > 0., f"prioritization_importance_beta must be > 0, but it is {prioritization_importance_beta}"
 		assert not prioritization_importance_eta or prioritization_importance_eta > 0, f"prioritization_importance_eta must be > 0, but it is {prioritization_importance_eta}"
@@ -49,11 +50,13 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._cluster_prioritisation_strategy = cluster_prioritisation_strategy
 		self._cluster_level_weighting = cluster_level_weighting
 		self._min_cluster_size_proportion = min_cluster_size_proportion
+		self._weight_importance_by_update_time = weight_importance_by_update_time
 		super().__init__(cluster_size=cluster_size, global_size=global_size)
 		self._it_capacity = 1
 		while self._it_capacity < self.cluster_size:
 			self._it_capacity *= 2
 		# self.priority_stats = RunningStats(window_size=self.global_size)
+		self._base_time = time.time()
 
 	def is_weighting_expected_values(self):
 		return self._prioritization_importance_beta
@@ -69,6 +72,8 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._drop_priority_tree = []
 		if self._prioritized_drop_probability < 1:
 			self._insertion_time_tree = []
+		if self._weight_importance_by_update_time:
+			self._update_times = []
 			
 	def _add_type_if_not_exist(self, type_id): # O(1)
 		if type_id in self.types: # check it to avoid double insertion
@@ -91,6 +96,9 @@ class PseudoPrioritizedBuffer(Buffer):
 			)
 		if self._prioritized_drop_probability < 1:
 			self._insertion_time_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
+		if self._weight_importance_by_update_time:
+			self._update_times.append([])
+		#################################################
 		logger.warning(f'Added a new cluster with id {type_id}, now there are {len(self.type_values)} different clusters.')
 		new_max_cluster_size = self.get_max_cluster_size()
 		# new_max_cluster_capacity = 1
@@ -129,6 +137,8 @@ class PseudoPrioritizedBuffer(Buffer):
 				self._insertion_time_tree[type_][idx] = None # O(log)
 			self._sample_priority_tree[type_][idx] = None # O(log)
 			self.batches[type_].pop()
+			if self._weight_importance_by_update_time:
+				self._update_times[type_].pop()
 		elif idx < last_idx: # swap idx with the last element and then remove it
 			if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
 				self._drop_priority_tree[type_][idx] = (self._drop_priority_tree[type_][last_idx][0],idx) # O(log)
@@ -139,6 +149,8 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._sample_priority_tree[type_][idx] = self._sample_priority_tree[type_][last_idx] # O(log)
 			self._sample_priority_tree[type_][last_idx] = None # O(log)
 			batch = self.batches[type_][idx] = self.batches[type_].pop()
+			if self._weight_importance_by_update_time:
+				self._update_times[type_][idx] = self._update_times[type_].pop()
 			get_batch_indexes(batch)[type_id] = idx
 
 	def count(self, type_=None):
@@ -245,9 +257,13 @@ class PseudoPrioritizedBuffer(Buffer):
 		if idx is None: # add new element to buffer
 			idx = len(type_batch)
 			type_batch.append(batch)
+			if self._weight_importance_by_update_time:
+				self._update_times[type_].append(self.get_relative_time())
 		else:
 			del get_batch_indexes(type_batch[idx])[type_id]
 			type_batch[idx] = batch
+			if self._weight_importance_by_update_time:
+				self._update_times[type_][idx] = self.get_relative_time()
 		batch_infos = get_batch_infos(batch)
 		if 'batch_index' not in batch_infos:
 			batch_infos['batch_index'] = {}
@@ -255,7 +271,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		batch_infos['batch_uid'] = str(uuid.uuid4()) # random unique id
 		# Set insertion time
 		if self._prioritized_drop_probability < 1:
-			self._insertion_time_tree[type_][idx] = (time.time(), idx) # O(log)
+			self._insertion_time_tree[type_][idx] = (self.get_relative_time(), idx) # O(log)
 		# Set drop priority
 		if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
 			self._drop_priority_tree[type_][idx] = (random(), idx) # O(log)
@@ -327,6 +343,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		return (upper_max_priority - priorities)/(upper_max_priority - min_priority) # in (0,1]: the closer is cluster_sum_tree[idx] to max_priority, the lower is the weight
 
 	def update_beta_weights(self, batch, idx, type_):
+		##########
+		# Get priority weight
 		batch_priority = self._sample_priority_tree[type_][idx]
 		min_priority = self.__min_priority_list[type_] if self._cluster_level_weighting else self.__min_priority
 		# assert self.__min_priority_list == tuple(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)), "Wrong beta updates"
@@ -342,6 +360,11 @@ class PseudoPrioritizedBuffer(Buffer):
 			if self._cluster_level_weighting and self._cluster_prioritisation_strategy is not None and self.__cluster_priority_list[type_] != 0:
 				weight *= min(self.__cluster_priority_list) / self.__cluster_priority_list[type_]
 		weight = weight**self._prioritization_importance_beta
+		##########
+		# Add age weight
+		if self._weight_importance_by_update_time:
+			weight *= self._update_times[type_][idx] / self.get_relative_time() # batches with outdated priorities should have a lower weight, they might be just noise
+		##########
 		batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
 
 	def get_batch_priority(self, batch):
@@ -361,6 +384,11 @@ class PseudoPrioritizedBuffer(Buffer):
 		# self.priority_stats.push(normalized_priority)
 		# Update priority
 		self._sample_priority_tree[type_][idx] = normalized_priority # O(log)
+		if self._weight_importance_by_update_time:
+			self._update_times[type_][idx] = self.get_relative_time() # O(1)
+
+	def get_relative_time(self):
+		return time.time()-self._base_time
 
 	def stats(self, debug=False):
 		stats_dict = super().stats(debug)
@@ -369,23 +397,3 @@ class PseudoPrioritizedBuffer(Buffer):
 			'cluster_priority': self.get_cluster_priority_dict(),
 		})
 		return stats_dict
-
-# import numpy as np
-# def t(x,l): 
-# 	x_min = np.min(x)
-# 	x_max = np.max(x)
-# 	x_coefficient_of_variation = np.std(x)/np.abs(np.mean(x)) # https://en.wikipedia.org/wiki/Coefficient_of_variation
-# 	x_eta = 1 - min(1, x_coefficient_of_variation) # maximum smoothing is when the coefficient_of_variation is 0
-# 	l_x_min = x_min*(1-x_eta) if x_min > 0 else x_min*(1+x_eta)
-# 	u_x_max = x_max*(1+x_eta) if x_max > 0 else x_max*(1-x_eta)
-# 	print(l, (x-l_x_min)/(u_x_max-l_x_min))
-
-# t(list(range(1000,100000)), 'low')
-# t([0.1,0.5,0.13,0.01], 'low')
-# t([5]*10+[4.9], 'high')
-# t([5]*100+[4], 'high')
-# t([5]*10, 'high')
-# t([5]*10+[400], 'low')
-# t([-5,-0.3,0,0.3,5], 'low')
-# t([-.5,0,.5], 'low')
-# t([-50,-20,-.5], 'low')
