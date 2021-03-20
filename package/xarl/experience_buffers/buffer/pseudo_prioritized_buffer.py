@@ -160,11 +160,6 @@ class PseudoPrioritizedBuffer(Buffer):
 			return sum(t.inserted_elements for t in self._sample_priority_tree)
 		return self._sample_priority_tree[type_].inserted_elements
 
-	def get_less_important_batch(self, type_):
-		ptree = self._drop_priority_tree[type_] if random() <= self._prioritized_drop_probability else self._insertion_time_tree[type_]
-		_,idx = ptree.min() # O(log)
-		return idx
-
 	def get_min_cluster_size(self):
 		return int(np.floor(self.global_size/(len(self.type_values)+self._min_cluster_size_proportion)))
 
@@ -172,7 +167,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		return int(np.floor(self.global_size/len(self.type_values)))
 
 	def get_max_cluster_size(self):
-		return int(np.floor(self.get_min_cluster_size()*(1+self._min_cluster_size_proportion)))
+		return int(np.ceil(self.get_min_cluster_size()*(1+self._min_cluster_size_proportion)))
 
 	def get_cluster_capacity(self, segment_tree):
 		return segment_tree.inserted_elements/self.max_cluster_size
@@ -203,16 +198,10 @@ class PseudoPrioritizedBuffer(Buffer):
 			enumerate(self._sample_priority_tree)
 		))
 
-	def is_full_cluster(self, type_):
-		return self.has_atleast(min(self.cluster_size,self.max_cluster_size), type_)
-
-	def is_valid_cluster(self, type_id):
-		if type_id not in self.types:
-			return False
-		return self.has_atleast(self.min_cluster_size, self.get_type(type_id))
-
-	def get_valid_cluster_ids_gen(self):
-		return filter(lambda x: self.has_atleast(self.min_cluster_size, x), self.type_values)
+	def get_less_important_batch(self, type_):
+		ptree = self._drop_priority_tree[type_] if random() <= self._prioritized_drop_probability else self._insertion_time_tree[type_]
+		_,idx = ptree.min() # O(log)
+		return idx
 
 	def remove_less_important_batches(self, n):
 		# Pick the right tree list
@@ -230,7 +219,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		# Therefore, we have that the minimum cluster's size pY = N/(C+q).
 		less_important_batch_gen = (
 			(*tree_list[type_].min(), type_) # O(log)
-			for type_ in self.get_valid_cluster_ids_gen()
+			for type_ in filter(lambda x: self.has_atleast(self.min_cluster_size, x), self.type_values)
 		)
 		less_important_batch_gen_len = len(self.type_values)
 		# Remove the first N less important batches
@@ -244,13 +233,16 @@ class PseudoPrioritizedBuffer(Buffer):
 		else:
 			_, idx, type_ = min(less_important_batch_gen, key=lambda x: x[0])
 			self.remove_batch(type_, idx)
+
+	def _is_full_cluster(self, type_):
+		return self.has_atleast(min(self.cluster_size,self.max_cluster_size), type_)
 		
 	def add(self, batch, type_id=0, update_prioritisation_weights=False): # O(log)
 		self._add_type_if_not_exist(type_id)
 		type_ = self.get_type(type_id)
 		type_batch = self.batches[type_]
 		idx = None
-		if self.is_full_cluster(type_): # full cluster, remove from it
+		if self._is_full_cluster(type_): # full cluster, remove from it
 			idx = self.get_less_important_batch(type_)
 		elif self.is_full_buffer(): # full buffer but not full cluster, remove the less important batch in the whole buffer
 			self.remove_less_important_batches(1)
@@ -362,6 +354,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		# Add age weight
 		if self._weight_importance_by_update_time:
 			relative_age = self.timesteps - self._update_times[type_][idx]
+			# if relative_age > self._max_age_window:
+			# 	weight *= 1/self._max_age_window
 			age_weight = max(1,(self._max_age_window - relative_age))/self._max_age_window
 			weight *= age_weight # batches with outdated priorities should have a lower weight, they might be just noise
 		##########

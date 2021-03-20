@@ -51,7 +51,7 @@ class GridDriveHard(gym.Env):
 
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
-		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
+		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list)) if explanation_list else l
 		if not following_regulation:
 			return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
 		#######################################

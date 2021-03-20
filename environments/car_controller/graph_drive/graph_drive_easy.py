@@ -114,7 +114,7 @@ class GraphDriveEasy(gym.Env):
 		# Assign normalised speed to agent properties before running dialogues.
 		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
 		following_regulation, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
-		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list))
+		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list)) if explanation_list else l
 		if not following_regulation:
 			return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
 		#######################################

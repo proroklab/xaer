@@ -72,7 +72,14 @@ class Buffer(object):
 		return self.cluster_size
 
 	def is_valid_cluster(self, type_id):
+		if type_id not in self.types:
+			return False
 		return self.has_atleast(self.get_min_cluster_size(), self.get_type(type_id))
+
+	def get_cluster_size(self, type_id):
+		if type_id not in self.types:
+			return False
+		return self.count(self.get_type(type_id))
 		
 	def is_full_buffer(self):
 		return self.has_atleast(self.global_size) if self.global_size else False

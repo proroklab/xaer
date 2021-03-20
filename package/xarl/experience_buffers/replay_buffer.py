@@ -98,12 +98,20 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			for policy_id, sub_batch in batch.policy_batches.items():
 				batch_type = get_batch_infos(sub_batch)["batch_type"]
 				if isinstance(batch_type,(tuple,list)):
+					########################
 					# # If has_multiple_types is True: no need for duplicating the batch across multiple clusters unless they are invalid, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
 					# sub_type_list = tuple(filter(lambda x: not self.replay_buffers[policy_id].is_valid_cluster(x), batch_type))
 					# if len(sub_type_list) == 0:
 					# 	sub_type_list = (random.choice(batch_type),)
-					sub_type_list = (random.choice(batch_type),)
+					########################
+					# sub_type_list = (random.choice(batch_type),)
+					########################
+					sub_type_list = (min(batch_type, key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())),)
+					########################
+					# sub_type_list = (max(batch_type, key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())),)
+					########################
 					# sub_type_list = batch_type
+					########################
 				else:
 					sub_type_list = (batch_type,)
 				for sub_type in sub_type_list: 
