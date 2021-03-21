@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import gym
+from gym.utils import seeding
+import random
 import numpy as np
 import copy
 from matplotlib import use as matplotlib_use, patches
@@ -64,8 +66,14 @@ class GridDriveHard(gym.Env):
 		#######################################
 		# "Move forward" rule
 		return step_reward(is_positive=True, label=explanation_list_with_label('moving_forward'))
+
+	def seed(self, seed=None):
+		self.np_random, seed = seeding.np_random(seed)
+		random.seed(seed)
+		return [seed]
 	
-	def __init__(self):
+	def __init__(self, config):
+		self.seed(config.worker_index * config.num_workers)
 		self.culture = self.CULTURE(road_options={
 			'motorway': 1/2,
 			'stop_sign': 1/2,

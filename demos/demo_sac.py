@@ -16,6 +16,7 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = SAC_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"seed": 42, # This makes experiments reproducible.
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
 	# },
@@ -39,4 +40,4 @@ CONFIG.update({
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-train(SACTrainer, CONFIG, SELECT_ENV, test_every_n_step=1000, stop_training_after_n_step=None)
+train(SACTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e6, stop_training_after_n_step=None)

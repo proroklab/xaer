@@ -19,6 +19,7 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = TD3_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"seed": 42, # This makes experiments reproducible.
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
 	# },
@@ -44,4 +45,4 @@ CONFIG.update({
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-train(TD3Trainer, CONFIG, SELECT_ENV, test_every_n_step=1000, stop_training_after_n_step=None)
+train(TD3Trainer, CONFIG, SELECT_ENV, test_every_n_step=1e6, stop_training_after_n_step=None)

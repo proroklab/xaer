@@ -22,6 +22,7 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = APPO_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"seed": 42, # This makes experiments reproducible.
 	"rollout_fragment_length": 2**3, # Number of transitions per batch in the experience buffer
 	"train_batch_size": 2**9, # Number of transitions per train-batch
 	"replay_proportion": 4, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
@@ -34,5 +35,4 @@ CONFIG.update({
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-train(APPOTrainer, CONFIG, SELECT_ENV, test_every_n_step=1000, stop_training_after_n_step=None)
-
+train(APPOTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e6, stop_training_after_n_step=None)

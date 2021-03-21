@@ -19,6 +19,7 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"seed": 42, # This makes experiments reproducible.
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
 	# },

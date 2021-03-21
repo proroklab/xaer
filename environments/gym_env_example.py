@@ -1,5 +1,6 @@
 import gym
 from gym.utils import seeding
+import random
 
 class Example_v0(gym.Env):
 	LF_MIN = 1
@@ -14,7 +15,13 @@ class Example_v0(gym.Env):
 		"render.modes": ["human"]
 	}
 
-	def __init__ (self):
+	def seed(self, seed=None):
+		self.np_random, seed = seeding.np_random(seed)
+		random.seed(seed)
+		return [seed]
+
+	def __init__ (self, config):
+		self.seed(config.worker_index * config.num_workers)
 		self.action_space = gym.spaces.Discrete(2)
 		self.observation_space = gym.spaces.Discrete(self.RT_MAX + 1)
 		# possible positions to chose on `reset()`

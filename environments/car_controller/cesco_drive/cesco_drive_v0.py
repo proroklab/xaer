@@ -11,6 +11,8 @@ import numpy as np
 from scipy import optimize
 from environments.car_controller.utils import *
 import gym
+from gym.utils import seeding
+import random
 
 class CescoDriveV0(gym.Env):
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
@@ -47,7 +49,13 @@ class CescoDriveV0(gym.Env):
 	def get_concatenation(self):
 		return np.array([self.steering_angle/self.max_steering_angle, self.speed/self.max_speed, self.speed/self.speed_upper_limit], dtype=np.float32)
 
-	def __init__(self):
+	def seed(self, seed=None):
+		self.np_random, seed = seeding.np_random(seed)
+		random.seed(seed)
+		return [seed]
+
+	def __init__(self, config):
+		self.seed(config.worker_index * config.num_workers)
 		self.viewer = None
 		self.max_step = self.max_step_per_spline*self.spline_number
 		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)

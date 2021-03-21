@@ -12,6 +12,7 @@ from environments.car_controller.graph_drive.lib.roads import *
 from environments.car_controller.grid_drive.lib.road_cultures import EasyRoadCulture
 import random
 import gym
+from gym.utils import seeding
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
@@ -129,7 +130,13 @@ class GraphDriveEasy(gym.Env):
 		# "Move forward" rule
 		return null_reward(label=explanation_list_with_label('moving_forward'))
 
-	def __init__(self):
+	def seed(self, seed=None):
+		self.np_random, seed = seeding.np_random(seed)
+		random.seed(seed)
+		return [seed]
+
+	def __init__(self, config):
+		self.seed(config.worker_index * config.num_workers)
 		self.viewer = None
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)

@@ -21,6 +21,7 @@ SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = DQN_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"seed": 42, # This makes experiments reproducible.
 	# "num_envs_per_worker": 2**3, # Number of environments to evaluate vectorwise per worker. This enables model inference batching, which can improve performance for inference bottlenecked workloads.
 	"grad_clip": None,
 	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
@@ -44,5 +45,4 @@ CONFIG.update({
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-train(DQNTrainer, CONFIG, SELECT_ENV, test_every_n_step=1000, stop_training_after_n_step=None)
-
+train(DQNTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e6, stop_training_after_n_step=None)
