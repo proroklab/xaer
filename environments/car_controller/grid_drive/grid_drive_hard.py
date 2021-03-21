@@ -104,18 +104,19 @@ class GridDriveHard(gym.Env):
 
 	def reset(self):
 		self.viewer = None
-		# if self.step_counter%self.MAX_STEP == 0:
+		self.step_counter = 0
+
 		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.culture)
 		self.grid_features = np.array(self.grid.get_features(), ndmin=3, dtype=np.int8)
-		self.step_counter = 0
 		self.grid_view = np.concatenate([
 			self.grid_features,
 			np.zeros((self.GRID_DIMENSION, self.GRID_DIMENSION, 2), dtype=np.int8), # current position + visited cells
 		], -1)
-		self.grid.set_random_position()
+
 		x,y = self.grid.agent_position
 		self.grid_view[x][y][self.AGENT_CELL_GRID_IDX] = 1 # set new position
 		self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] = 1 # set current cell as visited
+		self.speed = self.grid.agent["Speed"]
 		return self.get_state()
 
 	def step(self, action_vector):
@@ -154,18 +155,7 @@ class GridDriveHard(gym.Env):
 		for x in range(columns):
 			for y in range(rows):
 				road = self.grid.cells[x][y]
-				min_speed = None
-				max_speed = None
-				for speed in range(0, 121, 10):
-					temp_agent.assign_property_value("Speed", speed)
-					can_move, _ = self.grid.run_dialogue(road, temp_agent, explanation_type="compact")
-					if can_move:
-						if min_speed is None or speed < min_speed:
-							min_speed = speed
-						if max_speed is None or speed > max_speed:
-							max_speed = speed
-				road_limits[road] = (min_speed, max_speed)  # (None,None) if road is unfeasible
-
+				road_limits[road] = self.grid.road_culture.get_speed_limits(road, self.grid.agent) # (None,None) if road is unfeasible
 		# Draw cells
 		shapes = []
 		for x in range(columns):

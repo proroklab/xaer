@@ -222,7 +222,7 @@ class GraphDriveEasy(gym.Env):
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		self.last_closest_road = None
 		# steering angle & speed
-		self.speed = self.min_speed + (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
+		self.speed = self.min_speed # self.min_speed + (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
 		# self.speed = self.min_speed+(self.max_speed-self.min_speed)*(70/120) # for testing
 		self.steering_angle = 0
 		# init concat variables
@@ -359,11 +359,8 @@ class GraphDriveEasy(gym.Env):
 			road_pos = list(zip(*(road.start.pos, road.end.pos)))
 			# print("Drawing road {} {}".format(road[0], road[1]))
 			if road.colour is None:
-				for speed in [0,10,20,30,40]:
-					self.road_network.agent.assign_property_value("Speed", speed)
-					can_move, _ = self.road_network.run_dialogue(road, self.road_network.agent, explanation_type="compact")
-					if can_move:
-						break
+				min_speed = self.road_network.road_culture.get_minimum_speed(road, self.road_network.agent) # None if road is unfeasible
+				can_move = min_speed is not None
 				road.colour = "Green" if can_move else "Red"
 			road_colour = road.colour
 			if road_colour == "Green":

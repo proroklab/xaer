@@ -13,31 +13,35 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 	if checkpoint is None:
 		raise ValueError(f"A previously trained checkpoint must be provided for algorithm {alg}")
 	agent.restore(checkpoint)
-	
+
 	checkpoint_directory = os.path.dirname(checkpoint)
 	env = agent.env_creator(config["env_config"])
+	def print_screen(screens_directory, step):
+		filename = os.path.join(screens_directory, f'frame{step}.jpg')
+		plt.rgb_array_image(
+			env.render(mode='rgb_array'), 
+			filename
+		)
+		return filename
+
 	for episode_id in range(n_episodes):
 		episode_directory = os.path.join(checkpoint_directory, f'episode_{episode_id}')
 		os.mkdir(episode_directory)
 		screens_directory = os.path.join(episode_directory, 'screen')
 		os.mkdir(screens_directory)
-		file_list = []
 		log_list = []
 		sum_reward = 0
 		step = 0
 		done = False
 		state = env.reset()
+		file_list = [print_screen(screens_directory, step)]
 		while not done:
+			step += 1
 			# action = env.action_space.sample()
 			action = agent.compute_action(state, full_fetch=True, explore=False)
 			state, reward, done, info = env.step(action[0])
 			sum_reward += reward
-			filename = os.path.join(screens_directory, f'frame{step}.jpg')
-			plt.rgb_array_image(
-				env.render(mode='rgb_array'), 
-				filename
-			)
-			file_list.append(filename)
+			file_list.append(print_screen(screens_directory, step))
 			log_list.append(', '.join([
 				f'step: {step}',
 				f'reward: {reward}',
@@ -47,7 +51,6 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 				f'state: {state}',
 				f'\n\n',
 			]))
-			step += 1
 		with open(episode_directory + f'/episode_{step}_{sum_reward}.log', 'w') as f:
 			f.writelines(log_list)
 		if save_gif:

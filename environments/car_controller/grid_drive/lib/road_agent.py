@@ -7,8 +7,8 @@ class RoadAgent:
     def __getitem__(self, item):
         return self.__dict__.get(item, None)
 
-    def __setitem__(self, key, value):
-        self.__dict__[key] = value
+    # def __setitem__(self, key, value):
+    #     self.__dict__[key] = value
 
     def culture_properties(self):
         if self.road_culture is None:

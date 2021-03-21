@@ -3,12 +3,66 @@ from environments.car_controller.grid_drive.lib.road_cell import RoadCell
 from environments.car_controller.grid_drive.lib.road_agent import RoadAgent
 import numpy as np
 import random
+import copy
 
 #####################
 # EASY ROAD CULTURE #
 #####################
 
-class EasyRoadCulture(Culture):
+class RoadCulture(Culture):
+	starting_argument_id = 0
+
+	def initialise_random_agent(self, agent: RoadAgent):
+		"""
+		Receives an empty RoadAgent and initialises properties with acceptable random values.
+		:param agent: uninitialised RoadAgent.
+		"""
+		agent.assign_property_value("Speed", 0)
+
+	def initialise_feasible_road(self, road: RoadCell):
+		for p in self.properties.keys():
+			road.assign_property_value(p, False)
+
+	def run_default_dialogue(self, road, agent, explanation_type="verbose"):
+		"""
+		Runs dialogue to find out decision regarding penalty in argumentation framework.
+		Args:
+			road: RoadCell corresponding to destination cell.
+			agent: RoadAgent corresponding to agent.
+			explanation_type: 'verbose' for all arguments used in exchange; 'compact' for only winning ones.
+
+		Returns: Decision on penalty + explanation.
+		"""
+		# Game starts with proponent using argument 0 ("I will not get a ticket").
+		return super().run_dialogue(road, agent, starting_argument_id=self.starting_argument_id, explanation_type=explanation_type)
+
+	def get_minimum_speed(self, road, agent):
+		agent = copy.deepcopy(agent)
+		for speed in [0,10,20,30,40]:
+			agent.assign_property_value("Speed", speed)
+			can_move, _ = self.run_default_dialogue(road, agent, explanation_type="compact")
+			if can_move:
+				return speed
+		return None
+
+	def get_speed_limits(self, road, agent):
+		agent = copy.deepcopy(agent)
+		min_speed = self.get_minimum_speed(road, agent)
+		if min_speed is None:
+			return (None,None) # (None,None) if road is unfeasible
+		max_speed = None
+		step = 10
+		for speed in range(min_speed+step, self.agent_options.get('speed',120)+1, step):
+			agent.assign_property_value("Speed", speed)
+			can_move, _ = self.run_default_dialogue(road, agent, explanation_type="compact")
+			if can_move:
+				if max_speed is None or speed > max_speed:
+					max_speed = speed
+		if max_speed is None:
+			max_speed = min_speed
+		return (min_speed, max_speed)
+
+class EasyRoadCulture(RoadCulture):
 	def __init__(self, road_options=None, agent_options=None):
 		if road_options is None: road_options = {}
 		if agent_options is None: agent_options = {}
@@ -83,14 +137,6 @@ class EasyRoadCulture(Culture):
 			stop_sign = True if random.random() <= self.road_options.get('stop_sign',1/2) else False
 			road.assign_property_value("Stop Sign", stop_sign)
 
-	def initialise_random_agent(self, agent: RoadAgent):
-		"""
-		Receives an empty RoadAgent and initialises properties with acceptable random values.
-		:param agent: uninitialised RoadAgent.
-		"""
-		speed = np.random.randint(0, self.agent_options.get('speed',120))
-		agent.assign_property_value("Speed", speed)
-
 	def define_attacks(self):
 		"""
 		Defines attack relationships present in the culture.
@@ -107,7 +153,7 @@ class EasyRoadCulture(Culture):
 # MEDIUM ROAD CULTURE #
 #######################
 
-class MediumRoadCulture(Culture):
+class MediumRoadCulture(RoadCulture):
 	def __init__(self, road_options=None, agent_options=None):
 		if road_options is None: road_options = {}
 		if agent_options is None: agent_options = {}
@@ -115,7 +161,7 @@ class MediumRoadCulture(Culture):
 		self.agent_options = agent_options
 		self.ids = {}
 		super().__init__()
-		self.name = "Hard Road Culture"
+		self.name = "Medium Road Culture"
 		# Properties of the culture with their default values go in self.properties.
 		self.properties = {"Motorway": False,
 						   "Stop Sign": False,
@@ -254,7 +300,6 @@ class MediumRoadCulture(Culture):
 		single_lane = True if random.random() <= self.road_options.get('single_lane',1/2) else False
 		road.assign_property_value("Single Lane", single_lane)
 
-
 	def initialise_random_agent(self, agent: RoadAgent):
 		"""
 		Receives an empty RoadAgent and initialises properties with acceptable random values.
@@ -263,9 +308,7 @@ class MediumRoadCulture(Culture):
 		emergency_vehicle = True if random.random() <= self.agent_options.get('emergency_vehicle',1/5) else False
 		agent.assign_property_value("Emergency Vehicle", emergency_vehicle)
 
-		speed = np.random.randint(0, self.agent_options.get('speed',120))
-		agent.assign_property_value("Speed", speed)
-
+		super().initialise_random_agent(agent)
 
 	def define_attacks(self):
 		"""
@@ -297,7 +340,7 @@ class MediumRoadCulture(Culture):
 # HARD ROAD CULTURE #
 #####################
 
-class HardRoadCulture(Culture):
+class HardRoadCulture(RoadCulture):
 	def __init__(self, road_options=None, agent_options=None):
 		if road_options is None: road_options = {}
 		if agent_options is None: agent_options = {}
@@ -548,8 +591,7 @@ class HardRoadCulture(Culture):
 		paid_charge = True if random.random() <= self.agent_options.get('paid_charge',1/2) else False
 		agent.assign_property_value("Paid Charge", paid_charge)
 
-		speed = np.random.randint(0, self.agent_options.get('speed',120))
-		agent.assign_property_value("Speed", speed)
+		super().initialise_random_agent(agent)
 
 	def define_attacks(self):
 		"""

@@ -19,12 +19,13 @@ class RoadGrid:
 		self.road_culture = culture
 		self.agent.set_culture(self.road_culture)
 		self.road_culture.initialise_random_agent(self.agent)
-		# self.inaccessible = tuple([0] * (len(self.road_culture.properties) + 1))
-
 		self.cells = self.initialise_random_grid()
+		self.set_random_position()
 
 	def set_random_position(self):
-		self.agent_position = (randrange(0,self.width), randrange(0,self.height))
+		x, y = randrange(0,self.width), randrange(0,self.height)
+		self.agent_position = (x,y)
+		self.road_culture.initialise_feasible_road(self.cells[x][y])
 
 	def within_bounds(self, coord):
 		"""
@@ -116,7 +117,7 @@ class RoadGrid:
 		Returns: Decision on penalty + explanation.
 		"""
 		# Game starts with proponent using argument 0 ("I will not get a ticket").
-		return self.road_culture.run_dialogue(road, agent, starting_argument_id=0, explanation_type=explanation_type)
+		return self.road_culture.run_default_dialogue(road, agent, explanation_type=explanation_type)
 
 	def move_agent(self, direction, speed):
 		"""

@@ -106,9 +106,15 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					########################
 					# sub_type_list = (random.choice(batch_type),)
 					########################
-					sub_type_list = (min(batch_type, key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())),)
+					# if len(batch_type) > 1: # prioritised cluster selection
+					# 	cluster_cumsum = np.cumsum(list(map(lambda x: self.replay_buffers[policy_id].get_cluster_size(x)+1, batch_type)))
+					# 	cluster_mass = random.random() * cluster_cumsum[-1] # O(1)
+					# 	batch_type_idx,_ = next(filter(lambda x: x[-1] >= cluster_mass, enumerate(cluster_cumsum))) # O(|self.type_keys|)
+					# 	sub_type_list = (batch_type[batch_type_idx],)
+					# else:
+					# 	sub_type_list = (batch_type[0],)
 					########################
-					# sub_type_list = (max(batch_type, key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())),)
+					sub_type_list = (min(batch_type, key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())),)
 					########################
 					# sub_type_list = batch_type
 					########################

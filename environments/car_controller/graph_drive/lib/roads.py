@@ -80,7 +80,7 @@ class RoadNetwork:
 		"""
 		# print("@@@@@@@@@@@@@ NEW DIALOGUE @@@@@@@@@@@@@")
 		# Game starts with proponent using argument 0 ("I will not get a ticket").
-		return self.road_culture.run_dialogue(road, agent, starting_argument_id=0, explanation_type=explanation_type)
+		return self.road_culture.run_default_dialogue(road, agent, explanation_type=explanation_type)
 
 	def normalise_speed(self, min_, max_, current):
 		"""
