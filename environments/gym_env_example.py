@@ -16,12 +16,12 @@ class Example_v0(gym.Env):
 	}
 
 	def seed(self, seed=None):
+		print("Setting random seed to:", seed)
 		self.np_random, seed = seeding.np_random(seed)
 		random.seed(seed)
 		return [seed]
 
 	def __init__ (self, config):
-		self.seed(config.worker_index * config.num_workers)
 		self.action_space = gym.spaces.Discrete(2)
 		self.observation_space = gym.spaces.Discrete(self.RT_MAX + 1)
 		# possible positions to chose on `reset()`
@@ -30,7 +30,6 @@ class Example_v0(gym.Env):
 		self.init_positions.remove(self.goal)
 		# change to guarantee the sequence of pseudorandom numbers
 		# (e.g., for debugging)
-		self.seed()
 		self.reset()
 
 	def reset (self):
@@ -104,10 +103,6 @@ class Example_v0(gym.Env):
 	def render (self, mode="human"):
 		s = "position: {:2d}  reward: {:2d}  info: {}"
 		print(s.format(self.state, self.reward, self.info))
-
-	def seed (self, seed=None):
-		self.np_random, seed = seeding.np_random(seed)
-		return [seed]
 
 	def close (self):
 		pass

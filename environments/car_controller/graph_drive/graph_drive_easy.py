@@ -131,12 +131,12 @@ class GraphDriveEasy(gym.Env):
 		return null_reward(label=explanation_list_with_label('moving_forward'))
 
 	def seed(self, seed=None):
+		print("Setting random seed to:", seed)
 		self.np_random, seed = seeding.np_random(seed)
 		random.seed(seed)
 		return [seed]
 
 	def __init__(self, config):
-		self.seed(config.worker_index * config.num_workers)
 		self.viewer = None
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
