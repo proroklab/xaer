@@ -182,7 +182,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		if avg_priority is not None:
 			avg_cluster_priority = avg_cluster_priority/(avg_priority - min_priority) # avg_priority >= min_priority # scale by the global average priority
 		assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-		return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
+		return self.get_relative_cluster_capacity(segment_tree)*avg_cluster_priority
 
 	def get_cluster_capacity_dict(self):
 		return dict(map(

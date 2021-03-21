@@ -22,6 +22,8 @@ from xarl.utils.misc import accumulate
 from xarl.agents.xappo_loss.xappo_tf_loss import xappo_surrogate_loss as tf_xappo_surrogate_loss
 from xarl.agents.xappo_loss.xappo_torch_loss import xappo_surrogate_loss as torch_xappo_surrogate_loss
 from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
+import random
+import numpy as np
 
 XAPPO_EXTRA_OPTIONS = {
 	"_use_trajectory_view_api": False, # important
@@ -198,6 +200,8 @@ def xappo_get_policy_class(config):
 ########################
 
 def xappo_execution_plan(workers, config):
+	random.seed(config.seed)
+	np.random.seed(config.seed)
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 	local_worker = workers.local_worker()

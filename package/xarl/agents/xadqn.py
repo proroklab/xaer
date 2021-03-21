@@ -5,7 +5,6 @@ XADQN - eXplanation-Aware Deep Q-Networks (DQN, Rainbow, Parametric DQN)
 Detailed documentation:
 https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
 """  # noqa: E501
-import numpy as np
 from more_itertools import unique_everseen
 from ray.rllib.agents.dqn.dqn import calculate_rr_weights, DQNTrainer, TrainOneStep, UpdateTargetNetwork, Concurrently, StandardMetricsReporting, LEARNER_STATS_KEY, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
 from ray.rllib.agents.dqn.dqn_torch_policy import DQNTorchPolicy, compute_q_values as torch_compute_q_values, torch, F, FLOAT_MIN
@@ -18,6 +17,9 @@ from ray.rllib.policy.view_requirement import ViewRequirement
 
 from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types, add_buffer_metrics, clean_batch
 from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
+
+import random
+import numpy as np
 
 XADQN_EXTRA_OPTIONS = {
 	"rollout_fragment_length": 2**6, # Divide episodes into fragments of this many steps each during rollouts.
@@ -84,6 +86,8 @@ XADQNTorchPolicy = DQNTorchPolicy.with_updates(
 ########################
 
 def xadqn_execution_plan(workers, config):
+	random.seed(config.seed)
+	np.random.seed(config.seed)
 	replay_batch_size = config["train_batch_size"]
 	replay_sequence_length = config["replay_sequence_length"]
 	if replay_sequence_length and replay_sequence_length > 1:
