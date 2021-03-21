@@ -30,7 +30,8 @@ class GridDriveHard(gym.Env):
 			"neighbours": self.grid.neighbour_features(), 
 		}
 		if self.obs_car_features > 0:
-			fc_dict["agent"] = self.grid.agent.binary_features()
+			fc_dict["agent_extra_properties"] = self.grid.agent.binary_features()
+		fc_dict["agent_speed"] = np.array([self.speed/self.MAX_SPEED], dtype=np.float32)
 		return {
 			"cnn": {
 				"grid": self.grid_view,
@@ -93,7 +94,8 @@ class GridDriveHard(gym.Env):
 			"neighbours": gym.spaces.MultiBinary(self.obs_road_features * self.DIRECTIONS), # Neighbourhood view
 		}
 		if self.obs_car_features > 0:
-			fc_dict["agent"] = gym.spaces.MultiBinary(self.obs_car_features) # Car features
+			fc_dict["agent_extra_properties"] = gym.spaces.MultiBinary(self.obs_car_features) # Car features
+		fc_dict["agent_speed"] = gym.spaces.Box(low=0, high=1.0, shape=(1,), dtype=np.float32)
 		self.observation_space = gym.spaces.Dict({
 			"cnn": gym.spaces.Dict({
 				"grid": gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, self.obs_road_features+2]), # Features representing the grid + visited cells + current position

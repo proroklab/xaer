@@ -66,4 +66,4 @@ CONFIG.update({
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-train(XADQNTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e3, stop_training_after_n_step=None)
+train(XADQNTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e6, stop_training_after_n_step=None)
