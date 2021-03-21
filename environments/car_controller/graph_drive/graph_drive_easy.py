@@ -30,7 +30,7 @@ class GraphDriveEasy(gym.Env):
 	max_deceleration = 7 # m/s^2
 	max_steering_degree = 45
 	max_step = 200
-	max_distance_to_path = 1 # meters
+	max_distance_to_path = 0.5 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
