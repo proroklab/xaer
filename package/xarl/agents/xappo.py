@@ -200,8 +200,8 @@ def xappo_get_policy_class(config):
 ########################
 
 def xappo_execution_plan(workers, config):
-	random.seed(config.seed)
-	np.random.seed(config.seed)
+	random.seed(config.get("seed",None))
+	np.random.seed(config.get("seed",None))
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 	local_worker = workers.local_worker()
