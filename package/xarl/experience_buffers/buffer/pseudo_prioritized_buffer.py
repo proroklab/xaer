@@ -239,7 +239,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			(*tree_list[type_].min(), type_) # O(log)
 			# for type_ in filter(lambda x: self.has_atleast(self.min_cluster_size, x), self.type_values)
 			for type_ in self.type_values
-			# if self.count(type_) > 1 # keep at least one element
+			if not self.is_empty(type_)
 		)
 		less_important_batch_gen_len = len(self.type_values)
 		# Remove the first N less important batches
