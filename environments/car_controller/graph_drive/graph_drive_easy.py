@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+import gym
+from gym.utils import seeding
+import numpy as np
+
 from matplotlib import use as matplotlib_use
 matplotlib_use('Agg',force=True) # no display
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -10,9 +14,9 @@ from matplotlib.lines import Line2D
 from environments.car_controller.utils import *
 from environments.car_controller.graph_drive.lib.roads import *
 from environments.car_controller.grid_drive.lib.road_cultures import EasyRoadCulture
-import random
-import gym
-from gym.utils import seeding
+
+import logging
+logger = logging.getLogger(__name__)
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
@@ -30,7 +34,7 @@ class GraphDriveEasy(gym.Env):
 	max_deceleration = 7 # m/s^2
 	max_steering_degree = 45
 	max_step = 200
-	max_distance_to_path = 0.5 # meters
+	max_distance_to_path = 1 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
@@ -107,10 +111,6 @@ class GraphDriveEasy(gym.Env):
 		if self.is_in_junction(car_point):
 			return null_reward(label='is_in_junction')
 		#######################################
-		# "Stay on the road" rule
-		if self.distance_to_closest_road >= self.max_distance_to_path:
-			return terminal_reward(is_positive=False, label='not_staying_on_the_road')
-		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
 		# Assign normalised speed to agent properties before running dialogues.
 		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
@@ -119,9 +119,13 @@ class GraphDriveEasy(gym.Env):
 		if not following_regulation:
 			return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
 		#######################################
+		# "Stay on the road" rule
+		if self.distance_to_closest_road >= self.max_distance_to_path:
+			return terminal_reward(is_positive=False, label='not_staying_on_the_road')
+		#######################################
 		# "Visit new roads" rule
 		if self.closest_road.is_visited: # visiting a previously seen reward gives no bonus
-			return null_reward(label=explanation_list_with_label('not_visiting_new_roads'))
+			return null_reward(label='not_visiting_new_roads')
 		#######################################
 		# "Explore new roads" rule
 		if visiting_new_road: # visiting a new road for the first time is equivalent to get a bonus reward
@@ -131,9 +135,8 @@ class GraphDriveEasy(gym.Env):
 		return null_reward(label=explanation_list_with_label('moving_forward'))
 
 	def seed(self, seed=None):
-		print("Setting random seed to:", seed)
-		self.np_random, seed = seeding.np_random(seed)
-		random.seed(seed)
+		logger.warning(f"Setting random seed to: {seed}")
+		self.np_random, _ = seeding.np_random(seed)
 		return [seed]
 
 	def __init__(self, config):
@@ -159,12 +162,6 @@ class GraphDriveEasy(gym.Env):
 			'paid_charge': 1/2,
 			'speed': self.MAX_NORMALISED_SPEED,
 		})
-		self.road_network = RoadNetwork(
-			self.culture, 
-			map_size=self.map_size, 
-			min_junction_distance=self.min_junction_distance,
-			max_roads_per_junction=self.max_roads_per_junction,
-		)
 		self.obs_road_features = len(self.culture.properties)  # Number of binary ROAD features in Hard Culture
 		self.obs_car_features = len(self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
 		# Spaces
@@ -218,18 +215,26 @@ class GraphDriveEasy(gym.Env):
 		return road_view, junction_view
 	
 	def reset(self):
+		self.culture.np_random = self.np_random
+		# print(0, self.np_random.random())
 		self.is_over = False
 		self.episode_statistics = {}
 		self._step = 0
-		###########################
 		self.seconds_per_step = self.get_step_seconds()
+		###########################
+		self.road_network = RoadNetwork(
+			self.culture, 
+			map_size=self.map_size, 
+			min_junction_distance=self.min_junction_distance,
+			max_roads_per_junction=self.max_roads_per_junction,
+		)
 		# car position
 		self.car_point = self.road_network.set(self.junction_number)
-		self.car_orientation = (2*np.random.random()-1)*np.pi # in [-pi,pi]
+		self.car_orientation = (2*self.np_random.random()-1)*np.pi # in [-pi,pi]
 		self.distance_to_closest_road, self.closest_road, self.closest_junctions = self.road_network.get_closest_road_and_junctions(self.car_point)
 		self.last_closest_road = None
 		# steering angle & speed
-		self.speed = self.min_speed # self.min_speed + (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
+		self.speed = self.min_speed # self.min_speed + (self.max_speed-self.min_speed)*self.np_random.random() # in [min_speed,max_speed]
 		# self.speed = self.min_speed+(self.max_speed-self.min_speed)*(70/120) # for testing
 		self.steering_angle = 0
 		# init concat variables
@@ -246,9 +251,9 @@ class GraphDriveEasy(gym.Env):
 		# https://towardsdatascience.com/how-self-driving-cars-steer-c8e4b5b55d7f?gi=90391432aad7
 		# Add noise
 		if add_noise:
-			steering_angle += (2*np.random.random()-1)*self.max_steering_noise_angle
+			steering_angle += (2*self.np_random.random()-1)*self.max_steering_noise_angle
 			steering_angle = np.clip(steering_angle, -self.max_steering_angle, self.max_steering_angle) # |steering_angle| <= max_steering_angle, ALWAYS
-			speed += (2*np.random.random()-1)*self.max_speed_noise
+			speed += (2*self.np_random.random()-1)*self.max_speed_noise
 		# Get new angle
 		# https://www.me.utexas.edu/~longoria/CyVS/notes/07_turning_steering/07_Turning_Kinematically.pdf
 		angular_velocity = speed*np.tan(steering_angle)/self.wheelbase
@@ -271,7 +276,7 @@ class GraphDriveEasy(gym.Env):
 		return np.clip(speed + acceleration*self.seconds_per_step, self.min_speed, self.max_speed)
 		
 	def get_step_seconds(self):
-		return np.random.exponential(scale=self.mean_seconds_per_step) if self.random_seconds_per_step is True else self.mean_seconds_per_step
+		return self.np_random.exponential(scale=self.mean_seconds_per_step) if self.random_seconds_per_step is True else self.mean_seconds_per_step
 
 	def is_in_junction(self, car_point):
 		distance_from_junction = min(euclidean_distance(self.closest_junctions[0].pos, car_point), euclidean_distance(self.closest_junctions[1].pos, car_point))

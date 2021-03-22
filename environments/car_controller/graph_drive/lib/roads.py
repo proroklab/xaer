@@ -4,8 +4,7 @@ from ...grid_drive.lib.road_cultures import * # FIXME: Move RoadCultures to a mo
 from ...grid_drive.lib.road_cell import RoadCell
 from ...grid_drive.lib.road_agent import RoadAgent
 from environments.car_controller.utils import *
-from environments.utils.random_planar_graph.GenerateGraph import get_random_planar_graph, default_seed
-import random
+from environments.utils.random_planar_graph.GenerateGraph import get_random_planar_graph
 
 class Junction:
 	def __init__(self, pos):
@@ -160,7 +159,7 @@ class RoadNetwork:
 			"radius": self.min_junction_distance, # "Nodes will not be placed within this distance of each other."
 			"double": 0, # "Probability of an edge being doubled."
 			"hair": 0, # "Adjustment factor to favour dead-end nodes.  Ranges from 0.00 (least hairy) to 1.00 (most hairy).  Some dead-ends may exist even with a low hair factor."
-			"seed": default_seed(), # "Seed for the random number generator."
+			"seed": self.road_culture.np_random.get_state()[1][0], # "Seed for the random number generator."
 			"debug_trimode": 'conform', # ['pyhull', 'triangle', 'conform'], "Triangulation mode to generate the initial triangular graph.  Default is conform.")
 			"debug_tris": None, # "If a filename is specified here, the initial triangular graph will be saved as a graph for inspection."
 			"debug_span": None, # "If a filename is specified here, the spanning tree will be saved as a graph for inspection."
@@ -178,5 +177,6 @@ class RoadNetwork:
 				road.set_culture(self.road_culture)
 				self.road_culture.initialise_random_road(road)
 				self.roads.append(road)
-		starting_point = random.choice(random_planar_graph['spanning_tree'])[0]
+		starting_index = self.road_culture.np_random.choice(len(random_planar_graph['spanning_tree']), 1)[0]
+		starting_point = random_planar_graph['spanning_tree'][starting_index][0]
 		return starting_point

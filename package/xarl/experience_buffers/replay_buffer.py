@@ -32,7 +32,7 @@ def apply_to_batch_once(fn, batch_list):
 class SimpleReplayBuffer:
 	"""Simple replay buffer that operates over batches."""
 
-	def __init__(self, num_slots):
+	def __init__(self, num_slots, seed=None):
 		"""Initialize SimpleReplayBuffer.
 
 		Args:
@@ -41,6 +41,8 @@ class SimpleReplayBuffer:
 		self.num_slots = num_slots
 		self.replay_batches = []
 		self.replay_index = 0
+		random.seed(seed)
+		np.random.seed(seed)
 
 	def can_replay(self):
 		return len(self.replay_batches) >= self.num_slots
@@ -66,6 +68,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		prioritized_replay=True,
 		buffer_options=None, 
 		learning_starts=1000, 
+		seed=None,
 	):
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
@@ -73,12 +76,15 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		self.buffer_size = dummy_buffer.global_size
 		self.is_weighting_expected_values = dummy_buffer.is_weighting_expected_values()
 		self.replay_starts = learning_starts
-		self._buffer_lock = ReadWriteLock() 
+		self._buffer_lock = ReadWriteLock()
+
+		random.seed(seed)
+		np.random.seed(seed)
 
 		ParallelIteratorWorker.__init__(self, None, False)
 
 		def new_buffer():
-			return PseudoPrioritizedBuffer(**self.buffer_options) if self.prioritized_replay else Buffer(**self.buffer_options)
+			return PseudoPrioritizedBuffer(**self.buffer_options, seed=seed) if self.prioritized_replay else Buffer(**self.buffer_options, seed=seed)
 
 		self.replay_buffers = collections.defaultdict(new_buffer)
 
@@ -104,7 +110,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					# if len(sub_type_list) == 0:
 					# 	sub_type_list = (random.choice(batch_type),)
 					########################
-					# sub_type_list = (random.choice(batch_type),)
+					sub_type_list = (random.choice(batch_type),)
 					########################
 					# if len(batch_type) > 1: # prioritised cluster selection
 					# 	cluster_cumsum = np.cumsum(list(map(lambda x: self.replay_buffers[policy_id].get_cluster_size(x)+1, batch_type)))
@@ -114,7 +120,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 					# else:
 					# 	sub_type_list = (batch_type[0],)
 					########################
-					sub_type_list = (min(batch_type, key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())),)
+					# sub_type_list = (min(batch_type, key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())),)
 					########################
 					# sub_type_list = batch_type
 					########################

@@ -1,7 +1,6 @@
 # import numpy as np
 from environments.car_controller.grid_drive.lib.road_cell import RoadCell
 from environments.car_controller.grid_drive.lib.road_agent import RoadAgent
-from random import randrange
 import numpy as np
 
 NORTH = 0
@@ -23,7 +22,7 @@ class RoadGrid:
 		self.set_random_position()
 
 	def set_random_position(self):
-		x, y = randrange(0,self.width), randrange(0,self.height)
+		x, y = self.road_culture.np_random.randint(0,self.width), self.road_culture.np_random.randint(0,self.height)
 		self.agent_position = (x,y)
 		self.road_culture.initialise_feasible_road(self.cells[x][y])
 

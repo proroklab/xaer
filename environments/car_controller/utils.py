@@ -15,7 +15,9 @@ def rotate_and_shift(xv,yv,dx,dy,theta):
 	(x,y) = rotate(xv,yv,theta)
 	return (x+dx,y+dy)
 
-def generate_random_polynomial():
+def generate_random_polynomial(np_random=None):
+	if np_random is None:
+		np_random = np.random
 	#both x and y are defined by two polynomials in a third variable p, plus
 	#an initial angle (that, when connecting splines, will be the same as
 	#the final angle of the previous polynomial)
@@ -30,14 +32,14 @@ def generate_random_polynomial():
 	aV = 0
 	# initial derivative must the same as the ending
 	# derivative of the previous polynomial
-	bU = (10-6)*np.random.random()+6  #around 8
+	bU = (10-6)*np_random.random()+6  #around 8
 	bV = 0
 	#we randonmly generate values for cU and dU in the range ]-1,1[
-	cU = 2*np.random.random()-1
-	dU = 2*np.random.random()-1
-	finalV = 10*np.random.random()-5
+	cU = 2*np_random.random()-1
+	dU = 2*np_random.random()-1
+	finalV = 10*np_random.random()-5
 	#final derivative between -pi/6 and pi/6
-	finald = np.tan((np.pi/3)*np.random.random() - np.pi/6)
+	finald = np.tan((np.pi/3)*np_random.random() - np.pi/6)
 	#now we fix parameters to meet the constraints:
 	#bV + cV + dV = finalV 
 	#angle(1) = finald; see the definition of angle below

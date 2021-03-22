@@ -1,6 +1,9 @@
 import gym
 from gym.utils import seeding
-import random
+import numpy as np
+
+import logging
+logger = logging.getLogger(__name__)
 
 class Example_v0(gym.Env):
 	LF_MIN = 1
@@ -16,9 +19,8 @@ class Example_v0(gym.Env):
 	}
 
 	def seed(self, seed=None):
-		print("Setting random seed to:", seed)
+		logger.warning(f"Setting random seed to: {seed}")
 		self.np_random, seed = seeding.np_random(seed)
-		random.seed(seed)
 		return [seed]
 
 	def __init__ (self, config):
@@ -28,9 +30,6 @@ class Example_v0(gym.Env):
 		self.goal = int((self.LF_MIN + self.RT_MAX - 1) / 2)
 		self.init_positions = list(range(self.LF_MIN, self.RT_MAX))
 		self.init_positions.remove(self.goal)
-		# change to guarantee the sequence of pseudorandom numbers
-		# (e.g., for debugging)
-		self.reset()
 
 	def reset (self):
 		self.position = self.np_random.choice(self.init_positions)

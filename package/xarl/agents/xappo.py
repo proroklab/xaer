@@ -200,8 +200,8 @@ def xappo_get_policy_class(config):
 ########################
 
 def xappo_execution_plan(workers, config):
-	random.seed(config.get("seed",None))
-	np.random.seed(config.get("seed",None))
+	random.seed(config["seed"])
+	np.random.seed(config["seed"])
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 	local_worker = workers.local_worker()
@@ -218,6 +218,7 @@ def xappo_execution_plan(workers, config):
 			# update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory) if not config['vtrace'] else lambda x:x,
 			update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory),
 			sample_also_from_buffer_of_recent_elements=config["sample_also_from_buffer_of_recent_elements"],
+			seed=config["seed"],
 		)) \
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))

@@ -86,8 +86,8 @@ XADQNTorchPolicy = DQNTorchPolicy.with_updates(
 ########################
 
 def xadqn_execution_plan(workers, config):
-	random.seed(config.get("seed",None))
-	np.random.seed(config.get("seed",None))
+	random.seed(config["seed"])
+	np.random.seed(config["seed"])
 	replay_batch_size = config["train_batch_size"]
 	replay_sequence_length = config["replay_sequence_length"]
 	if replay_sequence_length and replay_sequence_length > 1:

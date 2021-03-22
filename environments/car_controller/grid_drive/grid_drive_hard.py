@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 import gym
 from gym.utils import seeding
-import random
 import numpy as np
+
 import copy
 from matplotlib import use as matplotlib_use, patches
-
 matplotlib_use('Agg',force=True) # no display
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -15,6 +14,9 @@ from matplotlib.lines import Line2D
 
 from environments.car_controller.grid_drive.lib.road_grid import RoadGrid
 from environments.car_controller.grid_drive.lib.road_cultures import HardRoadCulture
+
+import logging
+logger = logging.getLogger(__name__)
 
 class GridDriveHard(gym.Env):
 	CULTURE 					= HardRoadCulture
@@ -33,7 +35,7 @@ class GridDriveHard(gym.Env):
 		}
 		if self.obs_car_features > 0:
 			fc_dict["agent_extra_properties"] = self.grid.agent.binary_features()
-		fc_dict["agent_speed"] = np.array([self.speed/self.MAX_SPEED], dtype=np.float32)
+		# fc_dict["agent_speed"] = np.array([self.speed/self.MAX_SPEED], dtype=np.float32)
 		return {
 			"cnn": {
 				"grid": self.grid_view,
@@ -62,15 +64,14 @@ class GridDriveHard(gym.Env):
 		x, y = self.grid.agent_position
 		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
 		if visiting_old_cell: # already visited cell
-			return null_reward(label=explanation_list_with_label('not_visiting_new_roads'))
+			return null_reward(label='not_visiting_new_roads')
 		#######################################
 		# "Move forward" rule
 		return step_reward(is_positive=True, label=explanation_list_with_label('moving_forward'))
 
 	def seed(self, seed=None):
-		print("Setting random seed to:", seed)
+		logger.warning(f"Setting random seed to: {seed}")
 		self.np_random, seed = seeding.np_random(seed)
-		random.seed(seed)
 		return [seed]
 	
 	def __init__(self, config):
@@ -103,7 +104,7 @@ class GridDriveHard(gym.Env):
 		}
 		if self.obs_car_features > 0:
 			fc_dict["agent_extra_properties"] = gym.spaces.MultiBinary(self.obs_car_features) # Car features
-		fc_dict["agent_speed"] = gym.spaces.Box(low=0, high=1.0, shape=(1,), dtype=np.float32)
+		# fc_dict["agent_speed"] = gym.spaces.Box(low=0, high=1.0, shape=(1,), dtype=np.float32)
 		self.observation_space = gym.spaces.Dict({
 			"cnn": gym.spaces.Dict({
 				"grid": gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, self.obs_road_features+2]), # Features representing the grid + visited cells + current position
@@ -113,6 +114,7 @@ class GridDriveHard(gym.Env):
 		self.step_counter = 0
 
 	def reset(self):
+		self.culture.np_random = self.np_random
 		self.viewer = None
 		self.step_counter = 0
 

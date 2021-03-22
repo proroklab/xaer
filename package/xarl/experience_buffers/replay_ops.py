@@ -19,6 +19,7 @@ def get_clustered_replay_buffer(config):
 		prioritized_replay=config["prioritized_replay"],
 		buffer_options=config["buffer_options"], 
 		learning_starts=config["learning_starts"], 
+		seed=config["seed"],
 	)
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme
@@ -80,7 +81,8 @@ class StoreToReplayBuffer:
 		self.local_actor = local_buffer
 		
 	def __call__(self, batch: SampleBatchType):
-		return self.local_actor.add_batch(batch)
+		self.local_actor.add_batch(batch)
+		return batch
 
 def Replay(local_buffer, replay_batch_size=1, cluster_overview_size=None, update_replayed_fn=None):
 	def gen_replay(_):
@@ -105,12 +107,14 @@ class MixInReplay:
 	number of replay slots.
 	"""
 
-	def __init__(self, local_buffer, replay_proportion, cluster_overview_size=None, update_replayed_fn=None, sample_also_from_buffer_of_recent_elements=False):
+	def __init__(self, local_buffer, replay_proportion, cluster_overview_size=None, update_replayed_fn=None, sample_also_from_buffer_of_recent_elements=False, seed=None):
+		random.seed(seed)
+		np.random.seed(seed)
 		self.replay_buffer = local_buffer
 		self.replay_proportion = replay_proportion
 		self.update_replayed_fn = update_replayed_fn
 		self.cluster_overview_size = cluster_overview_size
-		self.buffer_of_recent_elements = SimpleReplayBuffer(local_buffer.buffer_size) if sample_also_from_buffer_of_recent_elements else None
+		self.buffer_of_recent_elements = SimpleReplayBuffer(local_buffer.buffer_size, seed=seed) if sample_also_from_buffer_of_recent_elements else None
 
 	def __call__(self, sample_batch):
 		# n = np.random.poisson(self.replay_proportion)

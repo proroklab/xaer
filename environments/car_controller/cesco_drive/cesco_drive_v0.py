@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+import gym
+from gym.utils import seeding
+import numpy as np
+
 from matplotlib import use as matplotlib_use
 matplotlib_use('Agg',force=True) # no display
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -7,12 +11,11 @@ from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
-import numpy as np
 from scipy import optimize
 from environments.car_controller.utils import *
-import gym
-from gym.utils import seeding
-import random
+
+import logging
+logger = logging.getLogger(__name__)
 
 class CescoDriveV0(gym.Env):
 	mean_seconds_per_step = 0.1 # in average, a step every n seconds
@@ -50,9 +53,8 @@ class CescoDriveV0(gym.Env):
 		return np.array([self.steering_angle/self.max_steering_angle, self.speed/self.max_speed, self.speed/self.speed_upper_limit], dtype=np.float32)
 
 	def seed(self, seed=None):
-		print("Setting random seed to:", seed)
+		logger.warning(f"Setting random seed to: {seed}")
 		self.np_random, seed = seeding.np_random(seed)
-		random.seed(seed)
 		return [seed]
 
 	def __init__(self, config):
@@ -102,9 +104,9 @@ class CescoDriveV0(gym.Env):
 		self.car_progress = 0 # self.find_closest_position(point=self.car_point)
 		self.car_orientation = self.get_angle_from_position(self.car_progress)
 		# speed limit
-		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*np.random.random() # in [speed_lower_limit,max_speed]
+		self.speed_upper_limit = self.speed_lower_limit + (self.max_speed-self.speed_lower_limit)*self.np_random.random() # in [speed_lower_limit,max_speed]
 		# steering angle & speed
-		self.speed = self.min_speed + (self.max_speed-self.min_speed)*np.random.random() # in [min_speed,max_speed]
+		self.speed = self.min_speed + (self.max_speed-self.min_speed)*self.np_random.random() # in [min_speed,max_speed]
 		self.steering_angle = 0
 		# get obstacles
 		self.obstacles = self.get_new_obstacles()
@@ -122,19 +124,19 @@ class CescoDriveV0(gym.Env):
 		if self.max_obstacle_count <= 0:
 			return []
 		def build_random_obstacle():
-			radius = self.min_obstacle_radius + (self.max_obstacle_radius-self.min_obstacle_radius)*np.random.random() # in [min_obstacle_radius,max_obstacle_radius]
+			radius = self.min_obstacle_radius + (self.max_obstacle_radius-self.min_obstacle_radius)*self.np_random.random() # in [min_obstacle_radius,max_obstacle_radius]
 			# add track/2 to obstacle_radius because car_point is the centre of the front of the car
 			radius += self.track/2
 			# get a point on the road
-			x,y = self.get_point_from_position(self.spline_number*np.random.random())
+			x,y = self.get_point_from_position(self.spline_number*self.np_random.random())
 			# the obstacle must be on the road but it does not necessarily to have its centre on the road
-			x += radius*(2*np.random.random()-1)
-			y += radius*(2*np.random.random()-1)
+			x += radius*(2*self.np_random.random()-1)
+			y += radius*(2*self.np_random.random()-1)
 			centre = (x,y)
 			return (centre,radius)
 		return [
 			build_random_obstacle()
-			for _ in range(np.random.randint(self.max_obstacle_count))
+			for _ in range(self.np_random.randint(self.max_obstacle_count))
 		]
 		
 	def get_closest_obstacle(self, point, obstacles):
@@ -178,7 +180,7 @@ class CescoDriveV0(gym.Env):
 		self.orientations = [0] # orientation angle of each spline
 		xy = []
 		for i in range(self.spline_number):
-			U, V = generate_random_polynomial()
+			U, V = generate_random_polynomial(self.np_random)
 			self.Us.append(U)
 			self.Vs.append(V)
 			self.orientations.append(angle(1, U, V))
@@ -217,9 +219,9 @@ class CescoDriveV0(gym.Env):
 		# https://towardsdatascience.com/how-self-driving-cars-steer-c8e4b5b55d7f?gi=90391432aad7
 		# Add noise
 		if add_noise:
-			steering_angle += (2*np.random.random()-1)*self.max_steering_noise_angle
+			steering_angle += (2*self.np_random.random()-1)*self.max_steering_noise_angle
 			steering_angle = np.clip(steering_angle, -self.max_steering_angle, self.max_steering_angle) # |steering_angle| <= max_steering_angle, ALWAYS
-			speed += (2*np.random.random()-1)*self.max_speed_noise
+			speed += (2*self.np_random.random()-1)*self.max_speed_noise
 		# Get new angle
 		# https://www.me.utexas.edu/~longoria/CyVS/notes/07_turning_steering/07_Turning_Kinematically.pdf
 		angular_velocity = speed*np.tan(steering_angle)/self.wheelbase
@@ -242,7 +244,7 @@ class CescoDriveV0(gym.Env):
 		return np.clip(speed + acceleration*self.seconds_per_step, self.min_speed, self.max_speed)
 		
 	def get_step_seconds(self):
-		return np.random.exponential(scale=self.mean_seconds_per_step)
+		return self.np_random.exponential(scale=self.mean_seconds_per_step)
 
 	def step(self, action_vector):
 		# first of all, get the seconds passed from last step

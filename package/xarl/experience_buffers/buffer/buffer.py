@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
-from random import choice
+import random
+import numpy as np
 from collections import deque
 import uuid
 
@@ -9,7 +10,9 @@ logger = logging.getLogger(__name__)
 class Buffer(object):
 	# __slots__ = ('cluster_size','global_size','types','batches','type_values','type_keys')
 	
-	def __init__(self, cluster_size=None, global_size=50000, **args):
+	def __init__(self, cluster_size=None, global_size=50000, seed=None, **args):
+		random.seed(seed)
+		np.random.seed(seed)
 		assert cluster_size or global_size, 'At least one of cluster_size or global_size shall be set greater than 0.'
 		if not cluster_size: cluster_size = global_size
 		self.cluster_size = min(cluster_size,global_size) if global_size else cluster_size
@@ -100,9 +103,9 @@ class Buffer(object):
 		self.batches[type_].append(batch)
 
 	def sample(self, n=1):
-		type_ = choice(self.type_values)
+		type_ = random.choice(self.type_values)
 		batch_list = [
-			choice(self.batches[type_])
+			random.choice(self.batches[type_])
 			for _ in range(n)
 		]
 		return batch_list
