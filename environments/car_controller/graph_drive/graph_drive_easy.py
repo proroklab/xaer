@@ -129,10 +129,10 @@ class GraphDriveEasy(gym.Env):
 		#######################################
 		# "Explore new roads" rule
 		if visiting_new_road: # visiting a new road for the first time is equivalent to get a bonus reward
-			return non_terminal_reward(is_positive=True, label=explanation_list_with_label('exploring_a_new_road'))
+			return non_terminal_reward(is_positive=True, label='exploring_a_new_road')
 		#######################################
 		# "Move forward" rule
-		return null_reward(label=explanation_list_with_label('moving_forward'))
+		return null_reward(label='moving_forward')
 
 	def seed(self, seed=None):
 		logger.warning(f"Setting random seed to: {seed}")

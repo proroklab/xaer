@@ -193,6 +193,8 @@ class SumSegmentTree(SegmentTree):
 		idx: int
 			highest index satisfying the prefixsum constraint
 		"""
+		if self.inserted_elements == 0:
+			return None
 		if self.inserted_elements == 1:
 			return 0
 		if self.min_tree and check_min:

@@ -67,7 +67,7 @@ class GridDriveHard(gym.Env):
 			return null_reward(label='not_visiting_new_roads')
 		#######################################
 		# "Move forward" rule
-		return step_reward(is_positive=True, label=explanation_list_with_label('moving_forward'))
+		return step_reward(is_positive=True, label='moving_forward')
 
 	def seed(self, seed=None):
 		logger.warning(f"Setting random seed to: {seed}")

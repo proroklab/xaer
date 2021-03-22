@@ -79,33 +79,36 @@ class PseudoPrioritizedBuffer(Buffer):
 			self._update_times = []
 			
 	def _add_type_if_not_exist(self, type_id): # O(1)
-		if type_id in self.types: # check it to avoid double insertion
-			return False
-		self.types[type_id] = type_ = len(self.type_keys)
-		self.type_values.append(type_)
-		self.type_keys.append(type_id)
-		self.batches.append([])
-		new_sample_priority_tree = SumSegmentTree(
-			self._it_capacity, 
-			with_min_tree=self._prioritization_importance_beta or self._priority_can_be_negative or (self._prioritized_drop_probability > 0 and not self._global_distribution_matching), 
-			with_max_tree=self._priority_can_be_negative, 
-		)
-		self._sample_priority_tree.append(new_sample_priority_tree)
-		if self._prioritized_drop_probability > 0:
-			self._drop_priority_tree.append(
-				MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1))
-				if self._global_distribution_matching else
-				new_sample_priority_tree.min_tree
+		if type_id not in self.types: # check it to avoid double insertion
+			self.types[type_id] = type_ = len(self.type_keys)
+			self.type_values.append(type_)
+			self.type_keys.append(type_id)
+			self.batches.append([])
+			new_sample_priority_tree = SumSegmentTree(
+				self._it_capacity, 
+				with_min_tree=self._prioritization_importance_beta or self._priority_can_be_negative or (self._prioritized_drop_probability > 0 and not self._global_distribution_matching), 
+				with_max_tree=self._priority_can_be_negative, 
 			)
-		if self._prioritized_drop_probability < 1:
-			self._insertion_time_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
-		if self._weight_importance_by_update_time:
-			self._update_times.append([])
+			self._sample_priority_tree.append(new_sample_priority_tree)
+			if self._prioritized_drop_probability > 0:
+				self._drop_priority_tree.append(
+					MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1))
+					if self._global_distribution_matching else
+					new_sample_priority_tree.min_tree
+				)
+			if self._prioritized_drop_probability < 1:
+				self._insertion_time_tree.append(MinSegmentTree(self._it_capacity,neutral_element=(float('inf'),-1)))
+			if self._weight_importance_by_update_time:
+				self._update_times.append([])
+		else:
+			type_ = self.get_type(type_id)
 		#################################################
-		self._sample_priority_tree[type_][0] = self._prioritization_epsilon # Inserting placeholder so that get_available_clusters returns the correct list
-		logger.warning(f'Added a new cluster with id {type_id}, now there are {len(self.get_available_clusters())} different clusters.')
-		self.resize_buffer()
-		return True
+		if self._sample_priority_tree[type_].inserted_elements == 0:
+			self._sample_priority_tree[type_][0] = self._prioritization_epsilon # Inserting placeholder so that get_available_clusters returns the correct list
+			logger.warning(f'Added a new cluster with id {type_id}, now there are {len(self.get_available_clusters())} different clusters.')
+			self.resize_buffer()
+			return True
+		return False
 
 	def resize_buffer(self):
 		# print(random.random())
@@ -236,6 +239,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			(*tree_list[type_].min(), type_) # O(log)
 			# for type_ in filter(lambda x: self.has_atleast(self.min_cluster_size, x), self.type_values)
 			for type_ in self.type_values
+			# if self.count(type_) > 1 # keep at least one element
 		)
 		less_important_batch_gen_len = len(self.type_values)
 		# Remove the first N less important batches
@@ -316,9 +320,9 @@ class PseudoPrioritizedBuffer(Buffer):
 			type_mass = random.random() * type_cumsum[-1] # O(1)
 			assert 0 <= type_mass, f'type_mass {type_mass} should be greater than 0'
 			assert type_mass <= type_cumsum[-1], f'type_mass {type_mass} should be lower than {type_cumsum[-1]}'
-			type_,_ = next(filter(lambda x: x[-1] >= type_mass, enumerate(type_cumsum))) # O(|self.type_keys|)
+			type_,_ = next(filter(lambda x: x[-1] >= type_mass and not self.is_empty(x[0]), enumerate(type_cumsum))) # O(|self.type_keys|)
 		else:
-			type_ = random.choice(self.type_values)
+			type_ = random.choice(tuple(filter(lambda x: not self.is_empty(x), self.type_values)))
 		type_id = self.type_keys[type_]
 		return type_id, type_
 
