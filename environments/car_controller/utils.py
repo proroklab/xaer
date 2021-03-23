@@ -158,6 +158,9 @@ def point_to_line_dist(point, line):
 		# if not, then return the minimum distance to the segment endpoints
 		return endpoint_dist
 
+def midpoint(p1, p2):
+	return ((p1[0]+p2[0])/2, (p1[1]+p2[1])/2)
+
 def segments_intersect(AB, CD):
 	# Return true if line segments AB and CD intersect
 	A, B = AB

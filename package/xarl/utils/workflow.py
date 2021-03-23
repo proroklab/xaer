@@ -16,6 +16,7 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 
 	checkpoint_directory = os.path.dirname(checkpoint)
 	env = agent.env_creator(config["env_config"])
+	env.seed(config["seed"])
 	def print_screen(screens_directory, step):
 		filename = os.path.join(screens_directory, f'frame{step}.jpg')
 		plt.rgb_array_image(
