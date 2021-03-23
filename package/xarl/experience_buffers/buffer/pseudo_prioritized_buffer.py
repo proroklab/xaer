@@ -210,9 +210,10 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def get_cluster_priority_dict(self):
 		min_priority = min(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)) # O(log)
-		avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
+		# avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
 		return dict(map(
-			lambda x: (str(self.type_keys[x[0]]), self.get_cluster_priority(x[1], min_priority, avg_priority)), 
+			# lambda x: (str(self.type_keys[x[0]]), self.get_cluster_priority(x[1], min_priority, avg_priority)), 
+			lambda x: (str(self.type_keys[x[0]]), self.get_cluster_priority(x[1], min_priority)), 
 			enumerate(self._sample_priority_tree)
 		))
 
@@ -237,9 +238,9 @@ class PseudoPrioritizedBuffer(Buffer):
 		# Therefore, we have that the minimum cluster's size pY = N/(C+q).
 		less_important_batch_gen = (
 			(*tree_list[type_].min(), type_) # O(log)
-			# for type_ in filter(lambda x: self.has_atleast(self.min_cluster_size, x), self.type_values)
-			for type_ in self.type_values
-			if not self.is_empty(type_)
+			for type_ in filter(lambda x: self.has_atleast(self.min_cluster_size, x), self.type_values)
+			# for type_ in self.type_values
+			# if not self.is_empty(type_)
 		)
 		less_important_batch_gen_len = len(self.type_values)
 		# Remove the first N less important batches
@@ -309,8 +310,9 @@ class PseudoPrioritizedBuffer(Buffer):
 			self.__max_priority_list = tuple(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
 			self.__max_priority = max(self.__max_priority_list)
 		if self._cluster_prioritisation_strategy is not None:
-			self.__avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
-			self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)) # always > 0
+			# self.__avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
+			# self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)) # always > 0
+			self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority if self._priority_lower_limit is None else self._priority_lower_limit), self._sample_priority_tree)) # always > 0
 			self.__min_cluster_priority = min(self.__cluster_priority_list)
 
 	def sample_cluster(self):

@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 class GridDriveHard(gym.Env):
 	CULTURE 					= HardRoadCulture
-	GRID_DIMENSION				= 2**4
+	GRID_DIMENSION				= 15
 	MAX_SPEED 					= 120
 	SPEED_GAP					= 10
 	MAX_GAPPED_SPEED			= MAX_SPEED//SPEED_GAP
-	MAX_STEP					= 2**6
+	MAX_STEP					= 2**5
 	DIRECTIONS					= 4 # N,S,W,E
 	VISITED_CELL_GRID_IDX		= -2
 	AGENT_CELL_GRID_IDX			= -1
@@ -44,30 +44,29 @@ class GridDriveHard(gym.Env):
 		}
 
 	def get_reward(self, following_regulation, explanation_list):
-		def terminal_reward(is_positive,label):
-			return (1 if is_positive else -1, True, label) # terminate episode
-		def non_terminal_reward(is_positive,label):
-			return (1 if is_positive else -1, False, label) # do not terminate episode
-		def step_reward(is_positive,label):
+		def null_reward(label, is_terminal):
+			return (0, is_terminal, label)
+		def unitary_reward(is_positive, is_terminal, label):
+			return (1 if is_positive else -1, is_terminal, label)
+		def step_reward(is_positive, is_terminal, label):
 			reward = (self.speed+1)/self.MAX_SPEED # in (0,1]
-			return (reward if is_positive else -reward, False, label) # do not terminate episode
-		def null_reward(label):
-			return (0, False, label) # do not terminate episode
+			return (reward if is_positive else -reward, is_terminal, label)
 
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
-		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list)) if explanation_list else l
+		# explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list)) if explanation_list else l
 		if not following_regulation:
-			return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
+			# return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation'))
+			return step_reward(is_positive=False, is_terminal=True, label=explanation_list)
 		#######################################
 		# "Visit new roads" rule
 		x, y = self.grid.agent_position
 		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
 		if visiting_old_cell: # already visited cell
-			return null_reward(label='not_visiting_new_roads')
+			return null_reward(is_terminal=False, label='not_visiting_new_roads')
 		#######################################
 		# "Move forward" rule
-		return step_reward(is_positive=True, label='moving_forward')
+		return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
 
 	def seed(self, seed=None):
 		logger.warning(f"Setting random seed to: {seed}")
