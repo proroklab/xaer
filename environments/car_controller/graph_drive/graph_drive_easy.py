@@ -103,6 +103,7 @@ class GraphDriveEasy(gym.Env):
 		def unitary_reward(is_positive, is_terminal, label):
 			return (1 if is_positive else -1, is_terminal, label)
 		def step_reward(is_positive, is_terminal, label):
+			# reward = np.mean(self.current_road_speed_list)
 			reward = (self.speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
 			return (reward if is_positive else -reward, is_terminal, label)
 
@@ -240,6 +241,7 @@ class GraphDriveEasy(gym.Env):
 
 		self.last_closest_road = None
 		self.goal_junction = None
+		self.current_road_speed_list = []
 		# steering angle & speed
 		self.speed = self.min_speed # self.min_speed + (self.max_speed-self.min_speed)*self.np_random.random() # in [min_speed,max_speed]
 		# self.speed = self.min_speed+(self.max_speed-self.min_speed)*(70/120) # for testing
@@ -330,6 +332,8 @@ class GraphDriveEasy(gym.Env):
 				self.last_closest_road.is_visited = True # set the old road as visited
 			self.last_closest_road = self.closest_road # keep track of the current road
 			self.goal_junction = self.get_furthest_junction(self.closest_junction_list, self.car_point)
+			self.current_road_speed_list = []
+		self.current_road_speed_list.append(self.speed)
 		# compute perceived reward
 		reward, dead, reward_type = self.get_reward(visiting_new_road, old_goal_junction, old_car_point)
 		# compute new state (after updating progress)
