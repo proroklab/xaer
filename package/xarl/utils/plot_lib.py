@@ -23,7 +23,7 @@ font_dict = {'size':22}
 # matplotlib_rc('font', **font_dict)
 
 flags = SimpleNamespace(**{
-	"gif_speed": 0.1, # "GIF frame speed in seconds."
+	"gif_speed": 1, # "GIF frame speed in seconds."
 	"max_plot_size": 10, # "Maximum number of points in the plot. The smaller it is, the less RAM is required. If the log file has more than max_plot_size points, then max_plot_size means of slices are used instead."
 })
 linestyle_set = ['-', '--', '-.', ':', '']
@@ -163,21 +163,22 @@ def plot_files(url_list, name_list, figure_file, max_length=None):
 		length, line_example = get_length_and_line_example(url)
 		if max_length:
 			length = max_length
+		print(f"{name} has lenght {length}")
 		logs.append({'name': name, 'data': parse(url, length), 'length':length, 'line_example':line_example})
 	plot(logs, figure_file)
-	
+		
 def get_length_and_line_example(file):
 	try:
-		lines_generator = open(file)
-		tot = 1
-		line_example = next(lines_generator)
+		with open(file, 'r') as lines_generator:
+			tot = 1
+			line_example = next(lines_generator)
+			for line in lines_generator:
+				tot += 1
+				if len(line) > len(line_example):
+					line_example = line
+			return tot, line_example
 	except:
 		return 0, None
-	for line in lines_generator:
-		tot += 1
-		if len(line) > len(line_example):
-			line_example = line
-	return tot, line_example
 
 def parse_line(line,i=0):
 	val_dict = json.loads(line)

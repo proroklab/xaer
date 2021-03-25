@@ -34,7 +34,7 @@ class GraphDriveEasy(gym.Env):
 	max_deceleration = 7 # m/s^2
 	max_steering_degree = 45
 	max_step = 200
-	max_distance_to_path = 0.5 # meters
+	max_distance_to_path = 1 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
@@ -46,7 +46,7 @@ class GraphDriveEasy(gym.Env):
 	junction_number = 16
 	max_roads_per_junction = 4
 	junction_radius = 1
-	min_junction_distance = 2*junction_radius+0.5
+	min_junction_distance = 2*junction_radius+2*mean_seconds_per_step*max_speed
 	CULTURE = EasyRoadCulture
 	MAX_NORMALISED_SPEED = 120
 
@@ -97,46 +97,46 @@ class GraphDriveEasy(gym.Env):
 			self.is_in_junction(self.car_point),
 		), dtype=np.float32)
 
-	def get_reward(self, car_speed, car_point, old_car_point, old_goal_junction): # to finish
-		def terminal_reward(is_positive,label):
-			return (1 if is_positive else -1, True, label) # terminate episode
-		def non_terminal_reward(is_positive,label):
-			return (1 if is_positive else -1, False, label) # do not terminate episode
-		# def step_reward(is_positive,label):
-		# 	normalised_space_traveled = (car_speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
-		# 	return (normalised_space_traveled if is_positive else -normalised_space_traveled, False, label) # do not terminate episode
-		def null_reward(label):
-			return (0, False, label) # do not terminate episode
+	def get_reward(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+		def null_reward(is_terminal, label):
+			return (0, is_terminal, label)
+		def unitary_reward(is_positive, is_terminal, label):
+			return (1 if is_positive else -1, is_terminal, label)
+		def step_reward(is_positive, is_terminal, label):
+			reward = (self.speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+			return (reward if is_positive else -reward, is_terminal, label)
 
-		is_in_junction = self.is_in_junction(car_point)
-		#######################################
-		# "Reach goal junction" rule
-		if is_in_junction and self.closest_junction == old_goal_junction: # a goal has been reached
-			return non_terminal_reward(is_positive=True, label='reaching_goal_junction')
+		is_in_junction = self.is_in_junction(self.car_point)
+		# #######################################
+		# # "Reach goal junction" rule
+		# if is_in_junction and self.closest_junction == old_goal_junction: # a goal has been reached
+		# 	return non_terminal_reward(is_positive=True, label='reaching_goal_junction')
 		#######################################
 		# "Is in junction" rule
 		if is_in_junction:
-			return null_reward(label='is_in_junction')
-		#######################################
-		# "Follow regulation" rule. # Run dialogue against culture.
-		# Assign normalised speed to agent properties before running dialogues.
-		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, car_speed))
-		following_regulation, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
-		# explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list)) if explanation_list else l
-		if not following_regulation:
-			# return terminal_reward(is_positive=False, label=explanation_list_with_label('not_following_regulation'))
-			return terminal_reward(is_positive=False, label=explanation_list)
+			return null_reward(is_terminal=False, label='is_in_junction')
 		#######################################
 		# "Stay on the road" rule
 		if self.distance_to_closest_road >= self.max_distance_to_path:
-			return terminal_reward(is_positive=False, label='not_staying_on_the_road')
+			return unitary_reward(is_positive=False, is_terminal=True, label='not_staying_on_the_road')
+		#######################################
+		# "Follow regulation" rule. # Run dialogue against culture.
+		# Assign normalised speed to agent properties before running dialogues.
+		following_regulation, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
+		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list)) if explanation_list else l
+		if not following_regulation:
+			return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation'))
 		#######################################
 		# "Visit new roads" rule
 		if self.closest_road.is_visited: # visiting a previously seen reward gives no bonus
-			return null_reward(label='not_visiting_new_roads')
+			return null_reward(is_terminal=False, label=explanation_list_with_label('not_visiting_new_roads'))
+		#######################################
+		# "Explore new roads" rule
+		if visiting_new_road: # visiting a new road for the first time is equivalent to get a bonus reward
+			return unitary_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('exploring_a_new_road'))
 		#######################################
 		# "Move forward" rule
-		return null_reward(label='moving_forward')
+		return null_reward(is_terminal=False, label=explanation_list_with_label('moving_forward'))
 
 	def seed(self, seed=None):
 		logger.warning(f"Setting random seed to: {seed}")
@@ -307,8 +307,11 @@ class GraphDriveEasy(gym.Env):
 		self.acceleration = self.get_acceleration_from_action(action=action_vector[1])
 		# compute new speed
 		self.speed = self.accelerate(speed=self.speed, acceleration=self.acceleration)
+		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, self.speed))
 		# move car
 		old_car_point = self.car_point
+		old_goal_junction = self.goal_junction
+		visiting_new_road = False
 		self.car_point, self.car_orientation = self.move(
 			point=self.car_point, 
 			orientation=self.car_orientation, 
@@ -319,21 +322,16 @@ class GraphDriveEasy(gym.Env):
 		self.distance_to_closest_road, self.closest_road, self.closest_junction_list = self.road_network.get_closest_road_and_junctions(self.car_point, self.closest_junction_list)
 		self.closest_junction = self.get_closest_junction(self.closest_junction_list, self.car_point)
 		# if a new road is visited, add the old one to the set of visited ones
-		old_goal_junction = self.goal_junction
 		if self.is_in_junction(self.car_point):
 			self.goal_junction = None
 		elif self.last_closest_road != self.closest_road: # not in junction and visiting a new road
+			visiting_new_road = True
 			if self.last_closest_road is not None: # if closest_road is not the first visited road
 				self.last_closest_road.is_visited = True # set the old road as visited
 			self.last_closest_road = self.closest_road # keep track of the current road
 			self.goal_junction = self.get_furthest_junction(self.closest_junction_list, self.car_point)
 		# compute perceived reward
-		reward, dead, reward_type = self.get_reward(
-			car_speed=self.speed, 
-			car_point=self.car_point, 
-			old_car_point=old_car_point, 
-			old_goal_junction=old_goal_junction,
-		)
+		reward, dead, reward_type = self.get_reward(visiting_new_road, old_goal_junction, old_car_point)
 		# compute new state (after updating progress)
 		state = self.get_state(
 			car_point=self.car_point, 

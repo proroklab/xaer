@@ -44,7 +44,7 @@ class GridDriveHard(gym.Env):
 		}
 
 	def get_reward(self, following_regulation, explanation_list):
-		def null_reward(label, is_terminal):
+		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
 			return (1 if is_positive else -1, is_terminal, label)
@@ -66,6 +66,7 @@ class GridDriveHard(gym.Env):
 			return null_reward(is_terminal=False, label='not_visiting_new_roads')
 		#######################################
 		# "Move forward" rule
+		# return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward'))
 		return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
 
 	def seed(self, seed=None):

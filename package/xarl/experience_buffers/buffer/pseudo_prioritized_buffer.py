@@ -313,6 +313,8 @@ class PseudoPrioritizedBuffer(Buffer):
 			# self.__avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
 			# self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)) # always > 0
 			self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority if self._priority_lower_limit is None else self._priority_lower_limit), self._sample_priority_tree)) # always > 0
+			# eta_normalise = lambda x: self.eta_normalisation(x, np.min(x), np.max(x), np.abs(np.std(x)/np.mean(x))) # using the coefficient of variation as eta
+			# self.__cluster_priority_list = eta_normalise(eta_normalise(self.__cluster_priority_list)) # first eta-normalisation makes priorities in (0,1], but it inverts their magnitude # second eta-normalisation guarantees original priorities magnitude is preserved
 			self.__min_cluster_priority = min(self.__cluster_priority_list)
 
 	def sample_cluster(self):
