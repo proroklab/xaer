@@ -97,7 +97,7 @@ class GraphDriveEasy(gym.Env):
 			self.is_in_junction(self.car_point),
 		), dtype=np.float32)
 
-	def get_reward(self, visiting_new_road, old_goal_junction, old_car_point, space_towards_goal): # to finish
+	def get_reward(self, visiting_new_road, old_goal_junction, old_car_point, space_traveled_towards_goal): # to finish
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -117,9 +117,9 @@ class GraphDriveEasy(gym.Env):
 		if is_in_junction:
 			return null_reward(is_terminal=False, label='is_in_junction')
 		#######################################
-		# "Is in junction" rule
-		if space_towards_goal <= 0:
-			return step_reward(is_positive=False, is_terminal=True, label='not_moving_towards_goal')
+		# "No U-Turning" rule
+		if space_traveled_towards_goal <= 0:
+			return step_reward(is_positive=False, is_terminal=True, label='u_turning')
 		#######################################
 		# "Stay on the road" rule
 		if self.distance_to_closest_road >= self.max_distance_to_path:
@@ -339,12 +339,12 @@ class GraphDriveEasy(gym.Env):
 			self.goal_junction = self.get_furthest_junction(self.closest_junction_list, self.car_point)
 			self.current_road_speed_list = []
 		if self.goal_junction is not None:
-			space_towards_goal = euclidean_distance(self.goal_junction.pos, old_car_point) - euclidean_distance(self.goal_junction.pos, self.car_point)
+			space_traveled_towards_goal = euclidean_distance(self.goal_junction.pos, old_car_point) - euclidean_distance(self.goal_junction.pos, self.car_point)
 		else:
-			space_towards_goal = 0
+			space_traveled_towards_goal = 0
 		self.current_road_speed_list.append(self.speed)
 		# compute perceived reward
-		reward, dead, reward_type = self.get_reward(visiting_new_road, old_goal_junction, old_car_point, space_towards_goal)
+		reward, dead, reward_type = self.get_reward(visiting_new_road, old_goal_junction, old_car_point, space_traveled_towards_goal)
 		# compute new state (after updating progress)
 		state = self.get_state(
 			car_point=self.car_point, 
