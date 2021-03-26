@@ -107,7 +107,15 @@ def train(trainer_class, config, environment_class, test_every_n_step=None, stop
 			'episode_len_mean': result['episode_len_mean']
 		}
 		if log:
-			print(f'{n+1:3d}: Min/Mean/Max reward: {result["episode_reward_min"]:8.4f}/{result["episode_reward_mean"]:8.4f}/{result["episode_reward_max"]:8.4f}, len mean: {result["episode_len_mean"]:8.4f}, steps: {train_steps:8.4f}, train ratio: {(train_steps/sample_steps):8.4f}, seconds: {time.time()-last_time}')
+			print(', '.join([
+				f'iteration: {n+1}',
+				f'episode_reward (min/mean/max): {result["episode_reward_min"]:.2f}/{result["episode_reward_mean"]:.2f}/{result["episode_reward_max"]:.2f}',
+				f'episode_len_mean: {result["episode_len_mean"]:.2f}',
+				f'steps_trained: {train_steps}',
+				f'steps_sampled: {sample_steps}',
+				f'train_ratio: {(train_steps/sample_steps):.2f}',
+				f'seconds: {time.time()-last_time:.2f}'
+			]))
 		if sample_steps>=check_steps or sample_steps>=stop_training_after_n_step:
 			check_steps += test_every_n_step
 			save_checkpoint()

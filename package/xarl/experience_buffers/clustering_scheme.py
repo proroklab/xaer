@@ -41,27 +41,13 @@ class reward_against_mean(none):
 		return [(episode_type, batch_type)]
 		
 class multiple_types_with_reward_against_mean(reward_against_mean):
-	def __init__(self):
-		self.episode_stats = RunningStats(window_size=2**6)
-		self.batch_stats = {}
-
-	def get_typed_batch_stats(self, btype, stat_val):
-		typed_batch_running_stats = self.batch_stats.get(btype, None)
-		if typed_batch_running_stats is None:
-			typed_batch_running_stats = self.batch_stats[btype] = RunningStats(window_size=2**8)
-		typed_batch_running_stats.push(stat_val)
-		return 'greater' if stat_val > typed_batch_running_stats.mean else 'lower'
-
 	def get_batch_type(self, batch, episode_type='none'):
-		batch_extrinsic_reward = np.sum(batch["rewards"])
+		batch_type = super().get_batch_type(batch, episode_type)[0][-1]
 		explanation_iter = map(lambda x: x.get("explanation",'None'), batch["infos"])
 		explanation_iter = map(lambda x: x if isinstance(x,(list,tuple)) else [x], explanation_iter)
 		explanation_iter = itertools.chain(*explanation_iter)
 		explanation_iter = unique_everseen(explanation_iter)
-		explanation_iter = map(
-			lambda x: (episode_type, self.get_typed_batch_stats(x, batch_extrinsic_reward), x), 
-			explanation_iter
-		)
+		explanation_iter = map(lambda x:(episode_type, batch_type, x), explanation_iter)
 		return tuple(explanation_iter)
 
 class multiple_types_with_reward_against_zero(reward_against_zero):
@@ -74,13 +60,11 @@ class multiple_types_with_reward_against_zero(reward_against_zero):
 		explanation_iter = map(lambda x:(episode_type, batch_type, x), explanation_iter)
 		return tuple(explanation_iter)
 
-class type_with_reward_against_mean(reward_against_mean):
+class type_with_reward_against_mean(multiple_types_with_reward_against_mean):
 	def get_batch_type(self, batch, episode_type='none'):
-		batch_type = super().get_batch_type(batch, episode_type)[0][-1]
-		explanation_iter = map(lambda x: x.get("explanation",'None'), batch["infos"])
-		explanation_iter = map(lambda x: x if isinstance(x,(list,tuple)) else [x], explanation_iter)
-		explanation_iter = itertools.chain(*explanation_iter)
-		explanation_iter = unique_everseen(explanation_iter)
+		explanation_iter = super().get_batch_type(batch, episode_type)
+		batch_type = explanation_iter[0][-2]
+		explanation_iter = map(lambda x:x[-1], explanation_iter)
 		return [(episode_type, batch_type, sorted(explanation_iter))]
 
 class multiple_types(reward_against_mean):
