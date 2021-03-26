@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
-	mean_seconds_per_step = 0.5 # in average, a step every n seconds
+	mean_seconds_per_step = 0.25 # in average, a step every n seconds
 	# track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
-	wheelbase = 0.45 # meters # https://en.wikipedia.org/wiki/Wheelbase
+	wheelbase = 0.35 # meters # https://en.wikipedia.org/wiki/Wheelbase
 	# information about speed parameters: http://www.ijtte.com/uploads/2012-10-01/5ebd8343-9b9c-b1d4IJTTE%20vol2%20no3%20%287%29.pdf
 	min_speed = 0.2 # m/s
 	max_speed = 1.2 # m/s
@@ -33,8 +33,8 @@ class GraphDriveEasy(gym.Env):
 	# a normal car has max_deceleration 7.1 m/s^2 (http://www.batesville.k12.in.us/Physics/PhyNet/Mechanics/Kinematics/BrakingDistData.html)
 	max_deceleration = 7 # m/s^2
 	max_steering_degree = 45
-	max_step = 200
-	max_distance_to_path = 1 # meters
+	max_step = 500
+	max_distance_to_path = 0.5 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
@@ -97,7 +97,7 @@ class GraphDriveEasy(gym.Env):
 			self.is_in_junction(self.car_point),
 		), dtype=np.float32)
 
-	def get_reward(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+	def get_reward(self, visiting_new_road, old_goal_junction, old_car_point, space_towards_goal): # to finish
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -117,6 +117,10 @@ class GraphDriveEasy(gym.Env):
 		if is_in_junction:
 			return null_reward(is_terminal=False, label='is_in_junction')
 		#######################################
+		# "Is in junction" rule
+		if space_towards_goal <= 0:
+			return step_reward(is_positive=False, is_terminal=True, label='not_moving_towards_goal')
+		#######################################
 		# "Stay on the road" rule
 		if self.distance_to_closest_road >= self.max_distance_to_path:
 			return step_reward(is_positive=False, is_terminal=True, label='not_staying_on_the_road')
@@ -130,14 +134,15 @@ class GraphDriveEasy(gym.Env):
 		#######################################
 		# "Visit new roads" rule
 		if self.closest_road.is_visited: # visiting a previously seen reward gives no bonus
-			return null_reward(is_terminal=False, label=explanation_list_with_label('not_visiting_new_roads'))
-		#######################################
-		# "Explore new roads" rule
-		if visiting_new_road: # visiting a new road for the first time is equivalent to get a bonus reward
-			return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('exploring_a_new_road'))
+			return null_reward(is_terminal=False, label='not_visiting_new_roads')
+		# #######################################
+		# # "Explore new roads" rule
+		# if visiting_new_road: # visiting a new road for the first time is equivalent to get a bonus reward
+		# 	return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('exploring_a_new_road'))
 		#######################################
 		# "Move forward" rule
-		return null_reward(is_terminal=False, label=explanation_list_with_label('moving_forward'))
+		return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward'))
+		# return null_reward(is_terminal=False, label=explanation_list_with_label('moving_forward'))
 
 	def seed(self, seed=None):
 		logger.warning(f"Setting random seed to: {seed}")
@@ -326,16 +331,20 @@ class GraphDriveEasy(gym.Env):
 		# if a new road is visited, add the old one to the set of visited ones
 		if self.is_in_junction(self.car_point):
 			self.goal_junction = None
-		elif self.last_closest_road != self.closest_road: # not in junction and visiting a new road
-			visiting_new_road = True
 			if self.last_closest_road is not None: # if closest_road is not the first visited road
 				self.last_closest_road.is_visited = True # set the old road as visited
+		elif self.last_closest_road != self.closest_road: # not in junction and visiting a new road
+			visiting_new_road = True
 			self.last_closest_road = self.closest_road # keep track of the current road
 			self.goal_junction = self.get_furthest_junction(self.closest_junction_list, self.car_point)
 			self.current_road_speed_list = []
+		if self.goal_junction is not None:
+			space_towards_goal = euclidean_distance(self.goal_junction.pos, old_car_point) - euclidean_distance(self.goal_junction.pos, self.car_point)
+		else:
+			space_towards_goal = 0
 		self.current_road_speed_list.append(self.speed)
 		# compute perceived reward
-		reward, dead, reward_type = self.get_reward(visiting_new_road, old_goal_junction, old_car_point)
+		reward, dead, reward_type = self.get_reward(visiting_new_road, old_goal_junction, old_car_point, space_towards_goal)
 		# compute new state (after updating progress)
 		state = self.get_state(
 			car_point=self.car_point, 

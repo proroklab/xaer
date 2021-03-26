@@ -38,6 +38,6 @@ CONFIG.update({
 ####################################################################################
 
 ray.shutdown()
-ray.init(ignore_reinit_error=True)
+ray.init(ignore_reinit_error=True, address='auto')
 
 train(SACTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e7, stop_training_after_n_step=2e7)
