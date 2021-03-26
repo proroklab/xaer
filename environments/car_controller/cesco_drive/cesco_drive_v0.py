@@ -57,7 +57,7 @@ class CescoDriveV0(gym.Env):
 		self.np_random, seed = seeding.np_random(seed)
 		return [seed]
 
-	def __init__(self, config):
+	def __init__(self, config=None):
 		self.viewer = None
 		self.max_step = self.max_step_per_spline*self.spline_number
 		self.speed_lower_limit = max(self.min_speed_lower_limit,self.min_speed)

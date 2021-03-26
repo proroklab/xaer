@@ -23,7 +23,7 @@ font_dict = {'size':22}
 # matplotlib_rc('font', **font_dict)
 
 flags = SimpleNamespace(**{
-	"gif_speed": 1, # "GIF frame speed in seconds."
+	"gif_speed": 0.25, # "GIF frame speed in seconds."
 	"max_plot_size": 10, # "Maximum number of points in the plot. The smaller it is, the less RAM is required. If the log file has more than max_plot_size points, then max_plot_size means of slices are used instead."
 })
 linestyle_set = ['-', '--', '-.', ':', '']

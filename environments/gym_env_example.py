@@ -23,7 +23,7 @@ class Example_v0(gym.Env):
 		self.np_random, seed = seeding.np_random(seed)
 		return [seed]
 
-	def __init__ (self, config):
+	def __init__ (self, config=None):
 		self.action_space = gym.spaces.Discrete(2)
 		self.observation_space = gym.spaces.Discrete(self.RT_MAX + 1)
 		# possible positions to chose on `reset()`

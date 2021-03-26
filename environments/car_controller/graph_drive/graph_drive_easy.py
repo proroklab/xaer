@@ -41,9 +41,9 @@ class GraphDriveEasy(gym.Env):
 	max_speed_noise = 0 # m/s
 	max_steering_noise_degree = 0
 	# multi-road related stuff
-	max_dimension = 16
+	max_dimension = 25
 	map_size = (max_dimension, max_dimension)
-	junction_number = 16
+	junction_number = 40
 	max_roads_per_junction = 4
 	junction_radius = 1
 	min_junction_distance = 2*junction_radius+2*mean_seconds_per_step*max_speed
@@ -105,7 +105,7 @@ class GraphDriveEasy(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
 			reward = (self.speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
-			return (reward if is_positive else -reward, is_terminal, label)
+			return (reward*len(self.visited_junctions) if is_positive else -reward, is_terminal, label)
 
 		is_in_junction = self.is_in_junction(self.car_point)
 		# #######################################
@@ -119,18 +119,18 @@ class GraphDriveEasy(gym.Env):
 		#######################################
 		# "No U-Turning" rule
 		if space_traveled_towards_goal <= 0:
-			return step_reward(is_positive=False, is_terminal=True, label='u_turning_outside_junction')
+			return unitary_reward(is_positive=False, is_terminal=True, label='u_turning_outside_junction')
 		#######################################
 		# "Stay on the road" rule
 		if self.distance_to_closest_road >= self.max_distance_to_path:
-			return step_reward(is_positive=False, is_terminal=True, label='not_staying_on_the_road')
+			return unitary_reward(is_positive=False, is_terminal=True, label='not_staying_on_the_road')
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
 		# Assign normalised speed to agent properties before running dialogues.
 		following_regulation, explanation_list = self.road_network.run_dialogue(self.closest_road, self.road_network.agent, explanation_type="compact")
 		explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list)) if explanation_list else l
 		if not following_regulation:
-			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation'))
+			return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation'))
 		#######################################
 		# "Visit new roads" rule
 		if self.closest_road.is_visited: # visiting a previously seen reward gives no bonus
@@ -149,7 +149,7 @@ class GraphDriveEasy(gym.Env):
 		self.np_random, _ = seeding.np_random(seed)
 		return [seed]
 
-	def __init__(self, config):
+	def __init__(self, config=None):
 		self.viewer = None
 		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
 		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
@@ -243,6 +243,7 @@ class GraphDriveEasy(gym.Env):
 		self.car_orientation = (2*self.np_random.random()-1)*np.pi # in [-pi,pi]
 		self.distance_to_closest_road, self.closest_road, self.closest_junction_list = self.road_network.get_closest_road_and_junctions(self.car_point)
 		self.closest_junction = self.get_closest_junction(self.closest_junction_list, self.car_point)
+		self.visited_junctions = []
 
 		self.last_closest_road = None
 		self.goal_junction = None
@@ -330,6 +331,8 @@ class GraphDriveEasy(gym.Env):
 		self.closest_junction = self.get_closest_junction(self.closest_junction_list, self.car_point)
 		# if a new road is visited, add the old one to the set of visited ones
 		if self.is_in_junction(self.car_point):
+			if self.closest_junction not in self.visited_junctions:
+				self.visited_junctions.append(self.closest_junction)
 			self.goal_junction = None
 			if self.last_closest_road is not None: # if closest_road is not the first visited road
 				self.last_closest_road.is_visited = True # set the old road as visited

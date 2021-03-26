@@ -74,7 +74,7 @@ class GridDriveHard(gym.Env):
 		self.np_random, seed = seeding.np_random(seed)
 		return [seed]
 	
-	def __init__(self, config):
+	def __init__(self, config=None):
 		self.culture = self.CULTURE(road_options={
 			'motorway': 1/2,
 			'stop_sign': 1/2,

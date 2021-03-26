@@ -2,10 +2,11 @@ import gym
 import time
 from environments import *
 
-env = GridDriveHard()
+env = GraphDriveHard()
 # env = CescoDriveV0()
 
 def run_one_episode (env):
+	env.seed(38)
 	env.reset()
 	sum_reward = 0
 	done = False
@@ -14,7 +15,7 @@ def run_one_episode (env):
 		state, reward, done, info = env.step(action)
 		sum_reward += reward
 		env.render()
-		time.sleep(1)
+		time.sleep(0.25)
 	return sum_reward
 
 sum_reward = run_one_episode(env)
