@@ -119,7 +119,7 @@ class GraphDriveEasy(gym.Env):
 		#######################################
 		# "No U-Turning" rule
 		if space_traveled_towards_goal <= 0:
-			return step_reward(is_positive=False, is_terminal=True, label='u_turning')
+			return step_reward(is_positive=False, is_terminal=True, label='u_turning_outside_junction')
 		#######################################
 		# "Stay on the road" rule
 		if self.distance_to_closest_road >= self.max_distance_to_path:
