@@ -191,16 +191,16 @@ class PseudoPrioritizedBuffer(Buffer):
 	def get_relative_cluster_capacity(self, segment_tree):
 		return segment_tree.inserted_elements/max(map(self.count, self.type_values))
 
-	def get_cluster_priority(self, segment_tree, min_priority=0, avg_priority=None):
-		if min_priority == avg_priority:
-			return 0
+	def get_cluster_priority(self, segment_tree, min_priority=0):
 		if segment_tree.inserted_elements == 0:
 			return 0
-		avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
-		if avg_priority is not None:
-			avg_cluster_priority = avg_cluster_priority/(avg_priority - min_priority) # avg_priority >= min_priority # scale by the global average priority
-		assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-		return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
+		# avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
+		# assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+		# return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
+		# return avg_cluster_priority
+		sum_cluster_priority = segment_tree.sum() - min_priority*segment_tree.inserted_elements # O(log)
+		assert sum_cluster_priority >= 0, f"sum_cluster_priority is {sum_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+		return sum_cluster_priority
 
 	def get_cluster_capacity_dict(self):
 		return dict(map(
@@ -210,9 +210,7 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def get_cluster_priority_dict(self):
 		min_priority = min(map(lambda x: x.min_tree.min()[0], self._sample_priority_tree)) # O(log)
-		# avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
 		return dict(map(
-			# lambda x: (str(self.type_keys[x[0]]), self.get_cluster_priority(x[1], min_priority, avg_priority)), 
 			lambda x: (str(self.type_keys[x[0]]), self.get_cluster_priority(x[1], min_priority)), 
 			enumerate(self._sample_priority_tree)
 		))
@@ -238,8 +236,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		# Therefore, we have that the minimum cluster's size pY = N/(C+q).
 		less_important_batch_gen = (
 			(*tree_list[type_].min(), type_) # O(log)
-			for type_ in filter(lambda x: self.has_atleast(self.min_cluster_size, x), self.type_values)
-			# for type_ in self.type_values
+			for type_ in self.type_values
+			if self.has_atleast(self.min_cluster_size, type_)
 			# if not self.is_empty(type_)
 		)
 		less_important_batch_gen_len = len(self.type_values)
@@ -310,8 +308,6 @@ class PseudoPrioritizedBuffer(Buffer):
 			self.__max_priority_list = tuple(map(lambda x: x.max_tree.max()[0], self._sample_priority_tree)) # O(log)
 			self.__max_priority = max(self.__max_priority_list)
 		if self._cluster_prioritisation_strategy is not None:
-			# self.__avg_priority = sum(map(lambda x: x.sum(), self._sample_priority_tree))/sum(map(lambda x: x.inserted_elements, self._sample_priority_tree)) # O(log)
-			# self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)) # always > 0
 			self.__cluster_priority_list = tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority if self._priority_lower_limit is None else self._priority_lower_limit), self._sample_priority_tree)) # always > 0
 			# eta_normalise = lambda x: self.eta_normalisation(x, np.min(x), np.max(x), np.abs(np.std(x)/np.mean(x))) # using the coefficient of variation as eta
 			# self.__cluster_priority_list = eta_normalise(eta_normalise(self.__cluster_priority_list)) # first eta-normalisation makes priorities in (0,1], but it inverts their magnitude # second eta-normalisation guarantees original priorities magnitude is preserved
@@ -319,7 +315,7 @@ class PseudoPrioritizedBuffer(Buffer):
 
 	def sample_cluster(self):
 		if self._cluster_prioritisation_strategy is not None:
-			# assert self.__cluster_priority_list==tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority, self.__avg_priority), self._sample_priority_tree)), "Wrong clusters' prioritised sampling"
+			# assert self.__cluster_priority_list==tuple(map(lambda x: self.get_cluster_priority(x, self.__min_priority), self._sample_priority_tree)), "Wrong clusters' prioritised sampling"
 			type_cumsum = np.cumsum(self.__cluster_priority_list) # O(|self.type_keys|)
 			type_mass = random.random() * type_cumsum[-1] # O(1)
 			assert 0 <= type_mass, f'type_mass {type_mass} should be greater than 0'
@@ -381,10 +377,10 @@ class PseudoPrioritizedBuffer(Buffer):
 		# Add age weight
 		if self._weight_importance_by_update_time:
 			relative_age = self.timesteps - self._update_times[type_][idx]
-			# if relative_age > self._max_age_window:
-			# 	weight *= 1/self._max_age_window
-			age_weight = max(1,(self._max_age_window - relative_age))/self._max_age_window
-			weight *= age_weight # batches with outdated priorities should have a lower weight, they might be just noise
+			if relative_age > self._max_age_window:
+				weight = 0
+			# age_weight = max(1,(self._max_age_window - relative_age))/self._max_age_window
+			# weight *= age_weight # batches with outdated priorities should have a lower weight, they might be just noise
 		##########
 		batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
 

@@ -51,13 +51,12 @@ class GridDriveHard(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			reward = (self.speed+1)/self.MAX_SPEED # in (0,1]
 			return (reward if is_positive else -reward, is_terminal, label)
+		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
 
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
-		# explanation_list_with_label = lambda l: list(map(lambda x:(l,x), explanation_list)) if explanation_list else l
 		if not following_regulation:
-			# return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation'))
-			return step_reward(is_positive=False, is_terminal=True, label=explanation_list)
+			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
 		#######################################
 		# "Visit new roads" rule
 		x, y = self.grid.agent_position
@@ -66,7 +65,6 @@ class GridDriveHard(gym.Env):
 			return null_reward(is_terminal=False, label='not_visiting_new_roads')
 		#######################################
 		# "Move forward" rule
-		# return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward'))
 		return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
 
 	def seed(self, seed=None):
