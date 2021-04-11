@@ -114,7 +114,7 @@ class GraphDriveEasy(gym.Env):
 		if is_in_junction:
 			return null_reward(is_terminal=False, label='is_in_junction')
 		#######################################
-		# "No U-Turning" rule
+		# "No U-Turning outside junction" rule
 		space_traveled_towards_goal = euclidean_distance(self.goal_junction.pos, old_car_point) - euclidean_distance(self.goal_junction.pos, self.car_point) if self.goal_junction is not None else 0
 		if space_traveled_towards_goal <= 0:
 			return unitary_reward(is_positive=False, is_terminal=True, label='u_turning_outside_junction')
