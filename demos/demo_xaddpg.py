@@ -34,9 +34,9 @@ CONFIG.update({
 	"prioritized_replay_beta": 0.4, # The smaller, the stronger is over-sampling
 	"prioritized_replay_eps": 1e-6,
 	###########################
-	"tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
-	"grad_clip": 40, # This prevents giant gradients and so improves robustness
-	"l2_reg": 1e-6, # This mitigates over-fitting
+	# "tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
+	# "grad_clip": 40, # This prevents giant gradients and so improves robustness
+	# "l2_reg": 1e-6, # This mitigates over-fitting
 	##################################
 	"buffer_options": {
 		'priority_id': 'td_errors', # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.

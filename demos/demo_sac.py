@@ -31,7 +31,7 @@ CONFIG.update({
 	"prioritized_replay_beta": 0.4, # The smaller, the stronger is over-sampling
 	"prioritized_replay_eps": 1e-6,
 	###########################
-	"tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
+	# "tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
 })
 
 ####################################################################################
