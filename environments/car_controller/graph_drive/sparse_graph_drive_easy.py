@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from environments.car_controller.graph_drive.graph_drive_easy import GraphDriveEasy
+from environments.car_controller.utils import *
 
 class SparseGraphDriveEasy(GraphDriveEasy):
 	
