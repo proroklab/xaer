@@ -21,6 +21,16 @@ register_env("GraphDrive-Medium", lambda config: GraphDriveMedium(config))
 from environments.car_controller.graph_drive.graph_drive_hard import GraphDriveHard
 register_env("GraphDrive-Hard", lambda config: GraphDriveHard(config))
 
+### SparseGraphDrive
+from environments.car_controller.graph_drive.sparse_graph_drive_easy import SparseGraphDriveEasy
+register_env("SparseGraphDrive-Easy", lambda config: SparseGraphDriveEasy(config))
+
+from environments.car_controller.graph_drive.sparse_graph_drive_medium import SparseGraphDriveMedium
+register_env("SparseGraphDrive-Medium", lambda config: SparseGraphDriveMedium(config))
+
+from environments.car_controller.graph_drive.sparse_graph_drive_hard import SparseGraphDriveHard
+register_env("SparseGraphDrive-Hard", lambda config: SparseGraphDriveHard(config))
+
 ### GridDrive
 from environments.car_controller.grid_drive.grid_drive_easy import GridDriveEasy
 register_env("GridDrive-Easy", lambda config: GridDriveEasy(config))
