@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
-	mean_seconds_per_step = 0.4 # in average, a step every n seconds
+	mean_seconds_per_step = 1 # in average, a step every n seconds
 	# track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
-	wheelbase = 0.35 # meters # https://en.wikipedia.org/wiki/Wheelbase
+	wheelbase = 0.25 # meters # https://en.wikipedia.org/wiki/Wheelbase
 	# information about speed parameters: http://www.ijtte.com/uploads/2012-10-01/5ebd8343-9b9c-b1d4IJTTE%20vol2%20no3%20%287%29.pdf
 	min_speed = 0.2 # m/s
 	max_speed = 1.2 # m/s
@@ -32,7 +32,7 @@ class GraphDriveEasy(gym.Env):
 	# the best car has max_deceleration 29.43 m/s^2 (https://www.quora.com/What-can-be-the-maximum-deceleration-during-braking-a-car?share=1)
 	# a normal car has max_deceleration 7.1 m/s^2 (http://www.batesville.k12.in.us/Physics/PhyNet/Mechanics/Kinematics/BrakingDistData.html)
 	max_deceleration = 7 # m/s^2
-	max_steering_degree = 45
+	max_steering_degree = 30
 	max_step = 200
 	max_distance_to_path = 1 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
@@ -46,11 +46,12 @@ class GraphDriveEasy(gym.Env):
 	junction_number = 40
 	max_roads_per_junction = 4
 	junction_radius = 1
-	min_junction_distance = 2*junction_radius+2*mean_seconds_per_step*max_speed
+	min_junction_distance = 2.5*junction_radius
 	CULTURE = EasyRoadCulture
 	MAX_NORMALISED_SPEED = 120
 
 	assert min_junction_distance > 2*junction_radius, f"min_junction_distance has to be greater than {2*junction_radius} but it is {min_junction_distance}"
+	assert max_speed*mean_seconds_per_step < min_junction_distance, f"max_speed*mean_seconds_per_step has to be lower than {min_junction_distance} but it is {max_speed*mean_seconds_per_step}"
 
 	def get_state_shape(self):
 		return [
@@ -147,8 +148,8 @@ class GraphDriveEasy(gym.Env):
 
 	def __init__(self, config=None):
 		self.viewer = None
-		self.max_steering_angle = convert_degree_to_radiant(self.max_steering_degree)
-		self.max_steering_noise_angle = convert_degree_to_radiant(self.max_steering_noise_degree)
+		self.max_steering_angle = np.deg2rad(self.max_steering_degree)
+		self.max_steering_noise_angle = np.deg2rad(self.max_steering_noise_degree)
 
 		self.culture = self.CULTURE(road_options={
 			'motorway': 1/2,
@@ -274,14 +275,16 @@ class GraphDriveEasy(gym.Env):
 			steering_angle += (2*self.np_random.random()-1)*self.max_steering_noise_angle
 			steering_angle = np.clip(steering_angle, -self.max_steering_angle, self.max_steering_angle) # |steering_angle| <= max_steering_angle, ALWAYS
 			speed += (2*self.np_random.random()-1)*self.max_speed_noise
-		# Get new angle
-		# https://www.me.utexas.edu/~longoria/CyVS/notes/07_turning_steering/07_Turning_Kinematically.pdf
-		angular_velocity = speed*np.tan(steering_angle)/self.wheelbase
+		#### Ackerman Steering: Forward Kinematic for Car-Like vehicles #### https://www.xarg.org/book/kinematics/ackerman-steering/
+		turning_radius = self.wheelbase/np.tan(steering_angle)
+		# Max taylor approximation error of the tangent simplification is about 3° at 30° steering lock
+		# turning_radius = self.wheelbase/steering_angle
+		angular_velocity = speed/turning_radius
 		# get normalized new orientation
 		new_orientation = np.mod(orientation + angular_velocity*self.seconds_per_step, 2*np.pi) # in [0,2*pi)
 		# Move point
 		x, y = point
-		dir_x, dir_y = get_heading_vector(angle=new_orientation, space=speed*self.seconds_per_step)
+		dir_x, dir_y = get_heading_vector(angle=orientation, space=speed*self.seconds_per_step)
 		return (x+dir_x, y+dir_y), new_orientation
 
 	def get_steering_angle_from_action(self, action): # action is in [-1,1]
@@ -433,8 +436,8 @@ class GraphDriveEasy(gym.Env):
 		ax.legend(handles=handles)
 		# Draw plot
 		figure.suptitle(' '.join([
-			f'[Angle]{convert_radiant_to_degree(self.steering_angle):.2f}°', 
-			f'[Orient.]{convert_radiant_to_degree(self.car_orientation):.2f}°', 
+			f'[Angle]{np.rad2deg(self.steering_angle):.2f}°', 
+			f'[Orient.]{np.rad2deg(self.car_orientation):.2f}°', 
 			f'[Speed]{self.speed:.2f} m/s', 
 			'\n',
 			f'[Step]{self._step}', 
