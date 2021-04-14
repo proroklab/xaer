@@ -231,7 +231,7 @@ class CescoDriveV0(gym.Env):
 		new_orientation = np.mod(orientation + angular_velocity*self.seconds_per_step, 2*np.pi) # in [0,2*pi)
 		# Move point
 		x, y = point
-		dir_x, dir_y = get_heading_vector(angle=orientation, space=speed*self.seconds_per_step)
+		dir_x, dir_y = get_heading_vector(angle=new_orientation, space=speed*self.seconds_per_step)
 		return (x+dir_x, y+dir_y), new_orientation
 
 	def get_steering_angle_from_action(self, action): # action is in [-1,1]

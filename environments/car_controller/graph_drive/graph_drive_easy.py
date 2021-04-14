@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
-	mean_seconds_per_step = 1 # in average, a step every n seconds
+	mean_seconds_per_step = 0.25 # in average, a step every n seconds
 	# track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
 	wheelbase = 0.25 # meters # https://en.wikipedia.org/wiki/Wheelbase
 	# information about speed parameters: http://www.ijtte.com/uploads/2012-10-01/5ebd8343-9b9c-b1d4IJTTE%20vol2%20no3%20%287%29.pdf
@@ -33,17 +33,17 @@ class GraphDriveEasy(gym.Env):
 	# a normal car has max_deceleration 7.1 m/s^2 (http://www.batesville.k12.in.us/Physics/PhyNet/Mechanics/Kinematics/BrakingDistData.html)
 	max_deceleration = 7 # m/s^2
 	max_steering_degree = 30
-	max_step = 200
-	max_distance_to_path = 1 # meters
+	max_step = 500
+	max_distance_to_path = 0.5 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
 	max_speed_noise = 0 # m/s
 	max_steering_noise_degree = 0
 	# multi-road related stuff
-	max_dimension = 25
+	max_dimension = 16
 	map_size = (max_dimension, max_dimension)
-	junction_number = 40
+	junction_number = 16
 	max_roads_per_junction = 4
 	junction_radius = 1
 	min_junction_distance = 2.5*junction_radius
@@ -105,8 +105,10 @@ class GraphDriveEasy(gym.Env):
 			return (1 if is_positive else -1, is_terminal, label)
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
-			reward = (self.speed - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
-			return (reward*len(self.visited_junctions) if is_positive else -reward, is_terminal, label)
+			reward = self.speed
+			# reward = 0.5 + (self.speed - self.min_speed)/(2*(self.max_speed-self.min_speed)) # in (0,1]
+			reward *= len(self.visited_junctions)
+			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
 
 		is_in_junction = self.is_in_junction(self.car_point)
@@ -115,14 +117,14 @@ class GraphDriveEasy(gym.Env):
 		if is_in_junction:
 			return null_reward(is_terminal=False, label='is_in_junction')
 		#######################################
+		# "Stay on the road" rule
+		if self.distance_to_closest_road >= self.max_distance_to_path:
+			return unitary_reward(is_positive=False, is_terminal=True, label='not_staying_on_the_road')
+		#######################################
 		# "No U-Turning outside junction" rule
 		space_traveled_towards_goal = euclidean_distance(self.goal_junction.pos, old_car_point) - euclidean_distance(self.goal_junction.pos, self.car_point) if self.goal_junction is not None else 0
 		if space_traveled_towards_goal <= 0:
 			return unitary_reward(is_positive=False, is_terminal=True, label='u_turning_outside_junction')
-		#######################################
-		# "Stay on the road" rule
-		if self.distance_to_closest_road >= self.max_distance_to_path:
-			return unitary_reward(is_positive=False, is_terminal=True, label='not_staying_on_the_road')
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
 		# Assign normalised speed to agent properties before running dialogues.
@@ -284,7 +286,7 @@ class GraphDriveEasy(gym.Env):
 		new_orientation = np.mod(orientation + angular_velocity*self.seconds_per_step, 2*np.pi) # in [0,2*pi)
 		# Move point
 		x, y = point
-		dir_x, dir_y = get_heading_vector(angle=orientation, space=speed*self.seconds_per_step)
+		dir_x, dir_y = get_heading_vector(angle=new_orientation, space=speed*self.seconds_per_step)
 		return (x+dir_x, y+dir_y), new_orientation
 
 	def get_steering_angle_from_action(self, action): # action is in [-1,1]
