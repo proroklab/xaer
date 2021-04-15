@@ -105,9 +105,9 @@ class GraphDriveEasy(gym.Env):
 			return (1 if is_positive else -1, is_terminal, label)
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
-			reward = self.speed
-			# reward = 0.5 + (self.speed - self.min_speed)/(2*(self.max_speed-self.min_speed)) # in (0,1]
-			reward *= len(self.visited_junctions)
+			# reward = self.speed
+			reward = self.speed/self.max_speed # in (0,1]
+			# reward *= len(self.visited_junctions)
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
 
