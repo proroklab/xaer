@@ -187,13 +187,13 @@ class PseudoPrioritizedBuffer(Buffer):
 	def get_cluster_priority(self, segment_tree, min_priority=0):
 		if segment_tree.inserted_elements == 0:
 			return 0
-		avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
-		assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-		return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
+		# avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
+		# assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+		# return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
 		# return avg_cluster_priority
-		# sum_cluster_priority = segment_tree.sum() - min_priority*segment_tree.inserted_elements # O(log)
-		# assert sum_cluster_priority >= 0, f"sum_cluster_priority is {sum_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-		# return sum_cluster_priority
+		sum_cluster_priority = segment_tree.sum() - min_priority*segment_tree.inserted_elements # O(log)
+		assert sum_cluster_priority >= 0, f"sum_cluster_priority is {sum_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+		return sum_cluster_priority
 
 	def get_cluster_capacity_dict(self):
 		return dict(map(

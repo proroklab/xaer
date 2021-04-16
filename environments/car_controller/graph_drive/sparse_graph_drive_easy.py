@@ -21,7 +21,7 @@ class SparseGraphDriveEasy(GraphDriveEasy):
 			# "Is in new junction" rule
 			if self.acquired_junction:  # If agent acquired a brand new junction.
 				# return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('is_in_new_junction', self.last_explanation_list))
-				return unitary_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('is_in_new_junction', self.last_explanation_list))
+				return unitary_reward(is_positive=True, is_terminal=False, label='is_in_new_junction')
 			#######################################
 			# "Is in old junction" rule
 			return null_reward(is_terminal=False, label='is_in_old_junction')

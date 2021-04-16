@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 class GraphDriveEasy(gym.Env):
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
-	mean_seconds_per_step = 0.25 # in average, a step every n seconds
+	mean_seconds_per_step = 0.5 # in average, a step every n seconds
 	# track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track
-	wheelbase = 0.25 # meters # https://en.wikipedia.org/wiki/Wheelbase
+	wheelbase = 0.35 # meters # https://en.wikipedia.org/wiki/Wheelbase
 	# information about speed parameters: http://www.ijtte.com/uploads/2012-10-01/5ebd8343-9b9c-b1d4IJTTE%20vol2%20no3%20%287%29.pdf
 	min_speed = 0.2 # m/s
 	max_speed = 1.2 # m/s
@@ -32,9 +32,9 @@ class GraphDriveEasy(gym.Env):
 	# the best car has max_deceleration 29.43 m/s^2 (https://www.quora.com/What-can-be-the-maximum-deceleration-during-braking-a-car?share=1)
 	# a normal car has max_deceleration 7.1 m/s^2 (http://www.batesville.k12.in.us/Physics/PhyNet/Mechanics/Kinematics/BrakingDistData.html)
 	max_deceleration = 7 # m/s^2
-	max_steering_degree = 30
-	max_step = 500
-	max_distance_to_path = 0.5 # meters
+	max_steering_degree = 45
+	max_step = 2**7
+	max_distance_to_path = 1 # meters
 	# min_speed_lower_limit = 0.7 # m/s # used together with max_speed to get the random speed upper limit
 	# max_speed_noise = 0.25 # m/s
 	# max_steering_noise_degree = 2
@@ -249,7 +249,7 @@ class GraphDriveEasy(gym.Env):
 		self.current_road_speed_list = []
 		# steering angle & speed
 		self.steering_angle = 0
-		self.speed = self.min_speed + (self.max_speed-self.min_speed)*self.np_random.random() # in [min_speed,max_speed]
+		self.speed = self.min_speed #+ (self.max_speed-self.min_speed)*self.np_random.random() # in [min_speed,max_speed]
 		# self.speed = self.min_speed+(self.max_speed-self.min_speed)*(70/120) # for testing
 		self.road_network.agent.assign_property_value("Speed", self.road_network.normalise_speed(self.min_speed, self.max_speed, self.speed))
 		# init concat variables
