@@ -20,6 +20,7 @@ def get_clustered_replay_buffer(config):
 		buffer_options=config["buffer_options"], 
 		learning_starts=config["learning_starts"], 
 		seed=config["seed"],
+		cluster_selection_policy=config["cluster_selection_policy"],
 	)
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme

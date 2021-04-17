@@ -69,6 +69,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		buffer_options=None, 
 		learning_starts=1000, 
 		seed=None,
+		cluster_selection_policy='random_uniform',
 	):
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
@@ -77,6 +78,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		self.is_weighting_expected_values = dummy_buffer.is_weighting_expected_values()
 		self.replay_starts = learning_starts
 		self._buffer_lock = ReadWriteLock()
+		self._cluster_selection_policy = cluster_selection_policy
 
 		random.seed(seed)
 		np.random.seed(seed)
@@ -103,32 +105,36 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			self._buffer_lock.acquire_write()
 			for policy_id, sub_batch in batch.policy_batches.items():
 				batch_type = get_batch_infos(sub_batch)["batch_type"]
-				if isinstance(batch_type,(tuple,list)):
-					########################
+				####################################
+				if not isinstance(batch_type,(tuple,list)):
+					sub_type_list = (batch_type,)
+				elif len(batch_type) == 1:
+					sub_type_list = (batch_type[0],)
+				elif self._cluster_selection_policy == 'random_uniform_after_filling':
+					sub_type_list = tuple(filter(lambda x: not self.replay_buffers[policy_id].is_valid_cluster(x), batch_type))
+					if len(sub_type_list) == 0:
+						sub_type_list = (random.choice(batch_type),)
+				elif self._cluster_selection_policy == 'random_uniform':
 					# # If has_multiple_types is True: no need for duplicating the batch across multiple clusters unless they are invalid, just insert into one of them, randomly. It is a prioritised buffer, clusters will be fairly represented, with minimum overhead.
-					# sub_type_list = tuple(filter(lambda x: not self.replay_buffers[policy_id].is_valid_cluster(x), batch_type))
-					# if len(sub_type_list) == 0:
-					# 	sub_type_list = (random.choice(batch_type),)
-					########################
-					# sub_type_list = (random.choice(batch_type),)
-					########################
-					# if len(batch_type) > 1: # prioritised cluster selection
-					# 	cluster_cumsum = np.cumsum(list(map(lambda x: self.replay_buffers[policy_id].get_cluster_size(x)+1, batch_type)))
-					# 	cluster_mass = random.random() * cluster_cumsum[-1] # O(1)
-					# 	batch_type_idx,_ = next(filter(lambda x: x[-1] >= cluster_mass, enumerate(cluster_cumsum))) # O(|self.type_keys|)
-					# 	sub_type_list = (batch_type[batch_type_idx],)
-					# else:
-					# 	sub_type_list = (batch_type[0],)
-					########################
+					sub_type_list = (random.choice(batch_type),)
+				elif self._cluster_selection_policy == 'random_max':
+					cluster_cumsum = np.cumsum(list(map(lambda x: self.replay_buffers[policy_id].get_cluster_size(x)+1, batch_type)))
+					cluster_mass = random.random() * cluster_cumsum[-1] # O(1)
+					batch_type_idx,_ = next(filter(lambda x: x[-1] >= cluster_mass, enumerate(cluster_cumsum))) # O(|self.type_keys|)
+					sub_type_list = (batch_type[batch_type_idx],)
+				elif self._cluster_selection_policy == 'max':
 					sub_type_list = (max(
 						batch_type, 
 						key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())
 					),)
-					########################
-					# sub_type_list = batch_type
-					########################
-				else:
-					sub_type_list = (batch_type,)
+				elif self._cluster_selection_policy == 'min':
+					sub_type_list = (max(
+						batch_type, 
+						key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())
+					),)
+				else: #if self._cluster_selection_policy == 'none':
+					sub_type_list = batch_type
+				####################################
 				for sub_type in sub_type_list: 
 					# Make a deep copy so the replay buffer doesn't pin plasma memory.
 					batch.policy_batches[policy_id] = sub_batch = sub_batch.copy()

@@ -187,10 +187,15 @@ class PseudoPrioritizedBuffer(Buffer):
 	def get_cluster_priority(self, segment_tree, min_priority=0):
 		if segment_tree.inserted_elements == 0:
 			return 0
-		# avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
-		# assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-		# return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
-		# return avg_cluster_priority
+		if self._cluster_prioritisation_strategy == 'weighted_avg':
+			avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
+			assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+			return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
+		elif self._cluster_prioritisation_strategy == 'avg':
+			avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
+			assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+			return avg_cluster_priority
+		# elif self._cluster_prioritisation_strategy == 'sum':
 		sum_cluster_priority = segment_tree.sum() - min_priority*segment_tree.inserted_elements # O(log)
 		assert sum_cluster_priority >= 0, f"sum_cluster_priority is {sum_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
 		return sum_cluster_priority
@@ -257,10 +262,10 @@ class PseudoPrioritizedBuffer(Buffer):
 		type_ = self.get_type(type_id)
 		type_batch = self.batches[type_]
 		idx = None
-		if self.is_full_buffer(): # if full buffer, remove the less important batch in the whole buffer
-			self.remove_less_important_batches(1)
-		elif self._is_full_cluster(type_): # full cluster, remove from it
+		if self._is_full_cluster(type_): # this cluster is full, remove one element from it
 			idx = self.get_less_important_batch(type_)
+		elif self.is_full_buffer(): # if full buffer, remove the less important batch in the whole buffer
+			self.remove_less_important_batches(1)
 		# Add new element to buffer
 		if idx is None:
 			idx = len(type_batch)
