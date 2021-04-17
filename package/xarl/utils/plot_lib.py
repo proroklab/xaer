@@ -210,7 +210,7 @@ def parse_line(line,i=0):
 	if "custom_metrics" in val_dict:
 		obj.update({
 			f'env_{k}':v 
-			for k,v in val_dict['"custom_metrics"'].items()
+			for k,v in val_dict['custom_metrics'].items()
 			if isinstance(v, numbers.Number)
 		})
 	return (step, obj)
