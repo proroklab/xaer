@@ -28,6 +28,7 @@ CONFIG.update({
 	"replay_proportion": 4, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 	"replay_buffer_num_slots": 2**12, # Maximum number of batches stored in the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
 })
+CONFIG["callbacks"] = CustomEnvironmentCallbacks
 
 ####################################################################################
 ####################################################################################

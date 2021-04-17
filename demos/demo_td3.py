@@ -38,6 +38,7 @@ CONFIG.update({
 	# "grad_clip": 40, # This prevents giant gradients and so improves robustness
 	# "l2_reg": 1e-6, # This mitigates over-fitting
 })
+CONFIG["callbacks"] = CustomEnvironmentCallbacks
 
 ####################################################################################
 ####################################################################################

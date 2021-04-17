@@ -106,7 +106,7 @@ class GraphDriveEasy(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
 			# reward = self.speed
-			reward = self.speed/self.max_speed # in (0,1]
+			reward = 1 + self.speed/self.max_speed # in (0,1]
 			# reward *= len(self.visited_junctions)
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
@@ -373,9 +373,10 @@ class GraphDriveEasy(gym.Env):
 			stats = {
 				"avg_speed": self.avg_speed_per_steps/self._step,
 				"out_of_time": 1 if out_of_time else 0,
+				"visited_junctions": len(self.visited_junctions),
 			}
 			info_dict.update(stats)
-			self.episode_statistics = stats
+			info_dict["stats_dict"] = self.episode_statistics = stats
 		return [state, reward, terminal, info_dict]
 			
 	def get_info(self):

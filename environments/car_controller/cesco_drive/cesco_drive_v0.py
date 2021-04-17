@@ -280,6 +280,7 @@ class CescoDriveV0(gym.Env):
 		completed_track = self.is_terminal_position(car_position)
 		out_of_time = self._step >= self.max_step
 		terminal = dead or completed_track or out_of_time
+		info_dict = {'explanation':reward_type}
 		if terminal: # populate statistics
 			self.is_over = True
 			stats = {
@@ -289,8 +290,8 @@ class CescoDriveV0(gym.Env):
 			}
 			if self.max_obstacle_count > 0:
 				stats["avoid_collision"] = 0 if dead else 1
-			self.episode_statistics = stats
-		return [state, reward, terminal, {'explanation':reward_type}]
+			info_dict["stats_dict"] = self.episode_statistics = stats
+		return [state, reward, terminal, info_dict]
 		
 	def has_collided_obstacle(self, old_car_point, car_point, obstacle):
 		return segment_collide_circle(circle=obstacle, segment=(old_car_point, car_point))

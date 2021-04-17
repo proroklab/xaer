@@ -1,6 +1,8 @@
 from ray.tune.registry import register_env
 ######### Add new environment below #########
 
+from environments.custom_metrics import CustomEnvironmentCallbacks
+
 from environments.gym_env_example import Example_v0
 register_env("ToyExample-V0", lambda config: Example_v0(config))
 

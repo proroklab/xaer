@@ -207,6 +207,12 @@ def parse_line(line,i=0):
 				for k,v in default_buffer['cluster_priority'].items()
 				if isinstance(v, numbers.Number)
 			})
+	if "custom_metrics" in val_dict:
+		obj.update({
+			f'env_{k}':v 
+			for k,v in val_dict['"custom_metrics"'].items()
+			if isinstance(v, numbers.Number)
+		})
 	return (step, obj)
 	
 def parse(log_fname, max_i=None):

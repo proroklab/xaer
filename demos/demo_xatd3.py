@@ -60,6 +60,7 @@ CONFIG.update({
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
 })
+CONFIG["callbacks"] = CustomEnvironmentCallbacks
 
 ####################################################################################
 ####################################################################################

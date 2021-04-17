@@ -56,6 +56,7 @@ CONFIG.update({
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
 	"sample_also_from_buffer_of_recent_elements": False, # Whether to sample in a randomised fashion from both a non-prioritised buffer of most recent elements and the XA prioritised buffer.
 })
+CONFIG["callbacks"] = CustomEnvironmentCallbacks
 
 ####################################################################################
 ####################################################################################

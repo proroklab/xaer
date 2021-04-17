@@ -10,8 +10,9 @@ class SparseGraphDriveEasy(GraphDriveEasy):
 		def unitary_reward(is_positive, is_terminal, label):
 			return (1 if is_positive else -1, is_terminal, label)
 		def step_reward(is_positive, is_terminal, label):
-			# reward = (np.mean(self.current_road_speed_list) - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
-			reward = len(self.visited_junctions)
+			# reward = 1 + (np.mean(self.current_road_speed_list) - self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+			# reward = 1 + len(self.visited_junctions)
+			reward = 2
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
 
@@ -20,8 +21,8 @@ class SparseGraphDriveEasy(GraphDriveEasy):
 			#######################################
 			# "Is in new junction" rule
 			if self.acquired_junction:  # If agent acquired a brand new junction.
-				# return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('is_in_new_junction', self.last_explanation_list))
-				return unitary_reward(is_positive=True, is_terminal=False, label='is_in_new_junction')
+				# return unitary_reward(is_positive=True, is_terminal=False, label='is_in_new_junction')
+				return step_reward(is_positive=True, is_terminal=False, label='is_in_new_junction')
 			#######################################
 			# "Is in old junction" rule
 			return null_reward(is_terminal=False, label='is_in_old_junction')

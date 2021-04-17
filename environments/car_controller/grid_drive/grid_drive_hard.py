@@ -56,7 +56,8 @@ class GridDriveHard(gym.Env):
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
 		if not following_regulation:
-			return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
 		#######################################
 		# "Visit new roads" rule
 		x, y = self.grid.agent_position
@@ -65,7 +66,7 @@ class GridDriveHard(gym.Env):
 			return null_reward(is_terminal=False, label='not_visiting_new_roads')
 		#######################################
 		# "Move forward" rule
-		return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward',explanation_list))
+		return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
 
 	def seed(self, seed=None):
 		logger.warning(f"Setting random seed to: {seed}")

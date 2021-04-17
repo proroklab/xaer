@@ -69,6 +69,7 @@ STOP_TRAINING_AFTER_N_STEP = int(float(sys.argv[4]))
 if len(sys.argv) > 5:
 	OPTIONS = json.loads(' '.join(sys.argv[5:]))
 	CONFIG.update(OPTIONS)
+CONFIG["callbacks"] = CustomEnvironmentCallbacks
 print(CONFIG)
 
 ####################################################################################

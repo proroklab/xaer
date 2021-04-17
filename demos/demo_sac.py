@@ -33,6 +33,7 @@ CONFIG.update({
 	###########################
 	# "tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
 })
+CONFIG["callbacks"] = CustomEnvironmentCallbacks
 
 ####################################################################################
 ####################################################################################
