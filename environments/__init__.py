@@ -14,37 +14,47 @@ from environments.car_controller.cesco_drive.cesco_drive_v1 import CescoDriveV1
 register_env("CescoDrive-V1", lambda config: CescoDriveV1(config))
 
 ### GraphDrive
-from environments.car_controller.graph_drive.graph_drive_easy import GraphDriveEasy
-register_env("GraphDrive-Easy", lambda config: GraphDriveEasy(config))
-
-from environments.car_controller.graph_drive.graph_drive_medium import GraphDriveMedium
-register_env("GraphDrive-Medium", lambda config: GraphDriveMedium(config))
-
-from environments.car_controller.graph_drive.graph_drive_hard import GraphDriveHard
-register_env("GraphDrive-Hard", lambda config: GraphDriveHard(config))
-
-### SparseGraphDrive
-from environments.car_controller.graph_drive.sparse_graph_drive_easy import SparseGraphDriveEasy
-register_env("SparseGraphDrive-Easy", lambda config: SparseGraphDriveEasy(config))
-
-from environments.car_controller.graph_drive.sparse_graph_drive_medium import SparseGraphDriveMedium
-register_env("SparseGraphDrive-Medium", lambda config: SparseGraphDriveMedium(config))
-
-from environments.car_controller.graph_drive.sparse_graph_drive_hard import SparseGraphDriveHard
-register_env("SparseGraphDrive-Hard", lambda config: SparseGraphDriveHard(config))
+from environments.car_controller.graph_drive.graph_drive import GraphDrive
+## V1
+register_env("GraphDrive-Easy-V1", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v1', "culture_level": "Easy"}))
+register_env("GraphDrive-Medium-V1", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v1', "culture_level": "Medium"}))
+register_env("GraphDrive-Hard-V1", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v1', "culture_level": "Hard"}))
+## V2
+register_env("GraphDrive-Easy-V2", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v2', "culture_level": "Easy"}))
+register_env("GraphDrive-Medium-V2", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v2', "culture_level": "Medium"}))
+register_env("GraphDrive-Hard-V2", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v2', "culture_level": "Hard"}))
+## V3
+register_env("GraphDrive-Easy-V3", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v3', "culture_level": "Easy"}))
+register_env("GraphDrive-Medium-V3", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v3', "culture_level": "Medium"}))
+register_env("GraphDrive-Hard-V3", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v3', "culture_level": "Hard"}))
+## V1
+register_env("GraphDrive-Easy-Sparse-V1", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v1', "culture_level": "Easy"}))
+register_env("GraphDrive-Medium-Sparse-V1", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v1', "culture_level": "Medium"}))
+register_env("GraphDrive-Hard-Sparse-V1", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v1', "culture_level": "Hard"}))
+## V2
+register_env("GraphDrive-Easy-Sparse-V2", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v2', "culture_level": "Easy"}))
+register_env("GraphDrive-Medium-Sparse-V2", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v2', "culture_level": "Medium"}))
+register_env("GraphDrive-Hard-Sparse-V2", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v2', "culture_level": "Hard"}))
+## V3
+register_env("GraphDrive-Easy-Sparse-V3", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v3', "culture_level": "Easy"}))
+register_env("GraphDrive-Medium-Sparse-V3", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v3', "culture_level": "Medium"}))
+register_env("GraphDrive-Hard-Sparse-V3", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v3', "culture_level": "Hard"}))
+## V4
+register_env("GraphDrive-Easy-Sparse-V4", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v4', "culture_level": "Easy"}))
+register_env("GraphDrive-Medium-Sparse-V4", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v4', "culture_level": "Medium"}))
+register_env("GraphDrive-Hard-Sparse-V4", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v4', "culture_level": "Hard"}))
 
 ### GridDrive
-from environments.car_controller.grid_drive.grid_drive_easy import GridDriveEasy
-register_env("GridDrive-Easy", lambda config: GridDriveEasy(config))
-
-from environments.car_controller.grid_drive.grid_drive_medium import GridDriveMedium
-register_env("GridDrive-Medium", lambda config: GridDriveMedium(config))
-
-from environments.car_controller.grid_drive.grid_drive_hard import GridDriveHard
-register_env("GridDrive-Hard", lambda config: GridDriveHard(config))
-
-from environments.car_controller.grid_drive.sparse_grid_drive_hard_v1 import SparseGridDriveHardV1
-register_env("Sparse-GridDrive-Hard-V1", lambda config: SparseGridDriveHardV1(config))
-
-from environments.car_controller.grid_drive.sparse_grid_drive_hard_v2 import SparseGridDriveHardV2
-register_env("Sparse-GridDrive-Hard-V2", lambda config: SparseGridDriveHardV2(config))
+from environments.car_controller.grid_drive.grid_drive import GridDrive
+## V1
+register_env("GridDrive-Easy-V1", lambda config: GridDrive({"reward_fn": 'frequent_reward_v1', "culture_level": "Easy"}))
+register_env("GridDrive-Medium-V1", lambda config: GridDrive({"reward_fn": 'frequent_reward_v1', "culture_level": "Medium"}))
+register_env("GridDrive-Hard-V1", lambda config: GridDrive({"reward_fn": 'frequent_reward_v1', "culture_level": "Hard"}))
+## V2
+register_env("GridDrive-Easy-V2", lambda config: GridDrive({"reward_fn": 'frequent_reward_v2', "culture_level": "Easy"}))
+register_env("GridDrive-Medium-V2", lambda config: GridDrive({"reward_fn": 'frequent_reward_v2', "culture_level": "Medium"}))
+register_env("GridDrive-Hard-V2", lambda config: GridDrive({"reward_fn": 'frequent_reward_v2', "culture_level": "Hard"}))
+## V3
+register_env("GridDrive-Easy-V3", lambda config: GridDrive({"reward_fn": 'frequent_reward_v3', "culture_level": "Easy"}))
+register_env("GridDrive-Medium-V3", lambda config: GridDrive({"reward_fn": 'frequent_reward_v3', "culture_level": "Medium"}))
+register_env("GridDrive-Hard-V3", lambda config: GridDrive({"reward_fn": 'frequent_reward_v3', "culture_level": "Hard"}))

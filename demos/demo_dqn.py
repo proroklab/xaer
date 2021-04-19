@@ -17,7 +17,7 @@ ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMulti
 
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-V0"
-SELECT_ENV = "GridDrive-Hard"
+SELECT_ENV = "GridDrive-Hard-V3"
 
 CONFIG = DQN_DEFAULT_CONFIG.copy()
 CONFIG.update({

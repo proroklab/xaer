@@ -12,7 +12,7 @@ from xarl.agents.xasac import XASACTrainer, XASAC_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Hard"
+SELECT_ENV = "GraphDrive-Hard-V3"
 
 CONFIG = XASAC_DEFAULT_CONFIG.copy()
 CONFIG.update({

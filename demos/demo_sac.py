@@ -12,7 +12,7 @@ from ray.rllib.agents.sac.sac import SACTrainer, DEFAULT_CONFIG as SAC_DEFAULT_C
 from environments import *
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Hard"
+SELECT_ENV = "GraphDrive-Hard-V3"
 
 CONFIG = SAC_DEFAULT_CONFIG.copy()
 CONFIG.update({

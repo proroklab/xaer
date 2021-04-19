@@ -13,13 +13,12 @@ from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
 from environments.car_controller.grid_drive.lib.road_grid import RoadGrid
-from environments.car_controller.grid_drive.lib.road_cultures import HardRoadCulture
+from environments.car_controller.grid_drive.lib.road_cultures import *
 
 import logging
 logger = logging.getLogger(__name__)
 
-class GridDriveHard(gym.Env):
-	CULTURE 					= HardRoadCulture
+class GridDrive(gym.Env):
 	GRID_DIMENSION				= 15
 	MAX_SPEED 					= 120
 	SPEED_GAP					= 10
@@ -43,38 +42,15 @@ class GridDriveHard(gym.Env):
 			"fc": fc_dict,
 		}
 
-	def get_reward(self, following_regulation, explanation_list):
-		def null_reward(is_terminal, label):
-			return (0, is_terminal, label)
-		def unitary_reward(is_positive, is_terminal, label):
-			return (1 if is_positive else -1, is_terminal, label)
-		def step_reward(is_positive, is_terminal, label):
-			reward = (self.speed+1)/self.MAX_SPEED # in (0,1]
-			return (reward if is_positive else -reward, is_terminal, label)
-		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
-
-		#######################################
-		# "Follow regulation" rule. # Run dialogue against culture.
-		if not following_regulation:
-			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
-			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
-		#######################################
-		# "Visit new roads" rule
-		x, y = self.grid.agent_position
-		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
-		if visiting_old_cell: # already visited cell
-			return null_reward(is_terminal=False, label='not_visiting_new_roads')
-		#######################################
-		# "Move forward" rule
-		return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
-
 	def seed(self, seed=None):
 		logger.warning(f"Setting random seed to: {seed}")
 		self.np_random, seed = seeding.np_random(seed)
 		return [seed]
 	
 	def __init__(self, config=None):
-		self.culture = self.CULTURE(road_options={
+		logger.warning(f'Setting environment with reward_fn <{self.config["reward_fn"]}> and culture_level <{self.config["culture_level"]}>')
+		self.reward_fn = eval(f'self.{self.config["reward_fn"]}')
+		self.culture = eval(f'{self.config["culture_level"]}RoadCulture')(road_options={
 			'motorway': 1/2,
 			'stop_sign': 1/2,
 			'school': 1/2,
@@ -116,6 +92,7 @@ class GridDriveHard(gym.Env):
 		self.culture.np_random = self.np_random
 		self.viewer = None
 		self.step_counter = 0
+		self.cumulated_return = 0
 
 		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.culture)
 		self.grid_features = np.array(self.grid.get_features(), ndmin=3, dtype=np.int8)
@@ -136,7 +113,8 @@ class GridDriveHard(gym.Env):
 		self.speed = (action_vector%self.MAX_GAPPED_SPEED)*self.SPEED_GAP
 		# direction, gapped_speed = action_vector
 		old_x, old_y = self.grid.agent_position # get this before moving the agent
-		reward, terminal, explanatory_labels = self.get_reward(*self.grid.move_agent(self.direction, self.speed))
+		reward, terminal, explanatory_labels = self.reward_fn(*self.grid.move_agent(self.direction, self.speed))
+		self.cumulated_return += reward
 		new_x, new_y = self.grid.agent_position # get this after moving the agent
 		# do the following aftwer moving the agent and checking positions with get_reward
 		self.grid_view[old_x][old_y][self.AGENT_CELL_GRID_IDX] = 0 # remove old position
@@ -258,3 +236,78 @@ class GridDriveHard(gym.Env):
 				self.viewer = rendering.SimpleImageViewer()
 			self.viewer.imshow(img)
 			return self.viewer.isopen
+
+	def frequent_reward_v1(self, following_regulation, explanation_list):
+		def null_reward(is_terminal, label):
+			return (0, is_terminal, label)
+		def unitary_reward(is_positive, is_terminal, label):
+			return (1 if is_positive else -1, is_terminal, label)
+		def step_reward(is_positive, is_terminal, label):
+			reward = (self.speed+1)/self.MAX_SPEED # in (0,1]
+			return (reward if is_positive else -reward, is_terminal, label)
+		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
+
+		#######################################
+		# "Follow regulation" rule. # Run dialogue against culture.
+		if not following_regulation:
+			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+		#######################################
+		# "Visit new roads" rule
+		x, y = self.grid.agent_position
+		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
+		if visiting_old_cell: # already visited cell
+			return null_reward(is_terminal=False, label='not_visiting_new_roads')
+		#######################################
+		# "Move forward" rule
+		return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
+
+	def frequent_reward_v2(self, following_regulation, explanation_list):
+		def null_reward(is_terminal, label):
+			return (0, is_terminal, label)
+		def unitary_reward(is_positive, is_terminal, label):
+			return (1 if is_positive else -1, is_terminal, label)
+		def step_reward(is_positive, is_terminal, label):
+			reward = (self.speed+1)/self.MAX_SPEED # in (0,1]
+			return (reward if is_positive else -reward, is_terminal, label)
+		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
+
+		#######################################
+		# "Follow regulation" rule. # Run dialogue against culture.
+		if not following_regulation:
+			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+		#######################################
+		# "Visit new roads" rule
+		x, y = self.grid.agent_position
+		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
+		if visiting_old_cell: # already visited cell
+			return null_reward(is_terminal=False, label=explanation_list_with_label('not_visiting_new_roads',explanation_list))
+		#######################################
+		# "Move forward" rule
+		return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward',explanation_list))
+
+	def frequent_reward_v3(self, following_regulation, explanation_list):
+		def null_reward(is_terminal, label):
+			return (0, is_terminal, label)
+		def unitary_reward(is_positive, is_terminal, label):
+			return (1 if is_positive else -1, is_terminal, label)
+		def step_reward(is_positive, is_terminal, label):
+			reward = (self.speed+1)/self.MAX_SPEED # in (0,1]
+			return (reward if is_positive else -reward, is_terminal, label)
+		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
+
+		#######################################
+		# "Follow regulation" rule. # Run dialogue against culture.
+		if not following_regulation:
+			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+		#######################################
+		# "Visit new roads" rule
+		x, y = self.grid.agent_position
+		visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
+		if visiting_old_cell: # already visited cell
+			return null_reward(is_terminal=False, label='not_visiting_new_roads')
+		#######################################
+		# "Move forward" rule
+		return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward',explanation_list))

@@ -128,7 +128,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 						key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())
 					),)
 				elif self._cluster_selection_policy == 'min':
-					sub_type_list = (max(
+					sub_type_list = (min(
 						batch_type, 
 						key=lambda x: (self.replay_buffers[policy_id].get_cluster_size(x),random.random())
 					),)
