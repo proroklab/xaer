@@ -425,7 +425,7 @@ class GraphDrive(gym.Env):
 			self.viewer.imshow(img)
 			return self.viewer.isopen
 				
-	def frequent_reward_v1(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+	def frequent_reward_v1(self, visiting_new_road, old_goal_junction, old_car_point): # GOOD
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -471,7 +471,7 @@ class GraphDrive(gym.Env):
 		# "Move forward" rule
 		return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward', explanation_list))
 
-	def frequent_reward_v2(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+	def frequent_reward_v2(self, visiting_new_road, old_goal_junction, old_car_point): # BAD
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -517,7 +517,7 @@ class GraphDrive(gym.Env):
 		# "Move forward" rule
 		return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
 
-	def frequent_reward_v3(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+	def frequent_reward_v3(self, visiting_new_road, old_goal_junction, old_car_point): # GOOD
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -563,7 +563,7 @@ class GraphDrive(gym.Env):
 		# "Move forward" rule
 		return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward', explanation_list))
 
-	def sparse_reward_v1(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+	def sparse_reward_v1(self, visiting_new_road, old_goal_junction, old_car_point): # GOOD
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -604,7 +604,7 @@ class GraphDrive(gym.Env):
 		self.last_explanation_list = explanation_list
 		return null_reward(is_terminal=False, label=explanation_list_with_label('moving_forward',explanation_list))
 
-	def sparse_reward_v2(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+	def sparse_reward_v2(self, visiting_new_road, old_goal_junction, old_car_point): # GOOD
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -645,7 +645,7 @@ class GraphDrive(gym.Env):
 		self.last_explanation_list = explanation_list
 		return null_reward(is_terminal=False, label=explanation_list_with_label('moving_forward',explanation_list))
 
-	def sparse_reward_v3(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+	def sparse_reward_v3(self, visiting_new_road, old_goal_junction, old_car_point): # BAD
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -686,7 +686,7 @@ class GraphDrive(gym.Env):
 		self.last_explanation_list = explanation_list
 		return null_reward(is_terminal=False, label='moving_forward')
 
-	def sparse_reward_v4(self, visiting_new_road, old_goal_junction, old_car_point): # to finish
+	def sparse_reward_v4(self, visiting_new_road, old_goal_junction, old_car_point): # BAD
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
