@@ -6,7 +6,7 @@ Detailed documentation:
 https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
 """  # noqa: E501
 from more_itertools import unique_everseen
-from ray.rllib.agents.dqn.dqn import calculate_rr_weights, DQNTrainer, TrainOneStep, UpdateTargetNetwork, Concurrently, StandardMetricsReporting, LEARNER_STATS_KEY, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
+from ray.rllib.agents.dqn.dqn import calculate_rr_weights, DQNTrainer, Concurrently, StandardMetricsReporting, LEARNER_STATS_KEY, DEFAULT_CONFIG as DQN_DEFAULT_CONFIG
 from ray.rllib.agents.dqn.dqn_torch_policy import DQNTorchPolicy, compute_q_values as torch_compute_q_values, torch, F, FLOAT_MIN
 from ray.rllib.agents.dqn.dqn_tf_policy import DQNTFPolicy, compute_q_values as tf_compute_q_values, tf, _adjust_nstep
 from ray.rllib.utils.tf_ops import explained_variance as tf_explained_variance
@@ -14,6 +14,7 @@ from ray.rllib.utils.torch_ops import explained_variance as torch_explained_vari
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 from ray.rllib.policy.view_requirement import ViewRequirement
+from ray.rllib.execution.train_ops import TrainOneStep, UpdateTargetNetwork, TrainTFMultiGPU
 
 from xarl.experience_buffers.replay_ops import StoreToReplayBuffer, Replay, get_clustered_replay_buffer, assign_types, add_buffer_metrics, clean_batch
 from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
@@ -51,6 +52,7 @@ XADQN_EXTRA_OPTIONS = {
 	"cluster_with_episode_type": False, # Perhaps of most use with sparse-reward environments. Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
+	"sample_also_from_buffer_of_recent_elements": False, # Whether to sample in a randomised fashion from both a non-prioritised buffer of most recent elements and the XA prioritised buffer.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XADQN_DEFAULT_CONFIG = DQNTrainer.merge_trainer_configs(
@@ -125,6 +127,7 @@ def xadqn_execution_plan(workers, config):
 		samples = clean_batch(samples, keys_to_keep=[priority_id,'infos'], keep_only_keys_to_keep=True)
 		if priority_id == "td_errors":
 			for policy_id, info in info_dict.items():
+				# samples.policy_batches[policy_id].set_get_interceptor(None)
 				samples.policy_batches[policy_id]["td_errors"] = info.get("td_error", info[LEARNER_STATS_KEY].get("td_error"))
 		# IMPORTANT: split train-batch into replay-batches, using batch_uid, before updating priorities
 		policy_batch_list = []
@@ -150,6 +153,17 @@ def xadqn_execution_plan(workers, config):
 			local_replay_buffer.update_priorities(policy_batch)
 		return info_dict
 	post_fn = config.get("before_learn_on_batch") or (lambda b, *a: b)
+	if config.get("simple_optimizer",True):
+		train_step_op = TrainOneStep(workers)
+	else:
+		train_step_op = TrainTFMultiGPU(
+			workers=workers,
+			sgd_minibatch_size=config["train_batch_size"],
+			num_sgd_iter=1,
+			num_gpus=config["num_gpus"],
+			shuffle_sequences=True,
+			_fake_gpus=config["_fake_gpus"],
+			framework=config.get("framework"))
 	replay_op = Replay(
 			local_buffer=local_replay_buffer, 
 			replay_batch_size=replay_batch_size, 
@@ -158,7 +172,7 @@ def xadqn_execution_plan(workers, config):
 		.flatten() \
 		.combine(ConcatBatches(min_batch_size=replay_batch_size)) \
 		.for_each(lambda x: post_fn(x, workers, config)) \
-		.for_each(TrainOneStep(workers)) \
+		.for_each(train_step_op) \
 		.for_each(update_priorities) \
 		.for_each(UpdateTargetNetwork(workers, config["target_network_update_freq"]))
 

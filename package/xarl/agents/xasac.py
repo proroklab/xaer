@@ -10,6 +10,8 @@ from xarl.agents.xadqn import xa_postprocess_nstep_and_prio, xadqn_execution_pla
 from ray.rllib.agents.sac.sac import SACTrainer, DEFAULT_CONFIG as SAC_DEFAULT_CONFIG
 from ray.rllib.agents.sac.sac_torch_policy import SACTorchPolicy
 from ray.rllib.agents.sac.sac_tf_policy import SACTFPolicy
+from xarl.agents.xasac_loss.xasac_tf_loss import xasac_actor_critic_loss as tf_xasac_actor_critic_loss
+from xarl.agents.xasac_loss.xasac_torch_loss import xasac_actor_critic_loss as torch_xasac_actor_critic_loss
 
 XASAC_DEFAULT_CONFIG = SACTrainer.merge_trainer_configs(
 	SAC_DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
@@ -24,10 +26,12 @@ XASAC_DEFAULT_CONFIG = SACTrainer.merge_trainer_configs(
 XASACTFPolicy = SACTFPolicy.with_updates(
 	name="XASACTFPolicy",
 	postprocess_fn=xa_postprocess_nstep_and_prio,
+	loss_fn=tf_xasac_actor_critic_loss,
 )
 XASACTorchPolicy = SACTorchPolicy.with_updates(
 	name="XASACTorchPolicy",
 	postprocess_fn=xa_postprocess_nstep_and_prio,
+	loss_fn=torch_xasac_actor_critic_loss,
 )
 
 ########################

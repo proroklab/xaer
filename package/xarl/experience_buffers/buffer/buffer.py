@@ -91,7 +91,7 @@ class Buffer(object):
 		return not self.has_atleast(1, type_)
 		
 	def get_type(self, type_id):
-		return self.types[type_id]
+		return self.types.get(type_id, None)
 
 	def add(self, batch, type_id=0, **args): # put batch into buffer
 		self._add_type_if_not_exist(type_id)

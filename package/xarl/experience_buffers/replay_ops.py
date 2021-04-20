@@ -21,6 +21,7 @@ def get_clustered_replay_buffer(config):
 		learning_starts=config["learning_starts"], 
 		seed=config["seed"],
 		cluster_selection_policy=config["cluster_selection_policy"],
+		sample_also_from_buffer_of_recent_elements=config["sample_also_from_buffer_of_recent_elements"],
 	)
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme
@@ -108,14 +109,13 @@ class MixInReplay:
 	number of replay slots.
 	"""
 
-	def __init__(self, local_buffer, replay_proportion, cluster_overview_size=None, update_replayed_fn=None, sample_also_from_buffer_of_recent_elements=False, seed=None):
+	def __init__(self, local_buffer, replay_proportion, cluster_overview_size=None, update_replayed_fn=None, seed=None):
 		random.seed(seed)
 		np.random.seed(seed)
 		self.replay_buffer = local_buffer
 		self.replay_proportion = replay_proportion
 		self.update_replayed_fn = update_replayed_fn
 		self.cluster_overview_size = cluster_overview_size
-		self.buffer_of_recent_elements = SimpleReplayBuffer(local_buffer.buffer_size, seed=seed) if sample_also_from_buffer_of_recent_elements else None
 
 	def __call__(self, sample_batch):
 		# n = np.random.poisson(self.replay_proportion)
@@ -132,22 +132,11 @@ class MixInReplay:
 		self.replay_buffer.add_batch(sample_batch) # Set update_prioritisation_weights=True for updating importance weights
 		# Sample n batches from the buffer
 		if self.replay_buffer.can_replay() and n > 0:
-			if self.buffer_of_recent_elements and self.buffer_of_recent_elements.can_replay():
-				n_of_old_elements = random.randint(0,n)
-				if n_of_old_elements > 0:
-					output_batches += self.replay_buffer.replay(
-						batch_count=n_of_old_elements,
-						cluster_overview_size=self.cluster_overview_size,
-						update_replayed_fn=self.update_replayed_fn,
-					)
-				if n_of_old_elements != n:
-					output_batches += self.buffer_of_recent_elements.replay(n-n_of_old_elements)
-			else:
-				output_batches += self.replay_buffer.replay(
-					batch_count=n,
-					cluster_overview_size=self.cluster_overview_size,
-					update_replayed_fn=self.update_replayed_fn,
-				)
+			output_batches += self.replay_buffer.replay(
+				batch_count=n,
+				cluster_overview_size=self.cluster_overview_size,
+				update_replayed_fn=self.update_replayed_fn,
+			)
 		return output_batches
 
 class BatchLearnerThread(LearnerThread):

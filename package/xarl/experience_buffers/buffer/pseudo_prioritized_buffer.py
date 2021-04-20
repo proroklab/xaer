@@ -87,7 +87,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self.batches.append([])
 		new_sample_priority_tree = SumSegmentTree(
 			self._it_capacity, 
-			with_min_tree=self._prioritization_importance_beta or self._priority_can_be_negative or (self._prioritized_drop_probability > 0 and not self._global_distribution_matching), 
+			with_min_tree=self._prioritization_importance_beta or self._cluster_prioritisation_strategy is not None or self._priority_can_be_negative or (self._prioritized_drop_probability > 0 and not self._global_distribution_matching), 
 			with_max_tree=self._priority_can_be_negative, 
 		)
 		self._sample_priority_tree.append(new_sample_priority_tree)
@@ -261,20 +261,27 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._add_type_if_not_exist(type_id)
 		type_ = self.get_type(type_id)
 		type_batch = self.batches[type_]
-		idx = None
-		if self._is_full_cluster(type_): # this cluster is full, remove one element from it
-			idx = self.get_less_important_batch(type_)
-		elif self.is_full_buffer(): # if full buffer, remove the less important batch in the whole buffer
+		# idx = None
+		# if self._is_full_cluster(type_): # this cluster is full, remove one element from it
+		# 	idx = self.get_less_important_batch(type_)
+		# elif self.is_full_buffer(): # if full buffer, remove the less important batch in the whole buffer
+		# 	self.remove_less_important_batches(1)
+		# # Add new element to buffer
+		# if idx is None:
+		# 	idx = len(type_batch)
+		# 	type_batch.append(batch)
+		# 	if self._weight_importance_by_update_time:
+		# 		self._update_times[type_].append(self.timesteps)
+		# else:
+		# 	del get_batch_indexes(type_batch[idx])[type_id]
+		# 	type_batch[idx] = batch
+		if self.is_full_buffer(): # if full buffer, remove the less important batch in the whole buffer
 			self.remove_less_important_batches(1)
 		# Add new element to buffer
-		if idx is None:
-			idx = len(type_batch)
-			type_batch.append(batch)
-			if self._weight_importance_by_update_time:
-				self._update_times[type_].append(self.timesteps)
-		else:
-			del get_batch_indexes(type_batch[idx])[type_id]
-			type_batch[idx] = batch
+		idx = len(type_batch)
+		type_batch.append(batch)
+		if self._weight_importance_by_update_time:
+			self._update_times[type_].append(self.timesteps)
 		# Update batch infos
 		batch_infos = get_batch_infos(batch)
 		if 'batch_index' not in batch_infos:
@@ -355,7 +362,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		priorities = np.clip(priorities, min_priority, max_priority)
 		upper_max_priority = max_priority*((1+eta) if max_priority >= 0 else (1-eta))
 		if upper_max_priority == min_priority: 
-			return 1.
+			return np.ones_like(priorities)
 		assert upper_max_priority > min_priority, f"upper_max_priority must be > min_priority, but it is {upper_max_priority} while min_priority is {min_priority}"
 		return (upper_max_priority - priorities)/(upper_max_priority - min_priority) # in (0,1]: the closer is cluster_sum_tree[idx] to max_priority, the lower is the weight
 
@@ -393,6 +400,8 @@ class PseudoPrioritizedBuffer(Buffer):
 	
 	def update_priority(self, new_batch, idx, type_id=0): # O(log)
 		type_ = self.get_type(type_id)
+		if type_ is None:
+			return
 		if idx >= len(self.batches[type_]):
 			return
 		if get_batch_uid(new_batch) != get_batch_uid(self.batches[type_][idx]):

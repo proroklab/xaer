@@ -218,7 +218,6 @@ def xappo_execution_plan(workers, config):
 			cluster_overview_size=config["cluster_overview_size"],
 			# update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory) if not config['vtrace'] else lambda x:x,
 			update_replayed_fn=get_update_replayed_batch_fn(local_replay_buffer, local_worker, xappo_postprocess_trajectory),
-			sample_also_from_buffer_of_recent_elements=config["sample_also_from_buffer_of_recent_elements"],
 			seed=config["seed"],
 		)) \
 		.flatten() \

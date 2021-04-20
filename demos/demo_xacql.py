@@ -8,19 +8,15 @@ import ray
 import time
 from xarl.utils.workflow import train
 
-from xarl.agents.xadqn import XADQNTrainer, XADQN_DEFAULT_CONFIG
+from xarl.agents.xacql import XACQLTrainer, XACQL_DEFAULT_CONFIG
 from environments import *
-from xarl.models.dqn import TFAdaptiveMultiHeadDQN
-from ray.rllib.models import ModelCatalog
-# Register the models to use.
-ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDQN)
 
-# SELECT_ENV = "Taxi-v3"
-# SELECT_ENV = "ToyExample-V0"
-SELECT_ENV = "GridDrive-Hard-V3"
+# SELECT_ENV = "CescoDrive-V1"
+SELECT_ENV = "GraphDrive-Hard-V3"
 
-CONFIG = XADQN_DEFAULT_CONFIG.copy()
+CONFIG = XACQL_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
@@ -36,13 +32,8 @@ CONFIG.update({
 	"prioritized_replay_beta": 0.4, # The smaller, the stronger is over-sampling
 	"prioritized_replay_eps": 1e-6,
 	###########################
-	"grad_clip": None,
-	"dueling": True,
-	"double_q": True,
-	"num_atoms": 21,
-	"v_max": 2**5,
-	"v_min": -1,
-	##################################
+	# "tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
+	###########################
 	"buffer_options": {
 		'priority_id': 'td_errors', # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
 		'priority_lower_limit': 0, # A value lower than the lowest possible priority. It depends on the priority_id. By default in DQN and DDPG it is td_error 0, while in PPO it is gain None.
@@ -75,4 +66,4 @@ CONFIG["callbacks"] = CustomEnvironmentCallbacks
 ray.shutdown()
 ray.init(ignore_reinit_error=True)
 
-train(XADQNTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e7, stop_training_after_n_step=2e7)
+train(XACQLTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e7, stop_training_after_n_step=4e7)
