@@ -26,7 +26,8 @@ CONFIG.update({
 	"rollout_fragment_length": 2**3, # Number of transitions per batch in the experience buffer
 	"train_batch_size": 2**9, # Number of transitions per train-batch
 	"replay_proportion": 4, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
-	"replay_buffer_num_slots": 2**12, # Maximum number of batches stored in the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
+	"replay_buffer_num_slots": 2**14, # Maximum number of batches stored in the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
+	"learning_starts": 2**14, # How many steps of the model to sample before learning starts.
 })
 CONFIG["callbacks"] = CustomEnvironmentCallbacks
 

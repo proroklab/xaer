@@ -35,6 +35,7 @@ CONFIG.update({
 	"prioritized_replay_alpha": 0.6,
 	"prioritized_replay_beta": 0.4, # The smaller, the stronger is over-sampling
 	"prioritized_replay_eps": 1e-6,
+	"learning_starts": 2**14, # How many steps of the model to sample before learning starts.
 	###########################
 	"grad_clip": None,
 	"dueling": True,

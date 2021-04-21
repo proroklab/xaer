@@ -18,21 +18,16 @@ CONFIG = XACQL_DEFAULT_CONFIG.copy()
 CONFIG.update({
 	"framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
-	# "model": {
-	# 	"custom_model": "adaptive_multihead_network",
-	# },
-	"rollout_fragment_length": 2**6, # Divide episodes into fragments of this many steps each during rollouts.
-	"replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
-	"train_batch_size": 2**8, # Number of transitions per train-batch
-	# "batch_mode": "truncate_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
+	"lr": 3e-5, # Default learning rate used in the paper.
 	###########################
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
 	"prioritized_replay_alpha": 0.6,
 	"prioritized_replay_beta": 0.4, # The smaller, the stronger is over-sampling
 	"prioritized_replay_eps": 1e-6,
+	"learning_starts": 2**14, # How many steps of the model to sample before learning starts.
 	###########################
-	# "tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
+	"tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
 	###########################
 	"buffer_options": {
 		'priority_id': 'td_errors', # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.

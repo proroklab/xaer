@@ -13,9 +13,10 @@ from ray.rllib.agents.sac.sac_tf_policy import SACTFPolicy
 from xarl.agents.xasac_loss.xasac_tf_loss import xasac_actor_critic_loss as tf_xasac_actor_critic_loss
 from xarl.agents.xasac_loss.xasac_torch_loss import xasac_actor_critic_loss as torch_xasac_actor_critic_loss
 
+XASAC_EXTRA_OPTIONS = {**XADQN_EXTRA_OPTIONS,'tau':1e-4}
 XASAC_DEFAULT_CONFIG = SACTrainer.merge_trainer_configs(
 	SAC_DEFAULT_CONFIG, # For more details, see here: https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
-	XADQN_EXTRA_OPTIONS,
+	XASAC_EXTRA_OPTIONS,
 	_allow_unknown_configs=True
 )
 
