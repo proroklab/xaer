@@ -19,8 +19,8 @@ from ray.rllib.evaluation.postprocessing import compute_advantages
 
 from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn, xa_make_learner_thread, add_buffer_metrics
 from xarl.utils.misc import accumulate
-from xarl.agents.xappo_loss.xappo_tf_loss import xappo_surrogate_loss as tf_xappo_surrogate_loss
-from xarl.agents.xappo_loss.xappo_torch_loss import xappo_surrogate_loss as torch_xappo_surrogate_loss
+from xarl.agents.xappo.xappo_tf_loss import xappo_surrogate_loss as tf_xappo_surrogate_loss
+from xarl.agents.xappo.xappo_torch_loss import xappo_surrogate_loss as torch_xappo_surrogate_loss
 from xarl.experience_buffers.replay_buffer import get_batch_infos, get_batch_uid
 import random
 import numpy as np

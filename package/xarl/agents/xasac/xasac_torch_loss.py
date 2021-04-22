@@ -1,35 +1,10 @@
 """
 PyTorch policy class used for SAC.
 """
+from ray.rllib.agents.sac.sac_torch_policy import *
+from ray.rllib.agents.sac.sac_torch_policy import _get_dist_class
 
-import gym
-from gym.spaces import Discrete
-import logging
-from typing import Dict, List, Optional, Tuple, Type, Union
-
-import ray
-import ray.experimental.tf_utils
-from ray.rllib.agents.a3c.a3c_torch_policy import apply_grad_clipping
-from ray.rllib.agents.sac.sac_tf_policy import build_sac_model, \
-	postprocess_trajectory, validate_spaces
-from ray.rllib.agents.dqn.dqn_tf_policy import PRIO_WEIGHTS
-from ray.rllib.models.modelv2 import ModelV2
-from ray.rllib.models.torch.torch_action_dist import \
-	TorchDistributionWrapper, TorchDirichlet
-from ray.rllib.policy.policy import Policy
-from ray.rllib.policy.sample_batch import SampleBatch
-from ray.rllib.policy.torch_policy_template import build_torch_policy
-from ray.rllib.models.torch.torch_action_dist import (
-	TorchCategorical, TorchSquashedGaussian, TorchDiagGaussian, TorchBeta)
-from ray.rllib.utils.framework import try_import_torch
-from ray.rllib.utils.spaces.simplex import Simplex
-from ray.rllib.utils.torch_ops import huber_loss
-from ray.rllib.utils.typing import LocalOptimizer, TensorType, \
-	TrainerConfigDict
-
-from ray.rllib.agents.sac.sac_torch_policy import _get_dist_class, torch
-
-def xasac_actor_critic_loss(policy: Policy, model: ModelV2,dist_class: Type[TorchDistributionWrapper],train_batch: SampleBatch) -> Union[TensorType, List[TensorType]]:
+def xasac_actor_critic_loss(policy, model, dist_class, train_batch):
 	# Should be True only for debugging purposes (e.g. test cases)!
 	deterministic = policy.config["_deterministic_loss"]
 
@@ -166,8 +141,7 @@ def xasac_actor_critic_loss(policy: Policy, model: ModelV2,dist_class: Type[Torc
 					alpha.detach() * log_pis_t - q_t.detach()),
 				dim=-1))
 	else:
-		alpha_loss = -torch.mean(train_batch[PRIO_WEIGHTS] * model.log_alpha *
-								 (log_pis_t + model.target_entropy).detach())
+		alpha_loss = -torch.mean(train_batch[PRIO_WEIGHTS] * model.log_alpha * (log_pis_t + model.target_entropy).detach())
 		# Note: Do not detach q_t_det_policy here b/c is depends partly
 		# on the policy vars (policy sample pushed through Q-net).
 		# However, we must make sure `actor_loss` is not used to update
@@ -178,7 +152,12 @@ def xasac_actor_critic_loss(policy: Policy, model: ModelV2,dist_class: Type[Torc
 	policy.q_t = q_t
 	policy.policy_t = policy_t
 	policy.log_pis_t = log_pis_t
-	policy.td_error = td_error
+
+	# Store td-error in model, such that for multi-GPU, we do not override
+	# them during the parallel loss phase. TD-error tensor in final stats
+	# can then be concatenated and retrieved for each individual batch item.
+	model.td_error = td_error
+
 	policy.actor_loss = actor_loss
 	policy.critic_loss = critic_loss
 	policy.alpha_loss = alpha_loss
@@ -189,4 +168,3 @@ def xasac_actor_critic_loss(policy: Policy, model: ModelV2,dist_class: Type[Torc
 	# Return all loss terms corresponding to our optimizers.
 	return tuple([policy.actor_loss] + policy.critic_loss +
 				 [policy.alpha_loss])
-

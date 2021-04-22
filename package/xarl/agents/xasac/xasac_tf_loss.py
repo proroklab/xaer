@@ -1,29 +1,10 @@
 """
 TensorFlow policy class used for SAC.
 """
+from ray.rllib.agents.sac.sac_tf_policy import *
+from ray.rllib.agents.sac.sac_tf_policy import _get_dist_class
 
-import gym
-from gym.spaces import Box, Discrete
-from functools import partial
-import logging
-from typing import Dict, List, Optional, Tuple, Type, Union
-
-import ray
-import ray.experimental.tf_utils
-from ray.rllib.agents.dqn.dqn_tf_policy import postprocess_nstep_and_prio, PRIO_WEIGHTS
-from ray.rllib.models.modelv2 import ModelV2
-from ray.rllib.policy.policy import Policy
-from ray.rllib.policy.sample_batch import SampleBatch
-from ray.rllib.policy.tf_policy_template import build_tf_policy
-from ray.rllib.utils.error import UnsupportedSpaceException
-from ray.rllib.utils.framework import get_variable, try_import_tf, try_import_tfp
-from ray.rllib.utils.spaces.simplex import Simplex
-from ray.rllib.utils.tf_ops import huber_loss
-from ray.rllib.utils.typing import AgentID, LocalOptimizer, ModelGradients, TensorType, TrainerConfigDict
-
-from ray.rllib.agents.sac.sac_tf_policy import _get_dist_class, TFActionDistribution, tf
-
-def xasac_actor_critic_loss(policy: Policy, model: ModelV2, dist_class: Type[TFActionDistribution], train_batch: SampleBatch) -> Union[TensorType, List[TensorType]]:
+def xasac_actor_critic_loss(policy, model, dist_class, train_batch):
 	# Should be True only for debugging purposes (e.g. test cases)!
 	deterministic = policy.config["_deterministic_loss"]
 
@@ -125,7 +106,7 @@ def xasac_actor_critic_loss(policy: Policy, model: ModelV2, dist_class: Type[TFA
 
 	# Compute RHS of bellman equation for the Q-loss (critic(s)).
 	q_t_selected_target = tf.stop_gradient(
-		train_batch[SampleBatch.REWARDS] +
+		tf.cast(train_batch[SampleBatch.REWARDS], tf.float32) +
 		policy.config["gamma"]**policy.config["n_step"] * q_tp1_best_masked)
 
 	# Compute the TD-error (potentially clipped).
@@ -140,8 +121,7 @@ def xasac_actor_critic_loss(policy: Policy, model: ModelV2, dist_class: Type[TFA
 	prio_weights = tf.cast(train_batch[PRIO_WEIGHTS], tf.float32)
 	critic_loss = [tf.reduce_mean(prio_weights * huber_loss(base_td_error))]
 	if policy.config["twin_q"]:
-		critic_loss.append(
-			tf.reduce_mean(prio_weights * huber_loss(twin_td_error)))
+		critic_loss.append(tf.reduce_mean(prio_weights * huber_loss(twin_td_error)))
 
 	# Alpha- and actor losses.
 	# Note: In the papers, alpha is used directly, here we take the log.
@@ -163,10 +143,7 @@ def xasac_actor_critic_loss(policy: Policy, model: ModelV2, dist_class: Type[TFA
 					model.alpha * log_pis_t - tf.stop_gradient(q_t)),
 				axis=-1))
 	else:
-		alpha_loss = -tf.reduce_mean(
-			prio_weights * 
-			model.log_alpha *
-			tf.stop_gradient(log_pis_t + model.target_entropy))
+		alpha_loss = -tf.reduce_mean(prio_weights * model.log_alpha * tf.stop_gradient(log_pis_t + model.target_entropy))
 		actor_loss = tf.reduce_mean(prio_weights * (model.alpha * log_pis_t - q_t_det_policy))
 
 	# Save for stats function.
@@ -182,4 +159,3 @@ def xasac_actor_critic_loss(policy: Policy, model: ModelV2, dist_class: Type[TFA
 	# In a custom apply op we handle the losses separately, but return them
 	# combined in one loss here.
 	return actor_loss + tf.math.add_n(critic_loss) + alpha_loss
-

@@ -10,8 +10,8 @@ from xarl.agents.xadqn import xa_postprocess_nstep_and_prio, xadqn_execution_pla
 from ray.rllib.agents.sac.sac import SACTrainer, DEFAULT_CONFIG as SAC_DEFAULT_CONFIG
 from ray.rllib.agents.sac.sac_torch_policy import SACTorchPolicy
 from ray.rllib.agents.sac.sac_tf_policy import SACTFPolicy
-from xarl.agents.xasac_loss.xasac_tf_loss import xasac_actor_critic_loss as tf_xasac_actor_critic_loss
-from xarl.agents.xasac_loss.xasac_torch_loss import xasac_actor_critic_loss as torch_xasac_actor_critic_loss
+from xarl.agents.xasac.xasac_tf_loss import xasac_actor_critic_loss as tf_xasac_actor_critic_loss
+from xarl.agents.xasac.xasac_torch_loss import xasac_actor_critic_loss as torch_xasac_actor_critic_loss
 
 XASAC_EXTRA_OPTIONS = {**XADQN_EXTRA_OPTIONS,'tau':1e-4}
 XASAC_DEFAULT_CONFIG = SACTrainer.merge_trainer_configs(
