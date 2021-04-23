@@ -32,9 +32,9 @@ register_env("GraphDrive-Easy-V4", lambda config: GraphDrive({"reward_fn": 'freq
 register_env("GraphDrive-Medium-V4", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v4', "culture_level": "Medium"}))
 register_env("GraphDrive-Hard-V4", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v4', "culture_level": "Hard"}))
 ## V5
-register_env("GraphDrive-Easy-V5", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v5', "culture_level": "Easy"}))
-register_env("GraphDrive-Medium-V5", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v5', "culture_level": "Medium"}))
-register_env("GraphDrive-Hard-V5", lambda config: GraphDrive({"reward_fn": 'frequent_reward_v5', "culture_level": "Hard"}))
+register_env("GraphDrive-Easy-V5", lambda config: GraphDrive({"reward_fn": 'frequent_reward_step_multiplied_by_junctions', "culture_level": "Easy"}))
+register_env("GraphDrive-Medium-V5", lambda config: GraphDrive({"reward_fn": 'frequent_reward_step_multiplied_by_junctions', "culture_level": "Medium"}))
+register_env("GraphDrive-Hard-V5", lambda config: GraphDrive({"reward_fn": 'frequent_reward_step_multiplied_by_junctions', "culture_level": "Hard"}))
 ## V1
 register_env("GraphDrive-Easy-Sparse-V1", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v1', "culture_level": "Easy"}))
 register_env("GraphDrive-Medium-Sparse-V1", lambda config: GraphDrive({"reward_fn": 'sparse_reward_v1', "culture_level": "Medium"}))

@@ -29,6 +29,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		prioritized_drop_probability=0.5, 
 		global_distribution_matching=False, 
 		cluster_prioritisation_strategy='highest',
+		cluster_prioritization_alpha=1,
 		cluster_level_weighting=True,
 		min_cluster_size_proportion=0.5,
 		priority_lower_limit=None,
@@ -49,6 +50,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._prioritized_drop_probability = prioritized_drop_probability # remove the worst batch with this probability otherwise remove the oldest one
 		self._global_distribution_matching = global_distribution_matching
 		self._cluster_prioritisation_strategy = cluster_prioritisation_strategy
+		self._cluster_prioritization_alpha = cluster_prioritization_alpha
 		self._cluster_level_weighting = cluster_level_weighting
 		self._min_cluster_size_proportion = min_cluster_size_proportion
 		self._weight_importance_by_update_time = self._max_age_window = max_age_window
@@ -185,20 +187,22 @@ class PseudoPrioritizedBuffer(Buffer):
 		return segment_tree.inserted_elements/max(map(self.count, self.type_values))
 
 	def get_cluster_priority(self, segment_tree, min_priority=0):
-		if segment_tree.inserted_elements == 0:
-			return 0
-		if self._cluster_prioritisation_strategy == 'weighted_avg':
-			avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
-			assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-			return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
-		elif self._cluster_prioritisation_strategy == 'avg':
-			avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
-			assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-			return avg_cluster_priority
-		# elif self._cluster_prioritisation_strategy == 'sum':
-		sum_cluster_priority = segment_tree.sum() - min_priority*segment_tree.inserted_elements # O(log)
-		assert sum_cluster_priority >= 0, f"sum_cluster_priority is {sum_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
-		return sum_cluster_priority
+		def build_full_priority():
+			if segment_tree.inserted_elements == 0:
+				return 0
+			if self._cluster_prioritisation_strategy == 'weighted_avg':
+				avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
+				assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+				return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
+			elif self._cluster_prioritisation_strategy == 'avg':
+				avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
+				assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+				return avg_cluster_priority
+			# elif self._cluster_prioritisation_strategy == 'sum':
+			sum_cluster_priority = segment_tree.sum() - min_priority*segment_tree.inserted_elements # O(log)
+			assert sum_cluster_priority >= 0, f"sum_cluster_priority is {sum_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+			return sum_cluster_priority
+		return build_full_priority()**self._cluster_prioritization_alpha
 
 	def get_cluster_capacity_dict(self):
 		return dict(map(

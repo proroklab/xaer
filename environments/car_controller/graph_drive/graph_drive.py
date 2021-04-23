@@ -609,7 +609,7 @@ class GraphDrive(gym.Env):
 		# "Move forward" rule
 		return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
 
-	def frequent_reward_v5(self, visiting_new_road, old_goal_junction, old_car_point): # BAD
+	def frequent_reward_step_multiplied_by_junctions(self, visiting_new_road, old_goal_junction, old_car_point): # BAD
 		def null_reward(is_terminal, label):
 			return (0, is_terminal, label)
 		def unitary_reward(is_positive, is_terminal, label):
@@ -617,9 +617,8 @@ class GraphDrive(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
 			# reward = self.speed
-			reward = 1 + self.speed/self.max_speed # in (0,1]
-			# reward = (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
-			# reward *= len(self.visited_junctions)
+			reward = (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+			reward *= len(self.visited_junctions)
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
 

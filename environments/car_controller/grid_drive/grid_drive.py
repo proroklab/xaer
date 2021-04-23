@@ -311,3 +311,29 @@ class GridDrive(gym.Env):
 		#######################################
 		# "Move forward" rule
 		return step_reward(is_positive=True, is_terminal=False, label=explanation_list_with_label('moving_forward',explanation_list))
+
+	# def frequent_reward_step_multiplied_by_junctions(self, following_regulation, explanation_list):
+	# 	def null_reward(is_terminal, label):
+	# 		return (0, is_terminal, label)
+	# 	def unitary_reward(is_positive, is_terminal, label):
+	# 		return (1 if is_positive else -1, is_terminal, label)
+	# 	def step_reward(is_positive, is_terminal, label):
+	# 		reward = (self.speed+1)/self.MAX_SPEED # in (0,1]
+	# 		reward *= (self.speed+1)/self.MAX_SPEED # in (0,1]
+	# 		return (reward if is_positive else -reward, is_terminal, label)
+	# 	explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
+
+	# 	#######################################
+	# 	# "Follow regulation" rule. # Run dialogue against culture.
+	# 	if not following_regulation:
+	# 		# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+	# 		return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+	# 	#######################################
+	# 	# "Visit new roads" rule
+	# 	x, y = self.grid.agent_position
+	# 	visiting_old_cell = self.grid_view[x][y][self.VISITED_CELL_GRID_IDX] > 0
+	# 	if visiting_old_cell: # already visited cell
+	# 		return null_reward(is_terminal=False, label='not_visiting_new_roads')
+	# 	#######################################
+	# 	# "Move forward" rule
+	# 	return step_reward(is_positive=True, is_terminal=False, label='moving_forward')
