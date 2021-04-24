@@ -62,7 +62,7 @@ XAPPO_EXTRA_OPTIONS = {
 	"cluster_with_episode_type": False, # Most useful with sparse-reward environments. Whether to cluster experience using information at episode-level. It requires "batch_mode" == "complete_episodes".
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
-	"sample_also_from_buffer_of_recent_elements": False, # Whether to sample in a randomised fashion from both a non-prioritised buffer of most recent elements and the XA prioritised buffer.
+	"sample_also_from_buffer_of_recent_elements": 0, # 0 for no, 1 for full. Whether to sample in a randomised fashion from both a non-prioritised buffer of most recent elements and the XA prioritised buffer.
 }
 # The combination of update_insertion_time_when_sampling==True and prioritized_drop_probability==0 helps mantaining in the buffer only those batches with the most up-to-date priorities.
 XAPPO_DEFAULT_CONFIG = APPOTrainer.merge_trainer_configs(

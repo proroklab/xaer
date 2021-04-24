@@ -12,10 +12,11 @@ from xarl.agents.xasac import XASACTrainer, XASAC_DEFAULT_CONFIG
 from environments import *
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Hard-V3"
+SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XASAC_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	# "framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
 	# "model": {
@@ -54,6 +55,7 @@ CONFIG.update({
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer instead of the one having the lowest timestamp. In DQN default is 0.
 		'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
 		'cluster_prioritisation_strategy': 'sum', # Whether to select which cluster to replay in a prioritised fashion -- Options: None; 'sum', 'avg', 'weighted_avg'.
+		'cluster_prioritization_alpha': 1, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'cluster_level_weighting': True, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
 		'max_age_window': None, # Consider only batches with a relative age within this age window, the younger is a batch the higher will be its importance. Set to None for no age weighting. # Idea from: Fedus, William, et al. "Revisiting fundamentals of experience replay." International Conference on Machine Learning. PMLR, 2020.
 	},
@@ -62,7 +64,7 @@ CONFIG.update({
 	"cluster_with_episode_type": False, # Useful with sparse-reward environments. Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
-	"sample_also_from_buffer_of_recent_elements": False, # Whether to sample in a randomised fashion from both a non-prioritised buffer of most recent elements and the XA prioritised buffer.
+	"sample_also_from_buffer_of_recent_elements": 0, # Whether to sample in a randomised fashion from both a non-prioritised buffer of most recent elements and the XA prioritised buffer.
 })
 CONFIG["callbacks"] = CustomEnvironmentCallbacks
 

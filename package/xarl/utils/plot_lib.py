@@ -163,7 +163,7 @@ def plot_files(url_list, name_list, figure_file, max_length=None):
 		length, line_example = get_length_and_line_example(url)
 		if max_length:
 			length = max_length
-		print(f"{name} has lenght {length}")
+		print(f"{name} has length {length}")
 		logs.append({'name': name, 'data': parse(url, length), 'length':length, 'line_example':line_example})
 	plot(logs, figure_file)
 		

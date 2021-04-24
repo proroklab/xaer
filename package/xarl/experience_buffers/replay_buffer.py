@@ -70,7 +70,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		learning_starts=1000, 
 		seed=None,
 		cluster_selection_policy='random_uniform',
-		sample_also_from_buffer_of_recent_elements=False,
+		sample_also_from_buffer_of_recent_elements=0,
 	):
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
@@ -90,7 +90,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			return PseudoPrioritizedBuffer(**self.buffer_options, seed=seed) if self.prioritized_replay else Buffer(**self.buffer_options, seed=seed)
 
 		self.replay_buffers = collections.defaultdict(new_buffer)
-		self.buffer_of_recent_elements = collections.defaultdict(new_buffer) if sample_also_from_buffer_of_recent_elements else None
+		self.ratio_of_old_elements = np.clip(1-sample_also_from_buffer_of_recent_elements, 0,1)
+		self.buffer_of_recent_elements = collections.defaultdict(new_buffer) if sample_also_from_buffer_of_recent_elements > 0 else None
 
 		# Metrics
 		self.add_batch_timer = TimerStat()
@@ -158,14 +159,14 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 	def replay(self, batch_count=1, cluster_overview_size=None, update_replayed_fn=None):
 		output_batches = []
 		if self.buffer_of_recent_elements is not None:
-			n_of_old_elements = random.randint(0,batch_count)
-			if n_of_old_elements > 0:
-				output_batches += self.replay_buffer(
-					self.replay_buffers,
-					n_of_old_elements,
-					cluster_overview_size,
-					update_replayed_fn,
-				)
+			n_of_old_elements = max(1,int(np.ceil(batch_count*self.ratio_of_old_elements))) #random.randint(0,batch_count)
+			# if n_of_old_elements > 0:
+			output_batches += self.replay_buffer(
+				self.replay_buffers,
+				n_of_old_elements,
+				cluster_overview_size,
+				update_replayed_fn,
+			)
 			if n_of_old_elements != batch_count:
 				output_batches += self.replay_buffer(
 					self.buffer_of_recent_elements,

@@ -17,11 +17,12 @@ ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMulti
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-V0"
 # SELECT_ENV = "CescoDrive-V1"
-# SELECT_ENV = "GridDrive-Hard-V3"
-SELECT_ENV = "GraphDrive-Hard-V3"
+# SELECT_ENV = "GridDrive-Hard"
+SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = APPO_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	"seed": 42, # This makes experiments reproducible.
 	"rollout_fragment_length": 2**3, # Number of transitions per batch in the experience buffer
 	"train_batch_size": 2**9, # Number of transitions per train-batch

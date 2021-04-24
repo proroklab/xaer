@@ -15,10 +15,11 @@ from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
 ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Hard-V3"
+SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = DDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	"seed": 42, # This makes experiments reproducible.
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",

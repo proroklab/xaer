@@ -12,10 +12,11 @@ from ray.rllib.agents.sac.sac import SACTrainer, DEFAULT_CONFIG as SAC_DEFAULT_C
 from environments import *
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Hard-V3"
+SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = SAC_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	# "framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
 	# "model": {
