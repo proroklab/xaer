@@ -21,7 +21,7 @@ def get_clustered_replay_buffer(config):
 		learning_starts=config["learning_starts"], 
 		seed=config["seed"],
 		cluster_selection_policy=config["cluster_selection_policy"],
-		sample_also_from_buffer_of_recent_elements=config["sample_also_from_buffer_of_recent_elements"],
+		ratio_of_samples_from_unclustered_buffer=config["ratio_of_samples_from_unclustered_buffer"],
 	)
 	clustering_scheme = eval(config["clustering_scheme"])()
 	return local_replay_buffer, clustering_scheme

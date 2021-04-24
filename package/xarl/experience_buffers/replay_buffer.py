@@ -70,7 +70,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 		learning_starts=1000, 
 		seed=None,
 		cluster_selection_policy='random_uniform',
-		sample_also_from_buffer_of_recent_elements=0,
+		ratio_of_samples_from_unclustered_buffer=0,
 	):
 		self.prioritized_replay = prioritized_replay
 		self.buffer_options = {} if not buffer_options else buffer_options
@@ -90,8 +90,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
 			return PseudoPrioritizedBuffer(**self.buffer_options, seed=seed) if self.prioritized_replay else Buffer(**self.buffer_options, seed=seed)
 
 		self.replay_buffers = collections.defaultdict(new_buffer)
-		self.ratio_of_old_elements = np.clip(1-sample_also_from_buffer_of_recent_elements, 0,1)
-		self.buffer_of_recent_elements = collections.defaultdict(new_buffer) if sample_also_from_buffer_of_recent_elements > 0 else None
+		self.ratio_of_old_elements = np.clip(1-ratio_of_samples_from_unclustered_buffer, 0,1)
+		self.buffer_of_recent_elements = collections.defaultdict(new_buffer) if ratio_of_samples_from_unclustered_buffer > 0 else None
 
 		# Metrics
 		self.add_batch_timer = TimerStat()
