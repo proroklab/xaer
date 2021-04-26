@@ -258,8 +258,7 @@ class GridDrive(gym.Env):
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
 		if not following_regulation:
-			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
-			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+			return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
 		#######################################
 		# "Visit new roads" rule
 		if self.visiting_old_cell: # already visited cell
@@ -281,8 +280,7 @@ class GridDrive(gym.Env):
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
 		if not following_regulation:
-			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
-			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+			return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
 		#######################################
 		# "Visit new roads" rule
 		if self.visiting_old_cell: # already visited cell
@@ -304,8 +302,7 @@ class GridDrive(gym.Env):
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
 		if not following_regulation:
-			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
-			return step_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
+			return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
 		#######################################
 		# "Visit new roads" rule
 		if self.visiting_old_cell: # already visited cell
@@ -328,7 +325,6 @@ class GridDrive(gym.Env):
 		#######################################
 		# "Follow regulation" rule. # Run dialogue against culture.
 		if not following_regulation:
-			# return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
 			return unitary_reward(is_positive=False, is_terminal=True, label=explanation_list_with_label('not_following_regulation',explanation_list))
 		#######################################
 		# "Visit new roads" rule
