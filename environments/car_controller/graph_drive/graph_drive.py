@@ -52,6 +52,11 @@ class GraphDrive(gym.Env):
 	assert min_junction_distance > 2*junction_radius, f"min_junction_distance has to be greater than {2*junction_radius} but it is {min_junction_distance}"
 	assert max_speed*mean_seconds_per_step < min_junction_distance, f"max_speed*mean_seconds_per_step has to be lower than {min_junction_distance} but it is {max_speed*mean_seconds_per_step}"
 
+	@property
+	def normalised_speed(self):
+		# return (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+		return self.speed/self.max_speed # in (0,1]
+
 	def get_state_shape(self):
 		return [
 			{  # Closest road to the agent (the one it's driving on), sorted by relative position
@@ -185,7 +190,6 @@ class GraphDrive(gym.Env):
 		self.culture.np_random = self.np_random
 		# print(0, self.np_random.random())
 		self.is_over = False
-		self.episode_statistics = {}
 		self._step = 0
 		self.seconds_per_step = self.get_step_seconds()
 		###########################
@@ -217,7 +221,7 @@ class GraphDrive(gym.Env):
 		self.last_state = self.get_state(car_point=self.car_point, car_orientation=self.car_orientation)
 		# init log variables
 		self.cumulative_reward = 0
-		self.avg_speed_per_steps = 0
+		self.sum_speed = 0
 		return self.last_state
 
 	@staticmethod
@@ -320,7 +324,7 @@ class GraphDrive(gym.Env):
 		self.last_reward_type = reward_type
 		# update cumulative reward
 		self.cumulative_reward += reward
-		self.avg_speed_per_steps += self.speed
+		self.sum_speed += self.speed
 		# update step
 		self._step += 1
 		out_of_time = self._step >= self.max_step
@@ -328,13 +332,11 @@ class GraphDrive(gym.Env):
 		info_dict = {'explanation':reward_type}
 		if terminal: # populate statistics
 			self.is_over = True
-			stats = {
-				"avg_speed": self.avg_speed_per_steps/self._step,
+			info_dict["stats_dict"] = {
+				"avg_speed": self.sum_speed/self._step,
 				"out_of_time": 1 if out_of_time else 0,
 				"visited_junctions": len(self.visited_junctions),
 			}
-			info_dict.update(stats)
-			info_dict["stats_dict"] = self.episode_statistics = stats
 		return [state, reward, terminal, info_dict]
 			
 	def get_info(self):
@@ -433,8 +435,7 @@ class GraphDrive(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
 			# reward = self.speed
-			reward = self.speed/self.max_speed # in (0,1]
-			# reward = (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+			reward = self.normalised_speed # in (0,1]
 			# reward *= len(self.visited_junctions)
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
@@ -479,8 +480,7 @@ class GraphDrive(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
 			# reward = self.speed
-			reward = self.speed/self.max_speed # in (0,1]
-			# reward = (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+			reward = self.normalised_speed # in (0,1]
 			# reward *= len(self.visited_junctions)
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
@@ -525,8 +525,7 @@ class GraphDrive(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
 			# reward = self.speed
-			reward = self.speed/self.max_speed # in (0,1]
-			# reward = (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+			reward = self.normalised_speed # in (0,1]
 			# reward *= len(self.visited_junctions)
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
@@ -571,8 +570,7 @@ class GraphDrive(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
 			# reward = self.speed
-			reward = self.speed/self.max_speed # in (0,1]
-			# reward = (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
+			reward = self.normalised_speed # in (0,1]
 			# reward *= len(self.visited_junctions)
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label
@@ -617,8 +615,7 @@ class GraphDrive(gym.Env):
 		def step_reward(is_positive, is_terminal, label):
 			# reward = np.mean(self.current_road_speed_list)
 			# reward = self.speed
-			# reward = (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
-			reward = self.speed/self.max_speed # in (0,1]
+			reward = self.normalised_speed # in (0,1]
 			reward *= len(self.visited_junctions)
 			return (reward if is_positive else -reward, is_terminal, label)
 		explanation_list_with_label = lambda _label,_explanation_list: list(map(lambda x:(_label,x), _explanation_list)) if _explanation_list else _label

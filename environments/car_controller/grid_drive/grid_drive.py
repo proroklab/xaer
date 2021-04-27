@@ -89,10 +89,12 @@ class GridDrive(gym.Env):
 		self.step_counter = 0
 
 	def reset(self):
+		self.is_over = False
 		self.culture.np_random = self.np_random
 		self.viewer = None
 		self.step_counter = 0
 		self.cumulated_return = 0
+		self.sum_speed = 0
 
 		self.grid = RoadGrid(self.GRID_DIMENSION, self.GRID_DIMENSION, self.culture)
 		self.grid_features = np.array(self.grid.get_features(), ndmin=3, dtype=np.int8)
@@ -112,9 +114,10 @@ class GridDrive(gym.Env):
 		self.step_counter += 1
 		self.direction = action_vector//self.MAX_GAPPED_SPEED
 		self.speed = (action_vector%self.MAX_GAPPED_SPEED)*self.SPEED_GAP
+		self.sum_speed += self.speed
 		# direction, gapped_speed = action_vector
 		old_x, old_y = self.grid.agent_position # get this before moving the agent
-		reward, terminal, explanatory_labels = self.reward_fn(*self.grid.move_agent(self.direction, self.speed))
+		reward, dead, explanatory_labels = self.reward_fn(*self.grid.move_agent(self.direction, self.speed))
 		self.cumulated_return += reward
 		if not self.visiting_old_cell:
 			self.visited_cells += 1 # increase it before setting the current position as visited, otherwise visiting_old_cell will always be true
@@ -123,11 +126,21 @@ class GridDrive(gym.Env):
 		self.grid_view[old_x][old_y][self.AGENT_CELL_GRID_IDX] = 0 # remove old position
 		self.grid_view[new_x][new_y][self.AGENT_CELL_GRID_IDX] = 1 # set new position
 		self.grid_view[new_x][new_y][self.VISITED_CELL_GRID_IDX] = 1 # set current cell as visited
+		info_dict = {'explanation': explanatory_labels}
+		out_of_time = self.step_counter >= self.MAX_STEP
+		terminated_episode = dead or out_of_time
+		if terminated_episode: # populate statistics
+			self.is_over = True
+			info_dict["stats_dict"] = {
+				"avg_speed": self.sum_speed/self.step_counter,
+				"out_of_time": 1 if out_of_time else 0,
+				"visited_cells": self.visited_cells,
+			}
 		return [
 			self.get_state(), # observation
 			reward, 
-			terminal or self.step_counter >= self.MAX_STEP, # terminal
-			{'explanation': explanatory_labels} # info_dict
+			terminated_episode,
+			info_dict,
 		]
 
 	def get_screen(self):  # RGB array
