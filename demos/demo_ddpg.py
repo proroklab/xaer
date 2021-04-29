@@ -24,9 +24,8 @@ CONFIG.update({
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
 	# },
-	# "rollout_fragment_length": 2**6, # Divide episodes into fragments of this many steps each during rollouts.
-	# "replay_sequence_length": 1, # The number of contiguous environment steps to replay at once. This may be set to greater than 1 to support recurrent models.
-	# "train_batch_size": 2**8, # Number of transitions per train-batch
+	"rollout_fragment_length": 1, # Divide episodes into fragments of this many steps each during rollouts. Default is 1.
+	"train_batch_size": 2**8, # Number of transitions per train-batch. Default is: 100 for TD3, 256 for SAC and DDPG, 32 for DQN, 500 for APPO.
 	# "batch_mode": "truncate_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	###########################
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.

@@ -22,10 +22,10 @@ import numbers
 font_dict = {'size':22}
 # matplotlib_rc('font', **font_dict)
 
-flags = SimpleNamespace(**{
-	"gif_speed": 0.25, # "GIF frame speed in seconds."
-	"max_plot_size": 10, # "Maximum number of points in the plot. The smaller it is, the less RAM is required. If the log file has more than max_plot_size points, then max_plot_size means of slices are used instead."
-})
+# flags = SimpleNamespace(**{
+# 	"gif_speed": 0.25, # "GIF frame speed in seconds."
+# 	"max_plot_size": 20, # "Maximum number of points in the plot. The smaller it is, the less RAM is required. If the log file has more than max_plot_size points, then max_plot_size means of slices are used instead."
+# })
 linestyle_set = ['-', '--', '-.', ':', '']
 color_set = list(mcolors.TABLEAU_COLORS)
 
@@ -35,7 +35,7 @@ def wrap_string(s, max_len=10):
 		for i in range(int(np.ceil(len(s)/max_len)))
 	]).strip()
 
-def plot(logs, figure_file):
+def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 	log_count = len(logs)
 	# Get plot types
 	stats = [None]*log_count
@@ -73,8 +73,8 @@ def plot(logs, figure_file):
 		if length < 2:
 			print(name, " has not enough data for a reasonable plot")
 			continue
-		if length > flags.max_plot_size:
-			plot_size = flags.max_plot_size
+		if length > max_plot_size:
+			plot_size = max_plot_size
 			data_per_plotpoint = length//plot_size
 		else:
 			plot_size = length
@@ -84,7 +84,11 @@ def plot(logs, figure_file):
 		y = {}
 		stat = stats[log_id]
 		for key in stat: # foreach statistic
-			y[key] = {"min":float("+inf"), "max":float("-inf"), "data":[], "std":[]}
+			y[key] = {
+				"min":float("+inf"), 
+				"max":float("-inf"), 
+				"quantiles":[]
+			}
 			x[key] = []
 		last_step = 0
 		for _ in range(plot_size):
@@ -113,10 +117,14 @@ def plot(logs, figure_file):
 			# add average to data for plotting
 			for key in stat: # foreach statistic
 				if len(values[key]) > 0:
-					y[key]["data"].append(np.mean(values[key]))
-					y[key]["std"].append(np.std(values[key]))
+					y[key]["quantiles"].append([
+						np.quantile(values[key],0.25), # lower quartile
+						np.quantile(values[key],0.5), # median
+						np.quantile(values[key],0.75), # upper quartile
+					])
 					x[key].append(last_step)
 		# Populate axes
+		print('#'*20)
 		print(name)
 		for j in range(ncols):
 			for i in range(nrows):
@@ -128,14 +136,13 @@ def plot(logs, figure_file):
 				ax = axes[ax_id]
 				y_key = y[key]
 				x_key = x[key]
-				# print stats
-				print("    ", y_key["min"], " < ", key, " < ", y_key["max"])
 				# ax
 				ax.set_ylabel(wrap_string(key, 20), fontdict=font_dict)
 				ax.set_xlabel('step', fontdict=font_dict)
 				# ax.plot(x, y, linewidth=linewidth, markersize=markersize)
-				y_key_mean = np.array(y_key["data"])
-				y_key_std = np.array(y_key["std"])
+				y_key_lower_quartile, y_key_median, y_key_upper_quartile = map(np.array, zip(*y_key["quantiles"]))
+				# print stats
+				print(f"    {key} is in [{y_key['min']},{y_key['max']}] with medians: {y_key_median}")
 				#===============================================================
 				# # build interpolators
 				# mean_interpolator = interp1d(x_key, y_key_mean, kind='linear')
@@ -146,9 +153,10 @@ def plot(logs, figure_file):
 				# ax.plot(xnew, mean_interpolator(xnew), label=name)
 				#===============================================================
 				# plot mean line
-				ax.plot(x_key, y_key_mean, label=name, linestyle=linestyle_set[log_id//len(color_set)], color=color_set[log_id%len(color_set)])
+				ax.plot(x_key, y_key_median, label=name, linestyle=linestyle_set[log_id//len(color_set)], color=color_set[log_id%len(color_set)])
 				# plot std range
-				ax.fill_between(x_key, y_key_mean-y_key_std, y_key_mean+y_key_std, alpha=0.25, color=color_set[log_id%len(color_set)])
+				if show_deviation:
+					ax.fill_between(x_key, y_key_lower_quartile, y_key_upper_quartile, alpha=0.25, color=color_set[log_id%len(color_set)])
 				# show legend
 				ax.legend()
 				# display grid
@@ -157,7 +165,7 @@ def plot(logs, figure_file):
 	print("Plot figure saved in ", figure_file)
 	figure = None
 
-def plot_files(url_list, name_list, figure_file, max_length=None):
+def plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False):
 	logs = []
 	for url,name in zip(url_list,name_list):
 		length, line_example = get_length_and_line_example(url)
@@ -165,7 +173,7 @@ def plot_files(url_list, name_list, figure_file, max_length=None):
 			length = max_length
 		print(f"{name} has length {length}")
 		logs.append({'name': name, 'data': parse(url, length), 'length':length, 'line_example':line_example})
-	plot(logs, figure_file)
+	plot(logs, figure_file, max_plot_size, show_deviation)
 		
 def get_length_and_line_example(file):
 	try:
@@ -184,9 +192,10 @@ def parse_line(line,i=0):
 	val_dict = json.loads(line)
 	step = val_dict["info"]["num_steps_sampled"] # "num_steps_sampled", "num_steps_trained"
 	obj = {
-		k:val_dict[k] 
-		for k in ["episode_reward_mean","episode_reward_max","episode_reward_min","episode_len_mean"]
+		"episode_reward_median": np.median(val_dict["hist_stats"]["episode_reward"]),
 	}
+	for k in ["episode_reward_mean","episode_reward_max","episode_reward_min","episode_len_mean"]:
+		obj[k] = val_dict[k] 
 	default_learner = val_dict["info"]["learner"]["default_policy"]
 	obj.update({
 		k:v 
@@ -265,8 +274,8 @@ def rgb_array_image(array, file_name):
 	img = Image.fromarray(array, 'RGB')
 	img.save(file_name)
 	
-def make_gif(gif_path, file_list):
-	with imageio_get_writer(gif_path, mode='I', duration=flags.gif_speed) as writer:
+def make_gif(gif_path, file_list, gif_speed=0.25):
+	with imageio_get_writer(gif_path, mode='I', duration=gif_speed) as writer:
 		for filename in file_list:
 			image = imageio_imread(filename)
 			writer.append_data(image)

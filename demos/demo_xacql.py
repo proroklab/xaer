@@ -20,6 +20,8 @@ CONFIG.update({
 	"framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
 	"lr": 3e-5, # Default learning rate used in the paper.
+	"rollout_fragment_length": 1, # Divide episodes into fragments of this many steps each during rollouts. Default is 1.
+	"train_batch_size": 2**8, # Number of transitions per train-batch. Default is: 100 for TD3, 256 for SAC and DDPG, 32 for DQN, 500 for APPO.
 	###########################
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
