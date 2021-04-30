@@ -124,7 +124,8 @@ def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 					np.quantile(value_list,0.5), # median
 					np.quantile(value_list,0.75) if show_deviation else 0, # upper quartile
 				])
-				stats_dict["min"], stats_dict["max"] = min(value_list), max(value_list)
+				stats_dict["min"] = min(stats_dict["min"], min(value_list))
+				stats_dict["max"] = max(stats_dict["max"], max(value_list))
 				x[key].append(last_step)
 		# Populate axes
 		print('#'*20)
