@@ -1,7 +1,0 @@
-setup.py
-xarl/__init__.py
-xarl.egg-info/PKG-INFO
-xarl.egg-info/SOURCES.txt
-xarl.egg-info/dependency_links.txt
-xarl.egg-info/requires.txt
-xarl.egg-info/top_level.txt

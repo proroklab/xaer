@@ -9,6 +9,7 @@ experiments/
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
 
 # C extensions
 *.so
