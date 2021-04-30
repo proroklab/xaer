@@ -68,7 +68,7 @@ def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 	for log_id in range(log_count):
 		log = logs[log_id]
 		name = log["name"]#[:10]
-		data = log["data"]
+		data_iter = log["data_iter"]
 		length = log["length"]
 		if length < 2:
 			print(name, " has not enough data for a reasonable plot")
@@ -80,49 +80,52 @@ def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 			plot_size = length
 			data_per_plotpoint = 1
 		# Build x, y
-		x = {}
-		y = {}
 		stat = stats[log_id]
-		for key in stat: # foreach statistic
-			y[key] = {
+		x = {
+			key:[]
+			for key in stat
+		}
+		y = {
+			key:{
 				"min":float("+inf"), 
 				"max":float("-inf"), 
 				"quantiles":[]
 			}
-			x[key] = []
+			for key in stat
+		}
 		last_step = 0
 		for _ in range(plot_size):
-			values = {}
 			# initialize
-			for key in stat: # foreach statistic
-				values[key] = []
+			values = {
+				key: []
+				for key in stat
+			}
 			# compute values foreach key
 			plotpoint_i = 0
-			for (step, obj) in data:
-				plotpoint_i += 1
+			for (step, obj) in data_iter:
 				if step <= last_step:
 					continue
+				plotpoint_i += 1
 				last_step = step
 				for key in stat: # foreach statistic
-					if key not in obj:
-						continue
-					v = obj[key]
-					values[key].append(v)
-					if v > y[key]["max"]:
-						y[key]["max"] = v
-					if v < y[key]["min"]:
-						y[key]["min"] = v
+					v = obj.get(key,None)
+					if v is not None:
+						values[key].append(v)
 				if plotpoint_i > data_per_plotpoint: # save plotpoint
 					break
 			# add average to data for plotting
 			for key in stat: # foreach statistic
-				if len(values[key]) > 0:
-					y[key]["quantiles"].append([
-						np.quantile(values[key],0.25), # lower quartile
-						np.quantile(values[key],0.5), # median
-						np.quantile(values[key],0.75), # upper quartile
-					])
-					x[key].append(last_step)
+				value_list = values[key]
+				if len(value_list) <= 0:
+					continue
+				stats_dict = y[key]
+				stats_dict["quantiles"].append([
+					np.quantile(value_list,0.25) if show_deviation else 0, # lower quartile
+					np.quantile(value_list,0.5), # median
+					np.quantile(value_list,0.75) if show_deviation else 0, # upper quartile
+				])
+				stats_dict["min"], stats_dict["max"] = min(value_list), max(value_list)
+				x[key].append(last_step)
 		# Populate axes
 		print('#'*20)
 		print(name)
@@ -172,7 +175,7 @@ def plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=
 		if max_length:
 			length = max_length
 		print(f"{name} has length {length}")
-		logs.append({'name': name, 'data': parse(url, length), 'length':length, 'line_example':line_example})
+		logs.append({'name': name, 'data_iter': parse(url, length), 'length':length, 'line_example':line_example})
 	plot(logs, figure_file, max_plot_size, show_deviation)
 		
 def get_length_and_line_example(file):

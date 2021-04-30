@@ -5,7 +5,7 @@ import time
 import xarl.utils.plot_lib as plt
 import zipfile
 
-def test(tester_class, config, environment_class, checkpoint, save_gif=True, delete_screens_after_making_gif=True, compress_gif=True, n_episodes=10):
+def test(tester_class, config, environment_class, checkpoint, save_gif=True, delete_screens_after_making_gif=True, compress_gif=True, n_episodes=5):
 	"""Tests and renders a previously trained model"""
 	# test_config = config.copy()
 	# test_config['explore'] = False

@@ -5,6 +5,7 @@ from multiprocessing import cpu_count
 import io
 import numpy as np
 from threading import RLock
+# import numba
 
 def accumulate(iterable, func=operator.add, initial_value=0.):
 	total = initial_value
@@ -74,3 +75,14 @@ class BoolLock(object): # Easily activate/deactivate locking without changes to 
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		if self.use_lock:
 			self.lock.__exit__(exc_type, exc_val, exc_tb)
+
+# @numba.jit
+# def minmax(x):
+# 	maximum = x[0]
+# 	minimum = x[0]
+# 	for i in x[1:]:
+# 		if i > maximum:
+# 			maximum = i
+# 		elif i < minimum:
+# 			minimum = i
+# 	return (minimum, maximum)
