@@ -110,18 +110,10 @@ class PseudoPrioritizedBuffer(Buffer):
 		new_max_cluster_size = self.get_max_cluster_size()
 		if new_max_cluster_size == self.max_cluster_size:
 			return
-		# new_max_cluster_capacity = 1
-		# while new_max_cluster_capacity < new_max_cluster_size:
-		# 	new_max_cluster_capacity *= 2
-		for t in self.type_values:
-			elements_to_remove = max(0, self.count(t)-new_max_cluster_size)
-			for _ in range(elements_to_remove):
-				self.remove_batch(t, self.get_less_important_batch(t))
-			# if self._prioritized_drop_probability > 0 and self._global_distribution_matching:
-			# 	self._drop_priority_tree[t].resize(new_max_cluster_capacity)
-			# if self._prioritized_drop_probability < 1:
-			# 	self._insertion_time_tree[t].resize(new_max_cluster_capacity)
-			# self._sample_priority_tree[t].resize(new_max_cluster_capacity)
+		# for t in self.type_values:
+		# 	elements_to_remove = max(0, self.count(t)-new_max_cluster_size)
+		# 	for _ in range(elements_to_remove):
+		# 		self.remove_batch(t, self.get_less_important_batch(t))
 		self.min_cluster_size = self.get_min_cluster_size()
 		self.max_cluster_size = new_max_cluster_size
 	
