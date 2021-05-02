@@ -19,6 +19,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class GraphDrive(gym.Env):
+	metadata = {'render.modes': ['human', 'rgb_array']}
 	random_seconds_per_step = False # whether to sample seconds_per_step from an exponential distribution
 	mean_seconds_per_step = 0.25 # in average, a step every n seconds
 	# track = 0.4 # meters # https://en.wikipedia.org/wiki/Axle_track

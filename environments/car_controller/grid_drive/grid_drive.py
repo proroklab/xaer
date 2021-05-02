@@ -19,6 +19,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class GridDrive(gym.Env):
+	metadata = {'render.modes': ['human', 'rgb_array']}
 	GRID_DIMENSION				= 15
 	MAX_SPEED 					= 120
 	SPEED_GAP					= 10

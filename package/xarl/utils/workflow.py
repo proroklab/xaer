@@ -4,6 +4,9 @@ import shutil
 import time
 import xarl.utils.plot_lib as plt
 import zipfile
+import sys
+from io import StringIO
+from contextlib import closing
 
 def test(tester_class, config, environment_class, checkpoint, save_gif=True, delete_screens_after_making_gif=True, compress_gif=True, n_episodes=5):
 	"""Tests and renders a previously trained model"""
@@ -16,13 +19,37 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 
 	checkpoint_directory = os.path.dirname(checkpoint)
 	env = agent.env_creator(config["env_config"])
+	render_modes = env.metadata['render.modes']
 	env.seed(config["seed"])
 	def print_screen(screens_directory, step):
 		filename = os.path.join(screens_directory, f'frame{step}.jpg')
-		plt.rgb_array_image(
-			env.render(mode='rgb_array'), 
-			filename
-		)
+		if 'rgb_array' in render_modes:
+			plt.rgb_array_image(
+				env.render(mode='rgb_array'), 
+				filename
+			)
+		elif 'ansi' in render_modes:
+			plt.ascii_image(
+				env.render(mode='ansi'), 
+				filename
+			)
+		elif 'ascii' in render_modes:
+			plt.ascii_image(
+				env.render(mode='ascii'), 
+				filename
+			)
+		elif 'human' in render_modes:
+			old_stdout = sys.stdout
+			sys.stdout = StringIO()
+			env.render(mode='human')
+			with closing(sys.stdout):
+				plt.ascii_image(
+					sys.stdout.getvalue(), 
+					filename
+				)
+			sys.stdout = old_stdout
+		else:
+			raise Exception(f"No compatible render mode (rgb_array,ansi,ascii,human) in {render_modes}.")
 		return filename
 
 	for episode_id in range(n_episodes):

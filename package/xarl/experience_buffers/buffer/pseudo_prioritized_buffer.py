@@ -38,7 +38,7 @@ class PseudoPrioritizedBuffer(Buffer):
 	): # O(1)
 		assert not prioritization_importance_beta or prioritization_importance_beta > 0., f"prioritization_importance_beta must be > 0, but it is {prioritization_importance_beta}"
 		assert not prioritization_importance_eta or prioritization_importance_eta > 0, f"prioritization_importance_eta must be > 0, but it is {prioritization_importance_eta}"
-		assert min_cluster_size_proportion >= 0, f"min_cluster_size_proportion must be >= 0, but it is {min_cluster_size_proportion}"
+		assert min_cluster_size_proportion >= 1, f"min_cluster_size_proportion must be >= 1, but it is {min_cluster_size_proportion}"
 		self._priority_id = priority_id
 		self._priority_lower_limit = priority_lower_limit
 		self._priority_can_be_negative = priority_lower_limit is None or priority_lower_limit < 0
@@ -172,13 +172,24 @@ class PseudoPrioritizedBuffer(Buffer):
 		return [x for x in self.type_values if not self.is_empty(x)]
 
 	def get_min_cluster_size(self):
-		return int(max(1,np.floor(self.global_size/(len(self.get_available_clusters())+self._min_cluster_size_proportion))))
+		C = len(self.get_available_clusters())
+		min_cluster_size = max(
+			1,
+			self.global_size/(C*self._min_cluster_size_proportion)
+		)
+		return int(np.floor(min_cluster_size))
 
 	def get_avg_cluster_size(self):
 		return int(np.floor(self.global_size/len(self.type_values)))
 
 	def get_max_cluster_size(self):
-		return int(min(self.cluster_size,np.ceil(self.get_min_cluster_size()*(1+self._min_cluster_size_proportion))))
+		C = len(self.get_available_clusters())
+		S_min = self.get_min_cluster_size()
+		max_cluster_size = min(
+			self.cluster_size,
+			S_min + S_min*C*(self._min_cluster_size_proportion-1)
+		)
+		return int(np.ceil(max_cluster_size))
 
 	def get_cluster_capacity(self, segment_tree):
 		return segment_tree.inserted_elements/self.max_cluster_size
