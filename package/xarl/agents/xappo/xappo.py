@@ -45,9 +45,9 @@ XAPPO_EXTRA_OPTIONS = {
 		'priority_aggregation_fn': 'np.mean', # A reduction that takes as input a list of numbers and returns a number representing a batch priority.
 		'cluster_size': None, # Default None, implying being equal to global_size. Maximum number of batches stored in a cluster (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
 		'global_size': 2**12, # Default 50000. Maximum number of batches stored in all clusters (which number depends on the clustering scheme) of the experience buffer. Every batch has size 'replay_sequence_length' (default is 1).
-		'min_cluster_size_proportion': 1, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
+		'min_cluster_size_proportion': 4, # Let X be the minimum cluster's size, and q be the min_cluster_size_proportion, then the cluster's size is guaranteed to be in [X, X+qX]. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'prioritization_alpha': 0.6, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
-		'prioritization_importance_beta': 0.4, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
+		'prioritization_importance_beta': 0, # To what degree to use importance weights (0 - no corrections, 1 - full correction).
 		'prioritization_importance_eta': 1e-2, # Used only if priority_lower_limit is None. A value > 0 that enables eta-weighting, thus allowing for importance weighting with priorities lower than 0 if beta is > 0. Eta is used to avoid importance weights equal to 0 when the sampled batch is the one with the highest priority. The closer eta is to 0, the closer to 0 would be the importance weight of the highest-priority batch.
 		'prioritization_epsilon': 1e-6, # prioritization_epsilon to add to a priority so that it is never equal to 0.
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer instead of the one having the lowest timestamp. In DQN default is 0.
@@ -58,7 +58,7 @@ XAPPO_EXTRA_OPTIONS = {
 		'max_age_window': None, # Consider only batches with a relative age within this age window, the younger is a batch the higher will be its importance. Set to None for no age weighting. # Idea from: Fedus, William, et al. "Revisiting fundamentals of experience replay." International Conference on Machine Learning. PMLR, 2020.
 	},
 	"clustering_scheme": "multiple_types_with_reward_against_mean", # Which scheme to use for building clusters. One of the following: "none", "reward_against_zero", "reward_against_mean", "multiple_types_with_reward_against_mean", "type_with_reward_against_mean", "multiple_types", "type".
-	"cluster_selection_policy": "max", # Which policy to follow when clustering_scheme is not "none" and multiple explanatory labels are associated to a batch. One of the following: 'random_uniform_after_filling', 'random_uniform', 'random_max', 'max', 'min', 'none'
+	"cluster_selection_policy": "min", # Which policy to follow when clustering_scheme is not "none" and multiple explanatory labels are associated to a batch. One of the following: 'random_uniform_after_filling', 'random_uniform', 'random_max', 'max', 'min', 'none'
 	"cluster_with_episode_type": False, # Useful with sparse-reward environments. Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
 	"collect_cluster_metrics": False, # Whether to collect metrics about the experience clusters. It consumes more resources.
@@ -236,33 +236,6 @@ def xappo_execution_plan(workers, config):
 		enqueue_op = enqueue_op.zip_with_source_actor() \
 			.for_each(BroadcastUpdateLearnerWeights(learner_thread, workers, broadcast_interval=config["broadcast_interval"]))
 
-	# def update_priorities(item):
-	# 	samples, info_dict = item
-	# 	if not config.get("prioritized_replay"):
-	# 		return info_dict
-	# 	# IMPORTANT: split train-batch into replay-batches, using batch_uid, before updating priorities
-	# 	policy_batch_list = []
-	# 	for policy_id, batch in samples.policy_batches.items():
-	# 		sub_batch_indexes = [
-	# 			i
-	# 			for i,infos in enumerate(batch['infos'])
-	# 			if "batch_uid" in infos
-	# 		] + [batch.count]
-	# 		sub_batch_iter = (
-	# 			batch.slice(sub_batch_indexes[j], sub_batch_indexes[j+1])
-	# 			for j in range(len(sub_batch_indexes)-1)
-	# 		)
-	# 		sub_batch_iter = unique_everseen(sub_batch_iter, key=get_batch_uid)
-	# 		for i,sub_batch in enumerate(sub_batch_iter):
-	# 			if i >= len(policy_batch_list):
-	# 				policy_batch_list.append({})
-	# 			policy_batch_list[i][policy_id] = sub_batch
-	# 	for policy_batch in policy_batch_list:
-	# 		local_replay_buffer.update_priorities(policy_batch)
-	# 	return samples.count, info_dict
-	# dequeue_op = Dequeue(learner_thread.outqueue, check=learner_thread.is_alive) \
-	# 	.for_each(update_priorities) \
-	# 	.for_each(record_steps_trained)
 	def increase_train_steps(x):
 		local_replay_buffer.increase_train_steps()
 		return x
