@@ -31,14 +31,14 @@ class PseudoPrioritizedBuffer(Buffer):
 		cluster_prioritisation_strategy='highest',
 		cluster_prioritization_alpha=1,
 		cluster_level_weighting=True,
-		min_cluster_size_proportion=0.5,
+		clustering_xi=1, # Let X be the minimum cluster's size, and C be the number of clusters, and q be clustering_xi, then the cluster's size is guaranteed to be in [X, X+(q-1)CX], with q >= 1, when all clusters have reached the minimum capacity X. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		priority_lower_limit=None,
 		max_age_window=None,
 		seed=None,
 	): # O(1)
 		assert not prioritization_importance_beta or prioritization_importance_beta > 0., f"prioritization_importance_beta must be > 0, but it is {prioritization_importance_beta}"
 		assert not prioritization_importance_eta or prioritization_importance_eta > 0, f"prioritization_importance_eta must be > 0, but it is {prioritization_importance_eta}"
-		assert min_cluster_size_proportion >= 1, f"min_cluster_size_proportion must be >= 1, but it is {min_cluster_size_proportion}"
+		assert clustering_xi >= 1, f"clustering_xi must be >= 1, but it is {clustering_xi}"
 		self._priority_id = priority_id
 		self._priority_lower_limit = priority_lower_limit
 		self._priority_can_be_negative = priority_lower_limit is None or priority_lower_limit < 0
@@ -52,7 +52,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		self._cluster_prioritisation_strategy = cluster_prioritisation_strategy
 		self._cluster_prioritization_alpha = cluster_prioritization_alpha
 		self._cluster_level_weighting = cluster_level_weighting
-		self._min_cluster_size_proportion = min_cluster_size_proportion
+		self._clustering_xi = clustering_xi
 		self._weight_importance_by_update_time = self._max_age_window = max_age_window
 		super().__init__(cluster_size=cluster_size, global_size=global_size, seed=seed)
 		self._it_capacity = 1
@@ -167,7 +167,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		C = len(self.get_available_clusters())
 		min_cluster_size = max(
 			1,
-			self.global_size/(C*self._min_cluster_size_proportion)
+			self.global_size/(C*self._clustering_xi)
 		)
 		return int(np.floor(min_cluster_size))
 
@@ -179,7 +179,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		S_min = self.get_min_cluster_size()
 		max_cluster_size = min(
 			self.cluster_size,
-			S_min + S_min*C*(self._min_cluster_size_proportion-1)
+			S_min + S_min*C*(self._clustering_xi-1)
 		)
 		return int(np.ceil(max_cluster_size))
 

@@ -83,6 +83,6 @@ print(CONFIG)
 ####################################################################################
 
 ray.shutdown()
-ray.init(ignore_reinit_error=True)
+ray.init(ignore_reinit_error=True, include_dashboard=False)
 
 train(TRAINER, CONFIG, ENVIRONMENT, test_every_n_step=TEST_EVERY_N_STEP, stop_training_after_n_step=STOP_TRAINING_AFTER_N_STEP)
