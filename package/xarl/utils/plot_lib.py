@@ -135,9 +135,11 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 			'y': y,
 			'log_id': log_id
 		}
+	plotted_baseline = False
 	for name, line in lines_dict.items():
-		if base_list and name in base_list:
-			continue
+		is_baseline = base_list and name in base_list
+		if plotted_baseline and is_baseline:
+			continue # already plotted
 		# Populate axes
 		print('#'*20)
 		print(name)
@@ -170,17 +172,8 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 					y_key_upper_quartile = normalise(y_key_upper_quartile)
 				# print stats
 				print(f"    {key} is in [{y_key['min']},{y_key['max']}] with medians: {y_key_median}")
-				#===============================================================
-				# # build interpolators
-				# mean_interpolator = interp1d(x_key, y_key_mean, kind='linear')
-				# min_interpolator = interp1d(x_key, y_key_mean-y_key_std, kind='linear')
-				# max_interpolator = interp1d(x_key, y_key_mean+y_key_std, kind='linear')
-				# xnew = np.linspace(x_key[0], x_key[-1], num=plot_size, endpoint=True)
-				# # plot mean line
-				# ax.plot(xnew, mean_interpolator(xnew), label=name)
-				#===============================================================
 				# plot mean line
-				ax.plot(x_key, y_key_median, label=name, linestyle=linestyle_set[log_id//len(color_set)], color=color_set[log_id%len(color_set)])
+				ax.plot(x_key, y_key_median, label='baseline' if is_baseline else name, linestyle=linestyle_set[log_id//len(color_set)], color=color_set[log_id%len(color_set)])
 				# plot std range
 				if show_deviation:
 					ax.fill_between(x_key, y_key_lower_quartile, y_key_upper_quartile, alpha=0.25, color=color_set[log_id%len(color_set)])
@@ -188,6 +181,8 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 				ax.legend()
 				# display grid
 				ax.grid(True)
+				if is_baseline:
+					plotted_baseline = True
 	figure.savefig(figure_file,bbox_inches='tight')
 	print("Plot figure saved in ", figure_file)
 	figure = None
