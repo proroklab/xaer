@@ -35,7 +35,8 @@ def wrap_string(s, max_len=10):
 		for i in range(int(np.ceil(len(s)/max_len)))
 	]).strip()
 
-def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
+def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_list=None):
+	assert not base_list or len(base_list)==len(logs), f"base_list (len {len(base_list)}) and logs (len {len(logs)}) must have same lenght or base_list should be empty"
 	log_count = len(logs)
 	# Get plot types
 	stats = [None]*log_count
@@ -65,6 +66,7 @@ def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 	grid = GridSpec(ncols=ncols, nrows=nrows)
 	axes = [figure.add_subplot(grid[id//ncols, id%ncols]) for id in range(max_stats_count)]
 	# Populate axes
+	lines_dict = {}
 	for log_id in range(log_count):
 		log = logs[log_id]
 		name = log["name"]#[:10]
@@ -73,6 +75,7 @@ def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 		if length < 2:
 			print(name, " has not enough data for a reasonable plot")
 			continue
+		print('Extracting data from:',name)
 		if length > max_plot_size:
 			plot_size = max_plot_size
 			data_per_plotpoint = length//plot_size
@@ -127,9 +130,21 @@ def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 				stats_dict["min"] = min(stats_dict["min"], min(value_list))
 				stats_dict["max"] = max(stats_dict["max"], max(value_list))
 				x[key].append(last_step)
+		lines_dict[name] = {
+			'x': x,
+			'y': y,
+			'log_id': log_id
+		}
+	for name, line in lines_dict.items():
+		if base_list and name in base_list:
+			continue
 		# Populate axes
 		print('#'*20)
 		print(name)
+		x = line['x']
+		y = line['y']
+		log_id = line['log_id']
+		stat = stats[log_id]
 		for j in range(ncols):
 			for i in range(nrows):
 				idx = j if nrows == 1 else i*ncols+j
@@ -145,6 +160,14 @@ def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 				ax.set_xlabel('step', fontdict=font_dict)
 				# ax.plot(x, y, linewidth=linewidth, markersize=markersize)
 				y_key_lower_quartile, y_key_median, y_key_upper_quartile = map(np.array, zip(*y_key["quantiles"]))
+				if base_list:
+					base_line = base_list[log_id]
+					base_y_key = lines_dict[base_line]['y'][key]
+					base_y_key_lower_quartile, base_y_key_median, base_y_key_upper_quartile = map(np.array, zip(*base_y_key["quantiles"]))
+					normalise = lambda x: (x-base_y_key_median)/(base_y_key_median+1-base_y_key['min'])
+					y_key_median = normalise(y_key_median)
+					y_key_lower_quartile = normalise(y_key_lower_quartile)
+					y_key_upper_quartile = normalise(y_key_upper_quartile)
 				# print stats
 				print(f"    {key} is in [{y_key['min']},{y_key['max']}] with medians: {y_key_median}")
 				#===============================================================
@@ -169,7 +192,8 @@ def plot(logs, figure_file, max_plot_size=20, show_deviation=False):
 	print("Plot figure saved in ", figure_file)
 	figure = None
 
-def plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False):
+def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None):
+	assert len(url_list)==len(name_list), f"url_list (len {len(url_list)}) and name_list (len {len(name_list)}) must have same lenght"
 	logs = []
 	for url,name in zip(url_list,name_list):
 		length, line_example = get_length_and_line_example(url)
@@ -177,7 +201,7 @@ def plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=
 			length = max_length
 		print(f"{name} has length {length}")
 		logs.append({'name': name, 'data_iter': parse(url, length), 'length':length, 'line_example':line_example})
-	plot(logs, figure_file, max_plot_size, show_deviation)
+	line_plot(logs, figure_file, max_plot_size, show_deviation, base_list)
 		
 def get_length_and_line_example(file):
 	try:
