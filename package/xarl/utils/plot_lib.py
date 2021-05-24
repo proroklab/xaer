@@ -35,7 +35,7 @@ def wrap_string(s, max_len=10):
 		for i in range(int(np.ceil(len(s)/max_len)))
 	]).strip()
 
-def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_list=None):
+def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=False):
 	assert not base_list or len(base_list)==len(logs), f"base_list (len {len(base_list)}) and logs (len {len(logs)}) must have same lenght or base_list should be empty"
 	log_count = len(logs)
 	# Get plot types
@@ -69,7 +69,7 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 	lines_dict = {}
 	for log_id in range(log_count):
 		log = logs[log_id]
-		name = log["name"]#[:10]
+		name = log["name"]
 		data_iter = log["data_iter"]
 		length = log["length"]
 		if length < 2:
@@ -136,10 +136,13 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 			'log_id': log_id
 		}
 	plotted_baseline = False
+	plot_dict = {}
 	for name, line in lines_dict.items():
 		is_baseline = base_list and name in base_list
 		if plotted_baseline and is_baseline:
 			continue # already plotted
+		if is_baseline:
+			name = base_shared_name
 		# Populate axes
 		print('#'*20)
 		print(name)
@@ -147,47 +150,111 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 		y = line['y']
 		log_id = line['log_id']
 		stat = stats[log_id]
+		plot_list = []
 		for j in range(ncols):
 			for i in range(nrows):
 				idx = j if nrows == 1 else i*ncols+j
 				if idx >= len(stat):
 					continue
 				key = stat[idx]
-				ax_id = key_ids[key]
-				ax = axes[ax_id]
 				y_key = y[key]
 				x_key = x[key]
-				# ax
-				ax.set_ylabel(wrap_string(key, 20), fontdict=font_dict)
-				ax.set_xlabel('step', fontdict=font_dict)
-				# ax.plot(x, y, linewidth=linewidth, markersize=markersize)
 				y_key_lower_quartile, y_key_median, y_key_upper_quartile = map(np.array, zip(*y_key["quantiles"]))
 				if base_list:
 					base_line = base_list[log_id]
 					base_y_key = lines_dict[base_line]['y'][key]
 					base_y_key_lower_quartile, base_y_key_median, base_y_key_upper_quartile = map(np.array, zip(*base_y_key["quantiles"]))
-					normalise = lambda x: (x-base_y_key_median)/(base_y_key_median+1-base_y_key['min'])
+					normalise = lambda x: 100*(x-base_y_key_median)/(base_y_key_median+1-base_y_key['min'])
 					y_key_median = normalise(y_key_median)
 					y_key_lower_quartile = normalise(y_key_lower_quartile)
 					y_key_upper_quartile = normalise(y_key_upper_quartile)
 				# print stats
-				print(f"    {key} is in [{y_key['min']},{y_key['max']}] with medians: {y_key_median}")
-				# plot mean line
-				ax.plot(x_key, y_key_median, label='baseline' if is_baseline else name, linestyle=linestyle_set[log_id//len(color_set)], color=color_set[log_id%len(color_set)])
-				# plot std range
-				if show_deviation:
-					ax.fill_between(x_key, y_key_lower_quartile, y_key_upper_quartile, alpha=0.25, color=color_set[log_id%len(color_set)])
-				# show legend
-				ax.legend()
-				# display grid
-				ax.grid(True)
+				print(f"    {key} is in [{y_key['min']},{y_key['max']}] with medians: {y_key_median}")				
 				if is_baseline:
 					plotted_baseline = True
+				plot_list.append({
+					'coord': (i,j), 
+					'key': key,
+					'x': x_key,
+					'y_q1': y_key_lower_quartile,
+					'y_q2': y_key_median, 
+					'y_q3': y_key_upper_quartile
+				})
+		plot_dict[name] = plot_list
+
+	##############################
+	##### Merge non-baselines ####
+	if average_non_baselines:
+		new_plot_dict = {}
+		merged_plots = {
+			'coord': [],
+			'key': [],
+			'x': [],
+			'y_q1': [],
+			'y_q2': [], 
+			'y_q3': []
+		}
+		for name, plot_list in plot_dict.items():
+			is_baseline = base_list and name == base_shared_name
+			if is_baseline:
+				new_plot_dict[name] = plot_list
+				continue
+			merged_plots['coord'].append([plot['coord'] for plot in plot_list])
+			merged_plots['key'].append([plot['key'] for plot in plot_list])
+			merged_plots['x'].append([plot['x'] for plot in plot_list])
+			merged_plots['y_q1'].append([plot['y_q1'] for plot in plot_list])
+			merged_plots['y_q2'].append([plot['y_q2'] for plot in plot_list])
+			merged_plots['y_q3'].append([plot['y_q3'] for plot in plot_list])
+		new_plot_dict['XARL'] = [
+			{
+				'coord': coord,
+				'key': key,
+				'x': x,
+				'y_q1': y_q1,
+				'y_q2': y_q2,
+				'y_q3': y_q3
+			}
+			for coord, key, x, y_q1, y_q2, y_q3 in zip(
+				merged_plots['coord'][0],
+				merged_plots['key'][0],
+				merged_plots['x'][0],
+				np.mean(merged_plots['y_q1'], axis=0),
+				np.mean(merged_plots['y_q2'], axis=0),
+				np.mean(merged_plots['y_q3'], axis=0),
+			)
+		]
+		plot_dict = new_plot_dict
+	###############################	
+
+	for log_id, (name, plot_list) in enumerate(plot_dict.items()):
+		for plot in plot_list:
+			i,j = plot['coord']
+			x_key = plot['x']
+			key = plot['key']
+			y_key_lower_quartile = plot['y_q1']
+			y_key_median = plot['y_q2']
+			y_key_upper_quartile = plot['y_q3']
+			# ax
+			ax_id = key_ids[key]
+			ax = axes[ax_id]
+			format_label = lambda x: x.replace('_',' ')
+			ax.set_ylabel(wrap_string(format_label(key) if not base_list else f'{format_label(key)} - % of gain over baseline', 25), fontdict=font_dict)
+			ax.set_xlabel('step', fontdict=font_dict)
+			# plot mean line
+			ax.plot(x_key, y_key_median, label=format_label(name), linestyle=linestyle_set[log_id//len(color_set)], color=color_set[log_id%len(color_set)])
+			# plot std range
+			if show_deviation:
+				ax.fill_between(x_key, y_key_lower_quartile, y_key_upper_quartile, alpha=0.25, color=color_set[log_id%len(color_set)])
+			# show legend
+			ax.legend()
+			# display grid
+			ax.grid(True)
+
 	figure.savefig(figure_file,bbox_inches='tight')
 	print("Plot figure saved in ", figure_file)
 	figure = None
 
-def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None):
+def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=False):
 	assert len(url_list)==len(name_list), f"url_list (len {len(url_list)}) and name_list (len {len(name_list)}) must have same lenght"
 	logs = []
 	for url,name in zip(url_list,name_list):
@@ -196,7 +263,7 @@ def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_
 			length = max_length
 		print(f"{name} has length {length}")
 		logs.append({'name': name, 'data_iter': parse(url, length), 'length':length, 'line_example':line_example})
-	line_plot(logs, figure_file, max_plot_size, show_deviation, base_list)
+	line_plot(logs, figure_file, max_plot_size, show_deviation, base_list, base_shared_name, average_non_baselines)
 		
 def get_length_and_line_example(file):
 	try:
@@ -214,6 +281,10 @@ def get_length_and_line_example(file):
 def parse_line(line,i=0):
 	val_dict = json.loads(line)
 	step = val_dict["info"]["num_steps_sampled"] # "num_steps_sampled", "num_steps_trained"
+	# obj = {
+	# 	"median cum. reward": np.median(val_dict["hist_stats"]["episode_reward"]),
+	# 	"mean visited roads": val_dict['custom_metrics'].get('visited_junctions_mean',val_dict['custom_metrics'].get('visited_cells_mean',0))
+	# }
 	obj = {
 		"episode_reward_median": np.median(val_dict["hist_stats"]["episode_reward"]),
 	}
