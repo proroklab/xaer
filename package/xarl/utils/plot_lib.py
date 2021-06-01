@@ -35,7 +35,7 @@ def wrap_string(s, max_len=10):
 		for i in range(int(np.ceil(len(s)/max_len)))
 	]).strip()
 
-def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=False):
+def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=None):
 	assert not base_list or len(base_list)==len(logs), f"base_list (len {len(base_list)}) and logs (len {len(logs)}) must have same lenght or base_list should be empty"
 	log_count = len(logs)
 	# Get plot types
@@ -46,7 +46,7 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 		# Get statistics keys
 		if log["length"] < 2:
 			continue
-		(step, obj) = parse_line(log["line_example"])
+		(step, obj) = log["line_example"]
 		log_keys = list(obj.keys()) # statistics keys sorted by name
 		for key in log_keys:
 			if key not in key_ids:
@@ -164,10 +164,10 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 					base_line = base_list[log_id]
 					base_y_key = lines_dict[base_line]['y'][key]
 					base_y_key_lower_quartile, base_y_key_median, base_y_key_upper_quartile = map(np.array, zip(*base_y_key["quantiles"]))
-					normalise = lambda x: 100*(x-base_y_key_median)/(base_y_key_median+1-base_y_key['min'])
-					y_key_median = normalise(y_key_median)
-					y_key_lower_quartile = normalise(y_key_lower_quartile)
-					y_key_upper_quartile = normalise(y_key_upper_quartile)
+					normalise = lambda x,y: 100*(x-y)/(y-base_y_key['min']+1)
+					y_key_median = normalise(y_key_median, base_y_key_median)
+					y_key_lower_quartile = normalise(y_key_lower_quartile, base_y_key_lower_quartile)
+					y_key_upper_quartile = normalise(y_key_upper_quartile, base_y_key_upper_quartile)
 				# print stats
 				print(f"    {key} is in [{y_key['min']},{y_key['max']}] with medians: {y_key_median}")				
 				if is_baseline:
@@ -185,6 +185,7 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 	##############################
 	##### Merge non-baselines ####
 	if average_non_baselines:
+		avg_fn = np.mean if average_non_baselines=='mean' else np.median
 		new_plot_dict = {}
 		merged_plots = {
 			'coord': [],
@@ -218,9 +219,9 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 				merged_plots['coord'][0],
 				merged_plots['key'][0],
 				merged_plots['x'][0],
-				np.mean(merged_plots['y_q1'], axis=0),
-				np.mean(merged_plots['y_q2'], axis=0),
-				np.mean(merged_plots['y_q3'], axis=0),
+				avg_fn(merged_plots['y_q1'], axis=0),
+				avg_fn(merged_plots['y_q2'], axis=0),
+				avg_fn(merged_plots['y_q3'], axis=0),
 			)
 		]
 		plot_dict = new_plot_dict
@@ -254,7 +255,7 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 	print("Plot figure saved in ", figure_file)
 	figure = None
 
-def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=False):
+def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=None, statistics_list=None):
 	assert len(url_list)==len(name_list), f"url_list (len {len(url_list)}) and name_list (len {len(name_list)}) must have same lenght"
 	logs = []
 	for url,name in zip(url_list,name_list):
@@ -262,7 +263,12 @@ def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_
 		if max_length:
 			length = max_length
 		print(f"{name} has length {length}")
-		logs.append({'name': name, 'data_iter': parse(url, length), 'length':length, 'line_example':line_example})
+		logs.append({
+			'name': name, 
+			'data_iter': parse(url, max_i=length, statistics_list=statistics_list), 
+			'length':length, 
+			'line_example': parse_line(line_example, statistics_list=statistics_list)
+		})
 	line_plot(logs, figure_file, max_plot_size, show_deviation, base_list, base_shared_name, average_non_baselines)
 		
 def get_length_and_line_example(file):
@@ -278,7 +284,7 @@ def get_length_and_line_example(file):
 	except:
 		return 0, None
 
-def parse_line(line,i=0):
+def parse_line(line, i=0, statistics_list=None):
 	val_dict = json.loads(line)
 	step = val_dict["info"]["num_steps_sampled"] # "num_steps_sampled", "num_steps_trained"
 	# obj = {
@@ -316,15 +322,18 @@ def parse_line(line,i=0):
 			for k,v in val_dict['custom_metrics'].items()
 			if isinstance(v, numbers.Number)
 		})
+	if statistics_list:
+		statistics_list = set(statistics_list)
+		obj = dict(filter(lambda x: x[0] in statistics_list, obj.items()))
 	return (step, obj)
 	
-def parse(log_fname, max_i=None):
+def parse(log_fname, max_i=None, statistics_list=None):
 	with open(log_fname, 'r') as logfile:
 		for i, line in enumerate(logfile):
 			if max_i and i > max_i:
 				return
 			try:
-				yield parse_line(line,i)
+				yield parse_line(line, i=i, statistics_list=statistics_list)
 			except Exception as e:
 				print("exc %s on line %s" % (repr(e), i+1))
 				print("skipping line")
