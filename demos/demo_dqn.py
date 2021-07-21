@@ -17,10 +17,12 @@ ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMulti
 
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-V0"
+# SELECT_ENV = "BreakoutDeterministic-v4"
 SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = DQN_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	"seed": 42, # This makes experiments reproducible.
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",

@@ -21,6 +21,7 @@ SELECT_ENV = "GridDrive-Hard"
 
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	"seed": 42, # This makes experiments reproducible.
 	# "model": {
 	# 	"custom_model": "adaptive_multihead_network",
