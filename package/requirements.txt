@@ -1,5 +1,5 @@
 cython==0.29.23
-ray==1.2.0
+ray==1.5.2
 ray[rllib]
 torch==1.8.1
 tensorflow==2.4.1

@@ -93,7 +93,7 @@ def xadqn_execution_plan(workers, config):
 	random.seed(config["seed"])
 	np.random.seed(config["seed"])
 	replay_batch_size = config["train_batch_size"]
-	replay_sequence_length = config["replay_sequence_length"]
+	replay_sequence_length = config.get("replay_sequence_length",1)
 	if replay_sequence_length and replay_sequence_length > 1:
 		replay_batch_size = int(max(1, replay_batch_size // replay_sequence_length))
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
