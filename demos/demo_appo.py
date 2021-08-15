@@ -22,6 +22,9 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = APPO_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"model": {
+		"custom_model": "adaptive_multihead_network"
+	},
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	"seed": 42, # This makes experiments reproducible.
@@ -29,9 +32,15 @@ CONFIG.update({
 	"train_batch_size": 2**9, # Number of transitions per train-batch. Default is: 100 for TD3, 256 for SAC and DDPG, 32 for DQN, 500 for APPO.
 	"replay_proportion": 4, # Set a p>0 to enable experience replay. Saved samples will be replayed with a p:1 proportion to new data samples.
 	"replay_buffer_num_slots": 2**14, # Maximum number of batches stored in the experience buffer. Every batch has size 'rollout_fragment_length' (default is 50).
-	"learning_starts": 2**14, # How many steps of the model to sample before learning starts.
 })
 CONFIG["callbacks"] = CustomEnvironmentCallbacks
+
+framework = CONFIG.get("framework","tf")
+if framework in ["tf2", "tf", "tfe"]:
+	from ray.rllib.models.tf.fcnet import FullyConnectedNetwork as FCNet, Keras_FullyConnectedNetwork as Keras_FCNet
+elif framework == "torch":
+	from ray.rllib.models.torch.fcnet import (FullyConnectedNetwork as FCNet)
+ModelCatalog.register_custom_model("fcnet", FCNet)
 
 ####################################################################################
 ####################################################################################

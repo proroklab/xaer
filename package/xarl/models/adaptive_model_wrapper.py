@@ -24,7 +24,9 @@ def get_tf_heads_model(obs_space):
 		]
 		if len(cnn_layers) > 1:
 			cnn_layers = [tf.keras.layers.Concatenate(axis=-1)(cnn_layers)]
-	else: cnn_layers = []
+	else: 
+		cnn_inputs = []
+		cnn_layers = []
 	if 'fc' in obs_space.original_space.spaces:
 		fc_inputs = [
 			tf.keras.layers.Input(shape=fc_head.shape, name=f"fc_input{i}")
@@ -36,7 +38,9 @@ def get_tf_heads_model(obs_space):
 		]
 		if len(fc_layers) > 1: 
 			fc_layers = [tf.keras.layers.Concatenate(axis=-1)(fc_layers)]
-	else: fc_layers = []
+	else:
+		fc_inputs = []
+		fc_layers = []
 
 	last_layer = fc_layers + cnn_layers
 	if last_layer:

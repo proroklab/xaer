@@ -10,19 +10,22 @@ from xarl.utils.workflow import train
 
 from xarl.agents.xasac import XASACTrainer, XASAC_DEFAULT_CONFIG
 from environments import *
+from ray.rllib.models import ModelCatalog
+from xarl.models.sac import TFAdaptiveMultiHeadNet
+ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
 
 # SELECT_ENV = "CescoDrive-V1"
 SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XASAC_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"model": {
+		"custom_model": "adaptive_multihead_network",
+	},
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	# "framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
-	# "model": {
-	# 	"custom_model": "adaptive_multihead_network",
-	# },
 	###########################
 	"rollout_fragment_length": 1, # Divide episodes into fragments of this many steps each during rollouts. Default is 1.
 	"train_batch_size": 2**8, # Number of transitions per train-batch. Default is: 100 for TD3, 256 for SAC and DDPG, 32 for DQN, 500 for APPO.

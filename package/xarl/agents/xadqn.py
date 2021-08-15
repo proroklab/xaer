@@ -99,10 +99,12 @@ def xadqn_execution_plan(workers, config):
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	local_worker = workers.local_worker()
 
-	for policy in local_worker.policy_map.values():
-		policy.view_requirements[SampleBatch.INFOS] = ViewRequirement(SampleBatch.INFOS, shift=0)
-		if policy.config["buffer_options"]["priority_id"] == "td_errors":
-			policy.view_requirements["td_errors"] = ViewRequirement("td_errors", shift=0)
+	def add_view_requirements(w):
+		for policy in w.policy_map.values():
+			policy.view_requirements[SampleBatch.INFOS] = ViewRequirement(SampleBatch.INFOS, shift=0)
+			if policy.config["buffer_options"]["priority_id"] == "td_errors":
+				policy.view_requirements["td_errors"] = ViewRequirement("td_errors", shift=0)
+	workers.foreach_worker(add_view_requirements)
 
 	rollouts = ParallelRollouts(workers, mode="bulk_sync")
 

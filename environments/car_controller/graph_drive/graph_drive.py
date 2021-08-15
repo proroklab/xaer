@@ -58,39 +58,18 @@ class GraphDrive(gym.Env):
 		# return (self.speed-self.min_speed*0.9)/(self.max_speed-self.min_speed*0.9) # in (0,1]
 		return self.speed/self.max_speed # in (0,1]
 
-	def get_state_shape(self):
-		return [
-			{  # Closest road to the agent (the one it's driving on), sorted by relative position
-				'low': -1,
-				'high': 1,
-				'shape': (
-					2 + 2 + self.obs_road_features + 1, # road properties: road.start.pos + road.end.pos + road.af_features + road.is_new_road
-				),
-			},
-			{  # Roads directly connected to the closest road to the agent (the one it's driving on), sorted by relative position
-				'low': -1,
-				'high': 1,
-				'shape': ( # closest junctions view
-					2, # junctions attached to the current road
-					self.max_roads_per_junction, # maximum number of roads per junction
-					2 + 2 + self.obs_road_features + 1,  # road properties: road.start.pos + road.end.pos + road.af_features + road.is_new_road
-				),
-			},
-			{  # Agent features
-				'low': -1,
-				'high': 1,
-				'shape': (self.get_agent_state_size() + self.obs_car_features,),
-			},
-		]
-
 	def get_state(self, car_point, car_orientation):
-		return (
-			*self.get_view(car_point, car_orientation), 
-			np.concatenate([
-				self.get_agent_state(),
-				self.road_network.agent.binary_features(), 
-			], axis=-1),
-		)
+		road_view, junction_view = self.get_view(car_point, car_orientation)
+		return {
+			"fc": {
+				"road_view": road_view,
+				"junction_view": junction_view,
+				"agent_features": np.concatenate([
+					self.get_agent_state(),
+					self.road_network.agent.binary_features(), 
+				], axis=-1),
+			}
+		}
 
 	def get_agent_state_size(self):
 		return 5 # normalised steering angle + normalised speed
@@ -139,10 +118,34 @@ class GraphDrive(gym.Env):
 		self.obs_car_features = len(self.culture.agent_properties) - 1  # Number of binary CAR features in Hard Culture (excluded speed)
 		# Spaces
 		self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)  # steering angle and speed
-		self.observation_space = gym.spaces.Tuple([
-			gym.spaces.Box(**shape, dtype=np.float32)
-			for shape in self.get_state_shape()
-		])
+		self.observation_space = gym.spaces.Dict({
+			"fc": gym.spaces.Dict({
+				"road_view": gym.spaces.Box( # Closest road to the agent (the one it's driving on), sorted by relative position
+					low= -1,
+					high= 1,
+					shape= (
+						2 + 2 + self.obs_road_features + 1, # road properties: road.start.pos + road.end.pos + road.af_features + road.is_new_road
+					),
+					dtype=np.float32
+				),
+				"junction_view": gym.spaces.Box( # Roads directly connected to the closest road to the agent (the one it's driving on), sorted by relative position
+					low= -1,
+					high= 1,
+					shape= ( # closest junctions view
+						2, # junctions attached to the current road
+						self.max_roads_per_junction, # maximum number of roads per junction
+						2 + 2 + self.obs_road_features + 1,  # road properties: road.start.pos + road.end.pos + road.af_features + road.is_new_road
+					),
+					dtype=np.float32
+				),
+				"agent_features": gym.spaces.Box( # Agent features
+					low= -1,
+					high= 1,
+					shape= (self.get_agent_state_size() + self.obs_car_features,),
+					dtype=np.float32
+				),
+			}),
+		})
 
 	@staticmethod
 	def normalize_point(p):

@@ -16,6 +16,7 @@ from ray.rllib.agents.ppo.appo_torch_policy import AsyncPPOTorchPolicy
 # from ray.rllib.evaluation.postprocessing import discount_cumsum
 from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, DEFAULT_POLICY_ID
 from ray.rllib.evaluation.postprocessing import compute_advantages
+from ray.rllib.policy.view_requirement import ViewRequirement
 
 from xarl.experience_buffers.replay_ops import MixInReplay, get_clustered_replay_buffer, assign_types, get_update_replayed_batch_fn, xa_make_learner_thread, add_buffer_metrics
 from xarl.utils.misc import accumulate
@@ -26,7 +27,6 @@ import random
 import numpy as np
 
 XAPPO_EXTRA_OPTIONS = {
-	"_use_trajectory_view_api": False, # important
 	# "lambda": .95, # GAE(lambda) parameter. Taking lambda < 1 introduces bias only when the value function is inaccurate.
 	# "batch_mode": "complete_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	# "vtrace": False, # Formula for computing the advantages: batch_mode==complete_episodes implies vtrace==False, thus gae==True.
@@ -37,7 +37,7 @@ XAPPO_EXTRA_OPTIONS = {
 	"gae_with_vtrace": False, # Useful when default "vtrace" is not active. Formula for computing the advantages: it combines GAE with V-Trace.
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	"update_advantages_when_replaying": True, # Whether to recompute advantages when updating priorities.
-	"learning_starts": 2**6, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
+	"learning_starts": 1, # How many batches to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
 	##########################################
 	"buffer_options": {
 		'priority_id': 'gains', # Which batch column to use for prioritisation. One of the following: gains, advantages, rewards, prev_rewards, action_logp.
@@ -131,6 +131,9 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 	)
 	old_action_logp = sample_batch[SampleBatch.ACTION_LOGP]
 	sample_batch["action_importance_ratio"] = np.exp(action_logp - old_action_logp)
+	if policy.config["buffer_options"]["prioritization_importance_beta"] and 'weights' not in sample_batch:
+		sample_batch['weights'] = np.ones_like(sample_batch[SampleBatch.REWARDS])
+	# sample_batch[Postprocessing.VALUE_TARGETS] = sample_batch[Postprocessing.ADVANTAGES] = np.ones_like(sample_batch[SampleBatch.REWARDS])
 	# Add advantages, do it after computing action_importance_ratio (used by gae-v)
 	if policy.config["update_advantages_when_replaying"] or Postprocessing.ADVANTAGES not in sample_batch:
 		if sample_batch[SampleBatch.DONES][-1]:
@@ -140,19 +143,9 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 			# Input dict is provided to us automatically via the Model's
 			# requirements. It's a single-timestep (last one in trajectory)
 			# input_dict.
-			if policy.config["_use_trajectory_view_api"]:
-				# Create an input dict according to the Model's requirements.
-				input_dict = policy.model.get_input_dict(sample_batch, index=-1)
-				last_r = policy._value(**input_dict)
-			# TODO: (sven) Remove once trajectory view API is all-algo default.
-			else:
-				next_state = []
-				for i in range(policy.num_state_tensors()):
-					next_state.append(sample_batch["state_out_{}".format(i)][-1])
-				last_r = policy._value(sample_batch[SampleBatch.NEXT_OBS][-1],
-									   sample_batch[SampleBatch.ACTIONS][-1],
-									   sample_batch[SampleBatch.REWARDS][-1],
-									   *next_state)
+			# Create an input dict according to the Model's requirements.
+			input_dict = sample_batch.get_single_step_input_dict(policy.model.view_requirements, index="last")
+			last_r = policy._value(**input_dict)
 
 		# Adds the policy logits, VF preds, and advantages to the batch,
 		# using GAE ("generalized advantage estimation") or not.
@@ -174,9 +167,7 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 				use_critic=policy.config.get("use_critic", True)
 			)
 	# Add gains
-	sample_batch['gains'] = sample_batch['action_importance_ratio'] * sample_batch[Postprocessing.ADVANTAGES]
-	if policy.config["buffer_options"]["prioritization_importance_beta"] and 'weights' not in sample_batch:
-		sample_batch['weights'] = np.ones_like(sample_batch[SampleBatch.REWARDS])
+	sample_batch['gains'] = sample_batch['action_importance_ratio']*sample_batch[Postprocessing.ADVANTAGES]
 	return sample_batch
 
 XAPPOTFPolicy = AsyncPPOTFPolicy.with_updates(
@@ -207,7 +198,21 @@ def xappo_execution_plan(workers, config):
 	local_replay_buffer, clustering_scheme = get_clustered_replay_buffer(config)
 	rollouts = ParallelRollouts(workers, mode="async", num_async=config["max_sample_requests_in_flight_per_worker"])
 	local_worker = workers.local_worker()
-
+	
+	def add_view_requirements(w):
+		for policy in w.policy_map.values():
+			policy.view_requirements[SampleBatch.INFOS] = ViewRequirement(SampleBatch.INFOS, shift=0)
+			policy.view_requirements[SampleBatch.ACTION_LOGP] = ViewRequirement(SampleBatch.ACTION_LOGP, shift=0)
+			policy.view_requirements[SampleBatch.NEXT_OBS] = ViewRequirement(SampleBatch.OBS, shift=1)
+			policy.view_requirements[SampleBatch.VF_PREDS] = ViewRequirement(SampleBatch.VF_PREDS, shift=0)
+			policy.view_requirements[Postprocessing.ADVANTAGES] = ViewRequirement(Postprocessing.ADVANTAGES, shift=0)
+			policy.view_requirements[Postprocessing.VALUE_TARGETS] = ViewRequirement(Postprocessing.VALUE_TARGETS, shift=0)
+			policy.view_requirements["action_importance_ratio"] = ViewRequirement("action_importance_ratio", shift=0)
+			policy.view_requirements["gains"] = ViewRequirement("gains", shift=0)
+			if policy.config["buffer_options"]["prioritization_importance_beta"]:
+				policy.view_requirements["weights"] = ViewRequirement("weights", shift=0)
+	workers.foreach_worker(add_view_requirements)
+	
 	# Augment with replay and concat to desired train batch size.
 	train_batches = rollouts \
 		.for_each(lambda batch: batch.decompress_if_needed()) \
@@ -222,7 +227,12 @@ def xappo_execution_plan(workers, config):
 			seed=config["seed"],
 		)) \
 		.flatten() \
-		.combine(ConcatBatches(min_batch_size=config["train_batch_size"]))
+		.combine(
+			ConcatBatches(
+				min_batch_size=config["train_batch_size"],
+				count_steps_by=config["multiagent"]["count_steps_by"],
+			)
+		)
 
 	# Start the learner thread.
 	# learner_thread = xa_make_learner_thread(local_worker, config)

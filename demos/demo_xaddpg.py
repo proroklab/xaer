@@ -19,12 +19,12 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"model": {
+		"custom_model": "adaptive_multihead_network",
+	},
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	"seed": 42, # This makes experiments reproducible.
-	# "model": {
-	# 	"custom_model": "adaptive_multihead_network",
-	# },
 	"rollout_fragment_length": 1, # Divide episodes into fragments of this many steps each during rollouts. Default is 1.
 	"train_batch_size": 2**8, # Number of transitions per train-batch. Default is: 100 for TD3, 256 for SAC and DDPG, 32 for DQN, 500 for APPO.
 	# "batch_mode": "truncate_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.

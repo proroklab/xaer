@@ -23,6 +23,9 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XAPPO_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	"model": {
+		"custom_model": "adaptive_multihead_network"
+	},
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	"seed": 42, # This makes experiments reproducible.
@@ -34,7 +37,7 @@ CONFIG.update({
 	"gae_with_vtrace": False, # Useful when default "vtrace" is not active. Formula for computing the advantages: it combines GAE with V-Trace.
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	"update_advantages_when_replaying": True, # Whether to recompute advantages when updating priorities.
-	"learning_starts": 2**12, # How many steps of the model to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
+	# "learning_starts": 2**12, # How many steps of the model to sample before learning starts. Every batch has size 'rollout_fragment_length' (default is 50).
 	##################################
 	"buffer_options": {
 		'priority_id': 'gains', # Which batch column to use for prioritisation. One of the following: gains, advantages, rewards, prev_rewards, action_logp.
@@ -62,6 +65,13 @@ CONFIG.update({
 	"ratio_of_samples_from_unclustered_buffer": 0, # 0 for no, 1 for full. Whether to sample in a randomised fashion from both a non-prioritised buffer of most recent elements and the XA prioritised buffer.
 })
 CONFIG["callbacks"] = CustomEnvironmentCallbacks
+
+framework = CONFIG.get("framework","tf")
+if framework in ["tf2", "tf", "tfe"]:
+	from ray.rllib.models.tf.fcnet import FullyConnectedNetwork as FCNet, Keras_FullyConnectedNetwork as Keras_FCNet
+elif framework == "torch":
+	from ray.rllib.models.torch.fcnet import (FullyConnectedNetwork as FCNet)
+ModelCatalog.register_custom_model("fcnet", FCNet)
 
 ####################################################################################
 ####################################################################################

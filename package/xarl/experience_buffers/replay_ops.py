@@ -53,8 +53,10 @@ def get_update_replayed_batch_fn(local_replay_buffer, local_worker, postprocess_
 				samples.policy_batches[pid] = postprocess_trajectory_fn(policy, batch)
 			local_replay_buffer.update_priorities(samples.policy_batches)
 		else:
-			samples = postprocess_trajectory_fn(local_worker.policy_map[DEFAULT_POLICY_ID], samples)
-			local_replay_buffer.update_priorities({DEFAULT_POLICY_ID:samples})
+			local_replay_buffer.update_priorities({
+				pid:postprocess_trajectory_fn(policy, samples)
+				for pid, policy in local_worker.policy_map.items()
+			})
 		return samples
 	return update_replayed_fn
 
