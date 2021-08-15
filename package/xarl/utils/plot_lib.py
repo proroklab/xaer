@@ -35,7 +35,7 @@ def wrap_string(s, max_len=10):
 		for i in range(int(np.ceil(len(s)/max_len)))
 	]).strip()
 
-def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=None):
+def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=None, buckets_average='median'):
 	assert not base_list or len(base_list)==len(logs), f"base_list (len {len(base_list)}) and logs (len {len(logs)}) must have same lenght or base_list should be empty"
 	log_count = len(logs)
 	# Get plot types
@@ -122,11 +122,20 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 				if len(value_list) <= 0:
 					continue
 				stats_dict = y[key]
-				stats_dict["quantiles"].append([
-					np.quantile(value_list,0.25) if show_deviation else 0, # lower quartile
-					np.quantile(value_list,0.5), # median
-					np.quantile(value_list,0.75) if show_deviation else 0, # upper quartile
-				])
+				if buckets_average == 'median':
+					stats_dict["quantiles"].append([
+						np.quantile(value_list,0.25) if show_deviation else 0, # lower quartile
+						np.quantile(value_list,0.5), # median
+						np.quantile(value_list,0.75) if show_deviation else 0, # upper quartile
+					])
+				else:
+					v_mean = np.mean(value_list)
+					v_std = np.std(value_list)
+					stats_dict["quantiles"].append([
+						v_mean-v_std if show_deviation else 0,
+						v_mean,
+						v_mean+v_std if show_deviation else 0,
+					])
 				stats_dict["min"] = min(stats_dict["min"], min(value_list))
 				stats_dict["max"] = max(stats_dict["max"], max(value_list))
 				x[key].append(last_step)
@@ -255,7 +264,7 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 	print("Plot figure saved in ", figure_file)
 	figure = None
 
-def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=None, statistics_list=None):
+def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=None, statistics_list=None, buckets_average='median'):
 	assert len(url_list)==len(name_list), f"url_list (len {len(url_list)}) and name_list (len {len(name_list)}) must have same lenght"
 	logs = []
 	for url,name in zip(url_list,name_list):
@@ -269,7 +278,7 @@ def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_
 			'length':length, 
 			'line_example': parse_line(line_example, statistics_list=statistics_list)
 		})
-	line_plot(logs, figure_file, max_plot_size, show_deviation, base_list, base_shared_name, average_non_baselines)
+	line_plot(logs, figure_file, max_plot_size, show_deviation, base_list, base_shared_name, average_non_baselines, buckets_average)
 		
 def get_length_and_line_example(file):
 	try:

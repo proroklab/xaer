@@ -7,6 +7,9 @@ import zipfile
 import sys
 from io import StringIO
 from contextlib import closing
+from ray.rllib.env.wrappers.atari_wrappers import wrap_deepmind, is_atari
+from ray.rllib.utils.deprecation import DEPRECATED_VALUE
+import numpy as np
 
 def test(tester_class, config, environment_class, checkpoint, save_gif=True, delete_screens_after_making_gif=True, compress_gif=True, n_episodes=5):
 	"""Tests and renders a previously trained model"""
@@ -19,6 +22,29 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 
 	checkpoint_directory = os.path.dirname(checkpoint)
 	env = agent.env_creator(config["env_config"])
+	# Atari wrapper
+	if is_atari(env) and not config.get("custom_preprocessor") and config.get("preprocessor_pref","deepmind") == "deepmind":
+		# Deprecated way of framestacking is used.
+		framestack = config.get("framestack") is True
+		# framestacking via trajectory view API is enabled.
+		num_framestacks = config.get("num_framestacks", 0)
+
+		# Trajectory view API is on and num_framestacks=auto:
+		# Only stack traj. view based if old
+		# `framestack=[invalid value]`.
+		if num_framestacks == "auto":
+			if framestack == DEPRECATED_VALUE:
+				config["num_framestacks"] = num_framestacks = 4
+			else:
+				config["num_framestacks"] = num_framestacks = 0
+		framestack_traj_view = num_framestacks > 1
+		env = wrap_deepmind(
+			env,
+			# dim=config.get("dim"),
+			framestack=framestack,
+			framestack_via_traj_view_api=framestack_traj_view
+		)
+
 	render_modes = env.metadata['render.modes']
 	env.seed(config["seed"])
 	def print_screen(screens_directory, step):
@@ -61,13 +87,14 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 		sum_reward = 0
 		step = 0
 		done = False
-		state = env.reset()
+		state = np.squeeze(env.reset())
 		file_list = [print_screen(screens_directory, step)]
 		while not done:
 			step += 1
 			# action = env.action_space.sample()
 			action = agent.compute_action(state, full_fetch=True, explore=False)
 			state, reward, done, info = env.step(action[0])
+			state = np.squeeze(state)
 			sum_reward += reward
 			file_list.append(print_screen(screens_directory, step))
 			log_list.append(', '.join([

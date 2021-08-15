@@ -13,6 +13,7 @@ parser.add_argument('-s', '--visible_statistic', dest='statistics_list', type=st
 parser.add_argument('--show_deviation', dest='show_deviation', action='store_true')
 parser.add_argument('--base_shared_name', dest='base_shared_name', type=str, default='baseline')
 parser.add_argument('--average_non_baselines', dest='average_non_baselines', type=str, default=None)
+parser.add_argument('--buckets_average', dest='buckets_average', type=str, default='median')
 parser.set_defaults(show_deviation=False)
 ARGS = parser.parse_args()
 print("ARGS:", ARGS)
@@ -28,4 +29,5 @@ plt.line_plot_files(
 	base_shared_name=ARGS.base_shared_name,
 	average_non_baselines=ARGS.average_non_baselines,
 	statistics_list=ARGS.statistics_list,
+	buckets_average=ARGS.buckets_average,
 )

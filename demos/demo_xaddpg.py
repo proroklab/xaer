@@ -19,7 +19,7 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XADDPG_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	"preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
+	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	"seed": 42, # This makes experiments reproducible.
 	# "model": {
