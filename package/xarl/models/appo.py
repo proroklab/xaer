@@ -34,7 +34,7 @@ class TFAdaptiveMultiHeadNet(TFModelV2):
 			num_outputs = num_outputs // 2
 			self.log_std_var = tf.Variable(
 				[0.0] * num_outputs, dtype=tf.float32, name="log_std")
-			self.register_variables([self.log_std_var])
+			# self.register_variables([self.log_std_var])
 
 		# # We are using obs_flat, so take the flattened shape as input.
 		# inputs = tf.keras.layers.Input(
@@ -114,7 +114,7 @@ class TFAdaptiveMultiHeadNet(TFModelV2):
 				last_vf_layer if last_vf_layer is not None else last_layer)
 
 		self.base_model = tf.keras.Model(inputs, [(logits_out if logits_out is not None else last_layer), value_out])
-		self.register_variables(self.base_model.variables)
+		# self.register_variables(self.base_model.variables)
 
 	def forward(self, input_dict: Dict[str, TensorType], state: List[TensorType], seq_lens: TensorType) -> (TensorType, List[TensorType]):
 		# obs = restore_original_dimensions(input_dict["obs"], self._original_obs_space, 'tf')

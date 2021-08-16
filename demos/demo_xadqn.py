@@ -18,10 +18,11 @@ ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMulti
 # SELECT_ENV = "Taxi-v3"
 # SELECT_ENV = "ToyExample-V0"
 SELECT_ENV = "GridDrive-Hard"
+# SELECT_ENV = "SpecialBreakoutNoFrameskip-v4"
 
 CONFIG = XADQN_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	"model": {
+	"model": { # this is for GraphDrive and GridDrive
 		"custom_model": "adaptive_multihead_network",
 	},
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints

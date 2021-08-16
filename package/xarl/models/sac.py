@@ -61,7 +61,7 @@ class TFAdaptiveMultiHeadNet(SACTFModel):
 		"""
 		inputs, last_layer = get_tf_heads_model(obs_space)
 		self.head_q_model = tf.keras.Model(inputs, last_layer)
-		self.register_variables(self.head_q_model.variables)
+		# self.register_variables(self.head_q_model.variables)
 
 		self.concat_obs_and_actions = False
 		if self.discrete:

@@ -19,7 +19,7 @@ SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XATD3_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	"model": {
+	"model": { # this is for GraphDrive and GridDrive
 		"custom_model": "adaptive_multihead_network",
 	},
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
