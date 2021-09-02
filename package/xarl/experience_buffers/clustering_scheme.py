@@ -7,6 +7,9 @@ import itertools
 from sklearn.cluster import *
 
 class none():
+	def __init__(self, **args):
+		pass
+
 	def get_episode_type(self, episode):
 		return 'none'
 
@@ -25,9 +28,10 @@ class positive_H(none):
 		return ((episode_type, batch_type),)
 
 class H(none):
-	def __init__(self):
-		self.episode_stats = RunningStats(window_size=2**6)
-		self.batch_stats = RunningStats(window_size=2**8)
+	def __init__(self, episode_window_size=2**6, batch_window_size=2**8, **args):
+		print(f'episode_window_size={episode_window_size}, batch_window_size={batch_window_size}')
+		self.episode_stats = RunningStats(window_size=episode_window_size)
+		self.batch_stats = RunningStats(window_size=batch_window_size)
 
 	def get_episode_type(self, episode):
 		episode_extrinsic_reward = sum((np.sum(batch["rewards"]) for batch in episode))
@@ -44,9 +48,10 @@ class H(none):
 		return ((episode_type, self.get_H(batch)),)
 
 class W(H):
-	def __init__(self):
-		super().__init__()
-		self.n_clusters = 8
+	def __init__(self, episode_window_size=2**6, batch_window_size=2**8, n_clusters=8, **args):
+		super().__init__(episode_window_size, batch_window_size)
+		print(f'episode_window_size={episode_window_size}, batch_window_size={batch_window_size}, n_clusters={n_clusters}')
+		self.n_clusters = n_clusters
 		self.clusterer = MiniBatchKMeans(n_clusters=self.n_clusters, batch_size=self.n_clusters) # MiniBatchKMeans allows online clustering
 		self.explanation_vector_labels = set()
 

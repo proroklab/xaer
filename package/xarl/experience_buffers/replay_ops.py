@@ -23,7 +23,7 @@ def get_clustered_replay_buffer(config):
 		cluster_selection_policy=config["cluster_selection_policy"],
 		ratio_of_samples_from_unclustered_buffer=config["ratio_of_samples_from_unclustered_buffer"],
 	)
-	clustering_scheme = eval(config["clustering_scheme"])()
+	clustering_scheme = eval(config["clustering_scheme"])(**config["clustering_scheme_options"])
 	return local_replay_buffer, clustering_scheme
 
 def assign_types(batch, clustering_scheme, batch_fragment_length, with_episode_type=True):
