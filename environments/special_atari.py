@@ -16,13 +16,15 @@ class SpecialAtariEnv(AtariEnv):
 		new_lives = self.ale.lives()
 
 		lost_lives = old_lives-new_lives
-		explanation_list = [np.array2string(new_ram-old_ram) if reward != 0 or lost_lives != 0 else 'no_reward']
 		if reward != 0:
-			explanation_list.append('reward')
+			explanation_list = ['reward']
 		if lost_lives != 0:
-			explanation_list.append('lost_lives')
+			explanation_list = ['lost_lives']
+		else:
+			explanation_list = []
+		explanation_list.append(new_ram-old_ram if explanation_list else 'no_reward')
 
-		info_dict['explanation'] = explanation_list
+		info_dict['explanation'] = [tuple(explanation_list)]
 		self.lives = new_lives
 		# print(reward, terminal, delta)
 
