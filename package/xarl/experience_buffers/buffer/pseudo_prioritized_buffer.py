@@ -110,7 +110,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		new_max_cluster_size = self.get_max_cluster_size()
 		if new_max_cluster_size == self.max_cluster_size:
 			return
-		# for t in self.type_values:
+		## no need to remove redundancies now if the overall cluster's priority is capped
+		# for t in self.type_values: # remove redundancies
 		# 	elements_to_remove = max(0, self.count(t)-new_max_cluster_size)
 		# 	for _ in range(elements_to_remove):
 		# 		self.remove_batch(t, self.get_less_important_batch(t))
@@ -196,6 +197,7 @@ class PseudoPrioritizedBuffer(Buffer):
 			if self._cluster_prioritisation_strategy == 'weighted_avg':
 				avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
 				assert avg_cluster_priority >= 0, f"avg_cluster_priority is {avg_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+				# return min(1,self.get_cluster_capacity(segment_tree))*avg_cluster_priority
 				return self.get_cluster_capacity(segment_tree)*avg_cluster_priority
 			elif self._cluster_prioritisation_strategy == 'avg':
 				avg_cluster_priority = (segment_tree.sum()/segment_tree.inserted_elements) - min_priority # O(log)
@@ -204,6 +206,8 @@ class PseudoPrioritizedBuffer(Buffer):
 			# elif self._cluster_prioritisation_strategy == 'sum':
 			sum_cluster_priority = segment_tree.sum() - min_priority*segment_tree.inserted_elements # O(log)
 			assert sum_cluster_priority >= 0, f"sum_cluster_priority is {sum_cluster_priority}, it should be >= 0 otherwise the formula is wrong"
+			# if segment_tree.inserted_elements > self.max_cluster_size: # redundancies have not been removed yet, cluster's priority is to capped to avoid cluster over-estimation
+			# 	sum_cluster_priority *= self.max_cluster_size/segment_tree.inserted_elements
 			return sum_cluster_priority
 		return build_full_priority()**self._cluster_prioritization_alpha
 
@@ -288,7 +292,7 @@ class PseudoPrioritizedBuffer(Buffer):
 		idx = len(type_batch)
 		type_batch.append(batch)
 		if self._weight_importance_by_update_time:
-			self._update_times[type_].append(self.timesteps)
+			self._update_times[type_].append(self._max_age_window)
 		# Update batch infos
 		batch_infos = get_batch_infos(batch)
 		if 'batch_index' not in batch_infos:
@@ -364,6 +368,9 @@ class PseudoPrioritizedBuffer(Buffer):
 				self.update_beta_weights(batch, idx, type_)
 		return batch_list
 
+	def get_age_weight(self, type_, idx):
+		return max(1,self._update_times[type_][idx])/self._max_age_window
+
 	@staticmethod
 	def eta_normalisation(priorities, min_priority, max_priority, eta):
 		priorities = np.clip(priorities, min_priority, max_priority)
@@ -393,12 +400,8 @@ class PseudoPrioritizedBuffer(Buffer):
 		weight = weight**self._prioritization_importance_beta
 		##########
 		# Add age weight
-		if self._weight_importance_by_update_time:
-			relative_age = self.timesteps - self._update_times[type_][idx]
-			if relative_age > self._max_age_window:
-				weight = 0
-			# age_weight = max(1,(self._max_age_window - relative_age))/self._max_age_window
-			# weight *= age_weight # batches with outdated priorities should have a lower weight, they might be just noise
+		# if self._weight_importance_by_update_time:
+		# 	weight *= self.get_age_weight(type_, idx) # batches with outdated priorities should have a lower weight, they might be just noise
 		##########
 		batch['weights'] = np.full(batch.count, weight, dtype=np.float32)
 
@@ -420,9 +423,11 @@ class PseudoPrioritizedBuffer(Buffer):
 		normalized_priority = self.normalize_priority(new_priority)
 		# self.priority_stats.push(normalized_priority)
 		# Update priority
+		if self._weight_importance_by_update_time:
+			normalized_priority *= self.get_age_weight(type_, idx) # batches with outdated priorities should have a lower weight, they might be just noise
 		self._sample_priority_tree[type_][idx] = normalized_priority # O(log)
 		if self._weight_importance_by_update_time:
-			self._update_times[type_][idx] = self.timesteps # O(1)
+			self._update_times[type_][idx] = self._update_times[type_][idx] - 1 # O(1)
 
 	def get_relative_time(self):
 		return time.time()-self._base_time

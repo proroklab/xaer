@@ -12,16 +12,16 @@ from xarl.agents.xasac import XASACTrainer, XASAC_DEFAULT_CONFIG
 from environments import *
 from ray.rllib.models import ModelCatalog
 from xarl.models.sac import TFAdaptiveMultiHeadNet
-ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
+# ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 
 # SELECT_ENV = "CescoDrive-V1"
 SELECT_ENV = "GraphDrive-Hard"
 
 CONFIG = XASAC_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	"model": { # this is for GraphDrive and GridDrive
-		"custom_model": "adaptive_multihead_network",
-	},
+	# "model": { # this is for GraphDrive and GridDrive
+	# 	"custom_model": "adaptive_multihead_network",
+	# },
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	# "framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
@@ -58,7 +58,7 @@ CONFIG.update({
 		'clustering_xi': 3, # Let X be the minimum cluster's size, and C be the number of clusters, and q be clustering_xi, then the cluster's size is guaranteed to be in [X, X+(q-1)CX], with q >= 1, when all clusters have reached the minimum capacity X. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'max_age_window': None, # Consider only batches with a relative age within this age window, the younger is a batch the higher will be its importance. Set to None for no age weighting. # Idea from: Fedus, William, et al. "Revisiting fundamentals of experience replay." International Conference on Machine Learning. PMLR, 2020.
 	},
-	"clustering_scheme": "HW", # Which scheme to use for building clusters. One of the following: "none", "positive_H", "H", "HW", "long_HW", "W", "long_W".
+	"clustering_scheme": "W", # Which scheme to use for building clusters. One of the following: "none", "positive_H", "H", "HW", "long_HW", "W", "long_W".
 	"clustering_scheme_options": {
 		"episode_window_size": 2**6, 
 		"batch_window_size": 2**8, 

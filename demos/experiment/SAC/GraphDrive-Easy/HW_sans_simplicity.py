@@ -12,16 +12,16 @@ from xarl.agents.xasac import XASACTrainer, XASAC_DEFAULT_CONFIG
 from environments import *
 from ray.rllib.models import ModelCatalog
 from xarl.models.sac import TFAdaptiveMultiHeadNet
-ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
+# ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Hard"
+SELECT_ENV = "GraphDrive-Easy"
 
 CONFIG = XASAC_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	"model": { # this is for GraphDrive and GridDrive
-		"custom_model": "adaptive_multihead_network",
-	},
+	# "model": { # this is for GraphDrive and GridDrive
+	# 	"custom_model": "adaptive_multihead_network",
+	# },
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	# "framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
@@ -52,7 +52,7 @@ CONFIG.update({
 		'prioritization_epsilon': 1e-6, # prioritization_epsilon to add to a priority so that it is never equal to 0.
 		'prioritized_drop_probability': 0, # Probability of dropping the batch having the lowest priority in the buffer instead of the one having the lowest timestamp. In DQN default is 0.
 		'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
-		'cluster_prioritisation_strategy': 'sum', # Whether to select which cluster to replay in a prioritised fashion -- Options: None; 'sum', 'avg', 'weighted_avg'.
+		'cluster_prioritisation_strategy': None, # Whether to select which cluster to replay in a prioritised fashion -- Options: None; 'sum', 'avg', 'weighted_avg'.
 		'cluster_prioritization_alpha': 1, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'cluster_level_weighting': False, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
 		'clustering_xi': 3, # Let X be the minimum cluster's size, and C be the number of clusters, and q be clustering_xi, then the cluster's size is guaranteed to be in [X, X+(q-1)CX], with q >= 1, when all clusters have reached the minimum capacity X. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.

@@ -8,21 +8,25 @@ import ray
 import time
 from xarl.utils.workflow import train
 
-from xarl.agents.xacql import XACQLTrainer, XACQL_DEFAULT_CONFIG
+from xarl.agents.xaddpg import XATD3Trainer, XATD3_DEFAULT_CONFIG
 from environments import *
+from ray.rllib.models import ModelCatalog
+from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
+# ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 
 # SELECT_ENV = "CescoDrive-V1"
 SELECT_ENV = "GraphDrive-Hard"
 
-CONFIG = XACQL_DEFAULT_CONFIG.copy()
+CONFIG = XATD3_DEFAULT_CONFIG.copy()
 CONFIG.update({
+	# "model": { # this is for GraphDrive and GridDrive
+	# 	"custom_model": "adaptive_multihead_network",
+	# },
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
-	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
-	"framework": "torch",
 	"seed": 42, # This makes experiments reproducible.
-	"lr": 3e-5, # Default learning rate used in the paper.
-	"rollout_fragment_length": 1, # Divide episodes into fragments of this many steps each during rollouts. Default is 1.
+	"rollout_fragment_length": 2**6, # Divide episodes into fragments of this many steps each during rollouts. Default is 1.
 	"train_batch_size": 2**8, # Number of transitions per train-batch. Default is: 100 for TD3, 256 for SAC and DDPG, 32 for DQN, 500 for APPO.
+	# "batch_mode": "truncate_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	###########################
 	"prioritized_replay": True, # Whether to replay batches with the highest priority/importance/relevance for the agent.
 	'buffer_size': 2**14, # Size of the experience buffer. Default 50000
@@ -31,8 +35,9 @@ CONFIG.update({
 	"prioritized_replay_eps": 1e-6,
 	"learning_starts": 2**14, # How many steps of the model to sample before learning starts.
 	###########################
-	# "tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
-	###########################
+	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
+	"tau": 1e-4,
+	##################################
 	"buffer_options": {
 		'priority_id': 'td_errors', # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
 		'priority_lower_limit': 0, # A value lower than the lowest possible priority. It depends on the priority_id. By default in DQN and DDPG it is td_error 0, while in PPO it is gain None.
@@ -51,7 +56,12 @@ CONFIG.update({
 		'clustering_xi': 1, # Let X be the minimum cluster's size, and C be the number of clusters, and q be clustering_xi, then the cluster's size is guaranteed to be in [X, X+(q-1)CX], with q >= 1, when all clusters have reached the minimum capacity X. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
 		'max_age_window': None, # Consider only batches with a relative age within this age window, the younger is a batch the higher will be its importance. Set to None for no age weighting. # Idea from: Fedus, William, et al. "Revisiting fundamentals of experience replay." International Conference on Machine Learning. PMLR, 2020.
 	},
-	"clustering_scheme": "HW", # Which scheme to use for building clusters. One of the following: "none", "positive_H", "H", "HW", "long_HW", "W", "long_W".
+	"clustering_scheme": None, # Which scheme to use for building clusters. One of the following: "none", "positive_H", "H", "HW", "long_HW", "W", "long_W".
+	"clustering_scheme_options": {
+		"episode_window_size": 2**6, 
+		"batch_window_size": 2**8, 
+		"n_clusters": 4,
+	},
 	"cluster_selection_policy": "min", # Which policy to follow when clustering_scheme is not "none" and multiple explanatory labels are associated to a batch. One of the following: 'random_uniform_after_filling', 'random_uniform', 'random_max', 'max', 'min', 'none'
 	"cluster_with_episode_type": False, # Useful with sparse-reward environments. Whether to cluster experience using information at episode-level.
 	"cluster_overview_size": 1, # cluster_overview_size <= train_batch_size. If None, then cluster_overview_size is automatically set to train_batch_size. -- When building a single train batch, do not sample a new cluster before x batches are sampled from it. The closer cluster_overview_size is to train_batch_size, the faster is the batch sampling procedure.
@@ -66,4 +76,4 @@ CONFIG["callbacks"] = CustomEnvironmentCallbacks
 ray.shutdown()
 ray.init(ignore_reinit_error=True, include_dashboard=False)
 
-train(XACQLTrainer, CONFIG, SELECT_ENV, test_every_n_step=1e7, stop_training_after_n_step=4e7)
+train(XATD3Trainer, CONFIG, SELECT_ENV, test_every_n_step=4e7, stop_training_after_n_step=4e7)

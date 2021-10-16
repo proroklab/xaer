@@ -15,7 +15,7 @@ from xarl.models.ddpg import TFAdaptiveMultiHeadDDPG
 ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Hard"
+SELECT_ENV = "GraphDrive-Medium"
 
 CONFIG = XATD3_DEFAULT_CONFIG.copy()
 CONFIG.update({
@@ -23,9 +23,8 @@ CONFIG.update({
 		"custom_model": "adaptive_multihead_network",
 	},
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
-	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
 	"seed": 42, # This makes experiments reproducible.
-	"rollout_fragment_length": 1, # Divide episodes into fragments of this many steps each during rollouts. Default is 1.
+	"rollout_fragment_length": 2**6, # Divide episodes into fragments of this many steps each during rollouts. Default is 1.
 	"train_batch_size": 2**8, # Number of transitions per train-batch. Default is: 100 for TD3, 256 for SAC and DDPG, 32 for DQN, 500 for APPO.
 	# "batch_mode": "truncate_episodes", # For some clustering schemes (e.g. extrinsic_reward, moving_best_extrinsic_reward, etc..) it has to be equal to 'complete_episodes', otherwise it can also be 'truncate_episodes'.
 	###########################
@@ -36,9 +35,8 @@ CONFIG.update({
 	"prioritized_replay_eps": 1e-6,
 	"learning_starts": 2**14, # How many steps of the model to sample before learning starts.
 	###########################
-	# "tau": 1e-4, # The smaller tau, the lower the value over-estimation, the higher the bias
-	# "grad_clip": 40, # This prevents giant gradients and so improves robustness
-	# "l2_reg": 1e-6, # This mitigates over-fitting
+	"gamma": 0.999, # We use an higher gamma to extend the MDP's horizon; optimal agency on GraphDrive requires a longer horizon.
+	"tau": 1e-4,
 	##################################
 	"buffer_options": {
 		'priority_id': 'td_errors', # Which batch column to use for prioritisation. Default is inherited by DQN and it is 'td_errors'. One of the following: rewards, prev_rewards, td_errors.
@@ -62,7 +60,7 @@ CONFIG.update({
 	"clustering_scheme_options": {
 		"episode_window_size": 2**6, 
 		"batch_window_size": 2**8, 
-		"n_clusters": 8,
+		"n_clusters": 4,
 	},
 	"cluster_selection_policy": "min", # Which policy to follow when clustering_scheme is not "none" and multiple explanatory labels are associated to a batch. One of the following: 'random_uniform_after_filling', 'random_uniform', 'random_max', 'max', 'min', 'none'
 	"cluster_with_episode_type": False, # Useful with sparse-reward environments. Whether to cluster experience using information at episode-level.
@@ -78,4 +76,4 @@ CONFIG["callbacks"] = CustomEnvironmentCallbacks
 ray.shutdown()
 ray.init(ignore_reinit_error=True, include_dashboard=False)
 
-train(XATD3Trainer, CONFIG, SELECT_ENV, test_every_n_step=1e7, stop_training_after_n_step=4e7)
+train(XATD3Trainer, CONFIG, SELECT_ENV, test_every_n_step=4e7, stop_training_after_n_step=4e7)

@@ -52,7 +52,7 @@ class W(H):
 		super().__init__(episode_window_size, batch_window_size)
 		print(f'[W] episode_window_size={episode_window_size}, batch_window_size={batch_window_size}, n_clusters={n_clusters}')
 		self.n_clusters = n_clusters
-		self.clusterer = MiniBatchKMeans(n_clusters=self.n_clusters, batch_size=self.n_clusters) # MiniBatchKMeans allows online clustering
+		self.clusterer = MiniBatchKMeans(n_clusters=self.n_clusters, batch_size=self.n_clusters) if self.n_clusters else None # MiniBatchKMeans allows online clustering
 		self.explanation_vector_labels = set()
 
 	def get_batch_type(self, batch, episode_type='none'):
@@ -62,12 +62,13 @@ class W(H):
 		explanation_iter = unique_everseen(explanation_iter, key=str)
 		explanation_list = list(explanation_iter)
 
-		explanation_vector_list = list(filter(lambda x: isinstance(x, np.ndarray), explanation_list))
-		new_explanation_vector_labels = set(map(np.array2string, explanation_vector_list)) - self.explanation_vector_labels
-		if new_explanation_vector_labels:
-			self.explanation_vector_labels |= new_explanation_vector_labels
-			X = list(filter(lambda x: np.array2string(x) in new_explanation_vector_labels, explanation_vector_list))
-			self.clusterer.partial_fit(X*self.n_clusters) # online learning
+		if self.clusterer:
+			explanation_vector_list = list(filter(lambda x: isinstance(x, np.ndarray), explanation_list))
+			new_explanation_vector_labels = set(map(np.array2string, explanation_vector_list)) - self.explanation_vector_labels
+			if new_explanation_vector_labels:
+				self.explanation_vector_labels |= new_explanation_vector_labels
+				X = list(filter(lambda x: np.array2string(x) in new_explanation_vector_labels, explanation_vector_list))
+				self.clusterer.partial_fit(X*self.n_clusters) # online learning
 		explanation_iter = map(lambda x: f'cluster_{self.clusterer.predict([x])[0]}' if isinstance(x, np.ndarray) else x, explanation_list)
 
 		explanation_iter = map(lambda x:(episode_type, x), explanation_iter)

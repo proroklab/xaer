@@ -12,16 +12,16 @@ from xarl.agents.xasac import XASACTrainer, XASAC_DEFAULT_CONFIG
 from environments import *
 from ray.rllib.models import ModelCatalog
 from xarl.models.sac import TFAdaptiveMultiHeadNet
-ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
+# ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadDDPG)
 
 # SELECT_ENV = "CescoDrive-V1"
-SELECT_ENV = "GraphDrive-Hard"
+SELECT_ENV = "GraphDrive-Hard-Sparse"
 
 CONFIG = XASAC_DEFAULT_CONFIG.copy()
 CONFIG.update({
-	"model": { # this is for GraphDrive and GridDrive
-		"custom_model": "adaptive_multihead_network",
-	},
+	# "model": { # this is for GraphDrive and GridDrive
+	# 	"custom_model": "adaptive_multihead_network",
+	# },
 	# "preprocessor_pref": "rllib", # this prevents reward clipping on Atari and other weird issues when running from checkpoints
 	# "framework": "torch",
 	"seed": 42, # This makes experiments reproducible.

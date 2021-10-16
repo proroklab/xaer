@@ -15,15 +15,20 @@ from xarl.experience_buffers.clustering_scheme import *
 
 def get_clustered_replay_buffer(config):
 	assert config["batch_mode"] == "complete_episodes" or not config["cluster_with_episode_type"], f"This algorithm requires 'complete_episodes' as batch_mode when 'cluster_with_episode_type' is True"
+	clustering_scheme_type = config.get("clustering_scheme", None)
+	if not clustering_scheme_type:
+		clustering_scheme_type = 'none'
+	# no need for unclustered_buffer if clustering_scheme_type is none
+	ratio_of_samples_from_unclustered_buffer = config["ratio_of_samples_from_unclustered_buffer"] if clustering_scheme_type != 'none' else 0
 	local_replay_buffer = LocalReplayBuffer(
 		prioritized_replay=config["prioritized_replay"],
 		buffer_options=config["buffer_options"], 
 		learning_starts=config["learning_starts"], 
 		seed=config["seed"],
 		cluster_selection_policy=config["cluster_selection_policy"],
-		ratio_of_samples_from_unclustered_buffer=config["ratio_of_samples_from_unclustered_buffer"],
+		ratio_of_samples_from_unclustered_buffer=ratio_of_samples_from_unclustered_buffer,
 	)
-	clustering_scheme = eval(config["clustering_scheme"])(**config["clustering_scheme_options"])
+	clustering_scheme = eval(clustering_scheme_type)(**config["clustering_scheme_options"])
 	return local_replay_buffer, clustering_scheme
 
 def assign_types(batch, clustering_scheme, batch_fragment_length, with_episode_type=True):
