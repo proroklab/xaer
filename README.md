@@ -10,7 +10,7 @@ This implementation of XARL supports:
 - SAC
 - PPO
 
-![Environments](images/environments.pdf)
+![Environments](images/environments.png)
 
 XARL comes also with 2 new environments:
 - GridDrive: A 15×15 grid of cells, where every cell represents a different type of road (see Figure 2, left), with base types (e.g. motorway, school road, city) combined with other modifiers (roadworks, accidents, weather). Each vehicle will have a set of properties that define which type of vehicle they are (emergency, civilian, worker, etc). Complex combinations of these properties will define a strict speed limit for each cell, according to the culture. 
