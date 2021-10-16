@@ -14,11 +14,11 @@ XARL comes also with 2 new environments:
 - GridDrive: A 15×15 grid of cells, where every cell represents a different type of road (see Figure 2, left), with base types (e.g. motorway, school road, city) combined with other modifiers (roadworks, accidents, weather). Each vehicle will have a set of properties that define which type of vehicle they are (emergency, civilian, worker, etc). Complex combinations of these properties will define a strict speed limit for each cell, according to the culture. 
 - GraphDrive: An Euclidean representation of a planar graph with n vertices and m edges. The agent starts at the coordinates of one of those vertices and has to drive be- tween vertices (called ‘junctions’) in continuous space with Ackermann-based non-holonomic motion. Edges represent roads and are subjected to the same rules with properties to those seen in GridDrive plus a few extra rules to encourage the agent to stay close to the edges. The incentive is to drive as long as possible without committing speed infractions. In this setting, the agent not only has to master the rules of the roads, but also the control dynamics to steer and accelerate correctly. We test two variations of this environment: one with dense and another with sparse rewards. 
 
-![Environments](images/environments.png)
 *Environments*
+![Environments](images/environments.png)
 
-![Screenshot of GraphDrive](images/graphdrive.png)
 *Screenshot of GraphDrive*
+![Screenshot of GraphDrive](images/graphdrive.png)
   
 ## Installation
 This project has been tested on Debian 9 and macOS Mojave 10.14 with Python 3.7.9 and 3.8.6. 
@@ -88,8 +88,8 @@ For example, as shown in the following image we have:
 - H_select_random: HW with `'cluster_selection_policy':'random_uniform'`
 - H_clustered_beta: HW with `'cluster_level_weighting':True`
 
-![DQN - GraphDrive Medium](images/experiments/DQN/DQN_medium_graph_drive.png)
 *DQN - GraphDrive Medium*
+![DQN - GraphDrive Medium](images/experiments/DQN/DQN_medium_graph_drive.png)
 
 ## Citations
 This code is free. So, if you use this code anywhere, please cite us:
