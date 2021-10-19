@@ -4,6 +4,7 @@ Code accompanying the paper
 
 **N.B. The exact code used for [Explanation-Aware Experience Replay in Rule-Dense Environments](https://arxiv.org/abs/2109.14711) can be found inside branch [xarl-experiment](https://github.com/Francesco-Sovrano/XARL/tree/xarl-experiment). This is an updated version.**
 
+## Short Description
 XARL is a pip-installable python library, extending [RLlib](https://www.ray.io/rllib) with explanation-awareness capabilities, as described in our paper [Explanation-Aware Experience Replay in Rule-Dense Environments](https://arxiv.org/abs/2109.14711).
 This implementation of XARL supports:
 - DQN
