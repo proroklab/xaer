@@ -1,4 +1,6 @@
 # XARL in Rule-Dense Environments
+Code accompanying the paper
+> ["Explanation-Aware Experience Replay in Rule-Dense Environments"](https://arxiv.org/abs/2109.14711)
 
 **N.B. The exact code used for [Explanation-Aware Experience Replay in Rule-Dense Environments](https://arxiv.org/abs/2109.14711) can be found inside branch [xarl-experiment](https://github.com/Francesco-Sovrano/XARL/tree/xarl-experiment). This is an updated version.**
 
