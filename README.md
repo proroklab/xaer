@@ -1,6 +1,7 @@
 # XARL in Rule-Dense Environments
 
-**N.B. This documentation will be updated soon**
+Code accompanying the paper
+> ["Explanation-Aware Experience Replay in Rule-Dense Environments"](https://arxiv.org/abs/2109.14711)
 
 XARL is a pip-installable python library, extending [RLlib](https://www.ray.io/rllib) with explanation-awareness capabilities, as described in our paper [Explanation-Aware Experience Replay in Rule-Dense Environments](https://arxiv.org/abs/2109.14711).
 This implementation of XARL supports:
