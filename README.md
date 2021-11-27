@@ -1,10 +1,7 @@
 # XARL in Rule-Dense Environments
-Code accompanying the paper
-> ["Explanation-Aware Experience Replay in Rule-Dense Environments"](https://arxiv.org/abs/2109.14711)
 
-**N.B. The exact code used for [Explanation-Aware Experience Replay in Rule-Dense Environments](https://arxiv.org/abs/2109.14711) can be found inside branch [xarl-experiment](https://github.com/Francesco-Sovrano/XARL/tree/xarl-experiment). This is an updated version.**
+**N.B. This documentation will be updated soon**
 
-## Short Description
 XARL is a pip-installable python library, extending [RLlib](https://www.ray.io/rllib) with explanation-awareness capabilities, as described in our paper [Explanation-Aware Experience Replay in Rule-Dense Environments](https://arxiv.org/abs/2109.14711).
 This implementation of XARL supports:
 - DQN
@@ -33,7 +30,7 @@ You can also install XARL by downloading this repo and running from within it:
 Before being able to run the [setup.sh](setup.sh) script you have to install: virtualenv, python3-dev, python3-pip and make. 
 
 ## Usage
-To use XARL in your own project, please give a look to the boilerplate code in the demos, i.e. [demos/experiment/DQN/GridDrive-Easy/HW.py](demos/experiment/DQN/GridDrive-Easy/HW.py). Remember to change the different hyper-parameters according to your needs.
+To use XARL in your own project, please give a look to the boilerplate code in the demos, i.e. [demos/DQN/GridDrive-Easy/HW.py](demos/DQN/GridDrive-Easy/HW.py). Remember to change the different hyper-parameters according to your needs.
 You should also change the step function in your environment so that it returns also an explanation label attached to the reward, as show in the function `step` inside [environments/car_controller/grid_drive/grid_drive.py](environments/car_controller/grid_drive/grid_drive.py).
 
 ## Hyper-Parameters
@@ -55,7 +52,7 @@ The new hyper-parameters are:
 	'global_distribution_matching': False, # Whether to use a random number rather than the batch priority during prioritised dropping. If True then: At time t the probability of any experience being the max experience is 1/t regardless of when the sample was added, guaranteeing that (when prioritized_drop_probability==1) at any given time the sampled experiences will approximately match the distribution of all samples seen so far.
 	'cluster_prioritisation_strategy': 'sum', # Whether to select which cluster to replay in a prioritised fashion -- Options: None; 'sum', 'avg', 'weighted_avg'.
 	'cluster_prioritization_alpha': 1, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
-	'cluster_level_weighting': False, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
+	'cluster_level_weighting': True, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
 	'max_age_window': None, # Consider only batches with a relative age within this age window, the younger is a batch the higher will be its importance. Set to None for no age weighting. # Idea from: Fedus, William, et al. "Revisiting fundamentals of experience replay." International Conference on Machine Learning. PMLR, 2020.
 },
 "clustering_scheme": "HW", # Which scheme to use for building clusters. One of the following: "none", "positive_H", "H", "HW", "long_HW", "W", "long_W".
@@ -74,30 +71,36 @@ The new hyper-parameters are:
 ## Experiments
 XARL comes with a few demos for DQN, SAC and TD3, respectively on GridDrive and GraphDrive. 
 These demos have the same configuration of hyper-parameters used in the experiments of [Explanation-Aware Experience Replay in Rule-Dense Environments](https://arxiv.org/abs/2109.14711). 
-You may find all the demo scripts inside: [demos/experiment](demos/experiment).
+You may find all the demo scripts inside: [demos](demos).
 
 Inside the directory [images/experiments](images/experiments) you may find some plots obtained by performing an ablation study on a few selected hyper-parameters.
-In these plots, the default configuration is always HW (usually the red solid line) with the same hyper-parameters used for the demos named HW. While all the other configurations are slight variations of HW.
+In these plots, the default configuration is always HW (usually the red solid line meaning that How-Why explanations are used) with the same hyper-parameters used for the demos named HW. While all the other configurations are slight variations of HW.
 For example, as shown in the following image we have:
 - baseline: HW with `"clustering_scheme": None`
-- H: HW with `"clustering_scheme": 'H'`
-- W: HW with `"clustering_scheme": 'W'`
-- HW_no_pcluster: HW sans simplicity (with `'cluster_prioritisation_strategy': None`)
-- H_xi_2: HW with `"clustering_xi": 2`
-- H_xi_3: HW with `"clustering_xi": 3`
-- H_xi_4: HW with `"clustering_xi": 4`
-- H_xi_5: HW with `"clustering_xi": 5`
-- H_xi_inf: HW with `"clustering_xi": float('inf')`
-- H_select_random: HW with `'cluster_selection_policy':'random_uniform'`
-- H_clustered_beta: HW with `'cluster_level_weighting':True`
+- H: only How explanations; HW with `"clustering_scheme": 'H'`
+- W: only Why explanations; HW with `"clustering_scheme": 'W'`
+- HW bias: HW with `"'cluster_level_weighting': False`
+- HW xi: HW with `"clustering_xi": 1` for SAC or `"clustering_xi": 3` for DQN/TD3
+- HW sans simplicity: HW with `'cluster_prioritisation_strategy': None`
 
 *DQN - GraphDrive Medium*
-![DQN - GraphDrive Medium](images/experiments/DQN/DQN_medium_graph_drive.png)
+![DQN - GridDrive Medium](images/experiments/DQN/DQN-GridDrive-Medium.png)
+
+## RLlib Patches
+RLlib has some known issues with PPO.
+For running any experiment on PPO with Tensorflow, to avoid raising a NaN error during training (a.k.a. run-time crash), add the following lines to ray/rllib/models/tf/tf_action_dist.py, after line 237
+```
+        log_std = tf.clip_by_value(log_std, MIN_LOG_NN_OUTPUT, MAX_LOG_NN_OUTPUT) # Clip `scale` values (coming from NN) to reasonable values.
+```
+For running any experiment on PPO with PyTorch, to avoid raising a NaN error during training (a.k.a. run-time crash), add the following lines to ray/rllib/models/torch/torch_action_dist.py, after line 159
+```
+        log_std = torch.clamp(log_std, MIN_LOG_NN_OUTPUT, MAX_LOG_NN_OUTPUT)
+```
 
 ## Citations
 This code is free. So, if you use this code anywhere, please cite us:
 ```
-@article{sovrano_raymond2021xarl,
+@article{sovranoraymond2021xarl,
   title={Explanation-Aware Experience Replay in Rule-Dense Environments},
   author={Sovrano, Francesco and Raymond, Alex and Prorok Amanda},
   journal={arXiv preprint arXiv:2109.14711},

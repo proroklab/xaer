@@ -55,6 +55,7 @@ XAPPO_EXTRA_OPTIONS = {
 		'cluster_prioritization_alpha': 1, # How much prioritization is used (0 - no prioritization, 1 - full prioritization).
 		'cluster_level_weighting': False, # Whether to use only cluster-level information to compute importance weights rather than the whole buffer.
 		'clustering_xi': 4, # Let X be the minimum cluster's size, and C be the number of clusters, and q be clustering_xi, then the cluster's size is guaranteed to be in [X, X+(q-1)CX], with q >= 1, when all clusters have reached the minimum capacity X. This shall help having a buffer reflecting the real distribution of tasks (where each task is associated to a cluster), thus avoiding over-estimation of task's priority.
+		# 'clip_cluster_priority_by_max_capacity': False, # Default is False. Whether to clip the clusters priority so that the 'cluster_prioritisation_strategy' will not consider more elements than the maximum cluster capacity. In fact, until al the clusters have reached the minimum size, some clusters may have more elements than the maximum size, to avoid shrinking the buffer capacity with clusters having not enough transitions (i.e. 1 transition).
 		'max_age_window': None, # Consider only batches with a relative age within this age window, the younger is a batch the higher will be its importance. Set to None for no age weighting. # Idea from: Fedus, William, et al. "Revisiting fundamentals of experience replay." International Conference on Machine Learning. PMLR, 2020.
 	},
 	"clustering_scheme": "HW", # Which scheme to use for building clusters. One of the following: "none", "positive_H", "H", "HW", "long_HW", "W", "long_W".
@@ -125,6 +126,71 @@ def compute_gae_v_advantages(rollout: SampleBatch, last_r: float, gamma: float =
 	assert all(val.shape[0] == rollout_size for key, val in rollout.items()), "Rollout stacked incorrectly!"
 	return rollout
 
+# TODO: (sven) Experimental method.
+def get_single_step_input_dict(self, view_requirements, index="last"):
+	"""Creates single ts SampleBatch at given index from `self`.
+
+	For usage as input-dict for model calls.
+
+	Args:
+		sample_batch (SampleBatch): A single-trajectory SampleBatch object
+			to generate the compute_actions input dict from.
+		index (Union[int, str]): An integer index value indicating the
+			position in the trajectory for which to generate the
+			compute_actions input dict. Set to "last" to generate the dict
+			at the very end of the trajectory (e.g. for value estimation).
+			Note that "last" is different from -1, as "last" will use the
+			final NEXT_OBS as observation input.
+
+	Returns:
+		SampleBatch: The (single-timestep) input dict for ModelV2 calls.
+	"""
+	last_mappings = {
+		SampleBatch.OBS: SampleBatch.NEXT_OBS,
+		SampleBatch.PREV_ACTIONS: SampleBatch.ACTIONS,
+		SampleBatch.PREV_REWARDS: SampleBatch.REWARDS,
+	}
+
+	input_dict = {}
+	for view_col, view_req in view_requirements.items():
+		# Create batches of size 1 (single-agent input-dict).
+		data_col = view_req.data_col or view_col
+		if index == "last":
+			data_col = last_mappings.get(data_col, data_col)
+			# Range needed.
+			if view_req.shift_from is not None:
+				data = self[view_col][-1]
+				traj_len = len(self[data_col])
+				missing_at_end = traj_len % view_req.batch_repeat_value
+				obs_shift = -1 if data_col in [
+					SampleBatch.OBS, SampleBatch.NEXT_OBS
+				] else 0
+				from_ = view_req.shift_from + obs_shift
+				to_ = view_req.shift_to + obs_shift + 1
+				if to_ == 0:
+					to_ = None
+				input_dict[view_col] = np.array([
+					np.concatenate(
+						[data,
+						 self[data_col][-missing_at_end:]])[from_:to_]
+				])
+			# Single index.
+			else:
+				data = self[data_col][-1]
+				input_dict[view_col] = np.array([data])
+		else:
+			# Index range.
+			if isinstance(index, tuple):
+				data = self[data_col][index[0]:index[1] +
+									  1 if index[1] != -1 else None]
+				input_dict[view_col] = np.array([data])
+			# Single index.
+			else:
+				input_dict[view_col] = self[data_col][
+					index:index + 1 if index != -1 else None]
+
+	return SampleBatch(input_dict, seq_lens=np.array([1], dtype=np.int32))
+
 def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None, episode=None):
 	# Add PPO's importance weights
 	action_logp = policy.compute_log_likelihoods(
@@ -149,7 +215,7 @@ def xappo_postprocess_trajectory(policy, sample_batch, other_agent_batches=None,
 			# requirements. It's a single-timestep (last one in trajectory)
 			# input_dict.
 			# Create an input dict according to the Model's requirements.
-			input_dict = sample_batch.get_single_step_input_dict(policy.model.view_requirements, index="last")
+			input_dict = get_single_step_input_dict(sample_batch, policy.model.view_requirements, index="last")
 			last_r = policy._value(**input_dict)
 
 		# Adds the policy logits, VF preds, and advantages to the batch,

@@ -45,17 +45,14 @@ def get_algorithm_by_name(alg_name):
 	# SAC
 	if alg_name == 'sac':
 		from ray.rllib.agents.sac.sac import SACTrainer, DEFAULT_CONFIG as SAC_DEFAULT_CONFIG
+		from xarl.models.sac import TFAdaptiveMultiHeadNet
+		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
 		return SAC_DEFAULT_CONFIG.copy(), SACTrainer
 	if alg_name == 'xasac':
 		from xarl.agents.xasac import XASACTrainer, XASAC_DEFAULT_CONFIG
+		from xarl.models.sac import TFAdaptiveMultiHeadNet
+		ModelCatalog.register_custom_model("adaptive_multihead_network", TFAdaptiveMultiHeadNet)
 		return XASAC_DEFAULT_CONFIG.copy(), XASACTrainer
-	# CQL
-	if alg_name == 'cql':
-		from ray.rllib.agents.cql.cql import CQLTrainer, CQL_DEFAULT_CONFIG
-		return CQL_DEFAULT_CONFIG.copy(), CQLTrainer
-	if alg_name == 'xacql':
-		from xarl.agents.xacql import XACQLTrainer, XACQL_DEFAULT_CONFIG
-		return XACQL_DEFAULT_CONFIG.copy(), XACQLTrainer
 	# PPO
 	if alg_name in ['appo','ppo']:
 		from ray.rllib.agents.ppo.appo import APPOTrainer, DEFAULT_CONFIG as APPO_DEFAULT_CONFIG

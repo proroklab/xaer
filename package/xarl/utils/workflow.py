@@ -124,15 +124,15 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 def train(trainer_class, config, environment_class, test_every_n_step=None, stop_training_after_n_step=None, log=True):
 	# Configure RLlib to train a policy using the given environment and trainer
 	agent = trainer_class(config, env=environment_class)
-	# Inspect the trained policy and model, to see the results of training in detail
-	policy = agent.get_policy()
-	model = policy.model
-	if hasattr(model, 'base_model'):
-		print(model.base_model.summary())
-	if hasattr(model, 'q_value_head'):
-		print(model.q_value_head.summary())
-	if hasattr(model, 'heads_model'):
-		print(model.heads_model.summary())
+	# # Inspect the trained policy and model, to see the results of training in detail
+	# policy = agent.get_policy()
+	# model = policy.model
+	# if hasattr(model, 'base_model'):
+	# 	print(model.base_model.summary())
+	# if hasattr(model, 'q_value_head'):
+	# 	print(model.q_value_head.summary())
+	# if hasattr(model, 'heads_model'):
+	# 	print(model.heads_model.summary())
 	# Start training
 	n = 0
 	sample_steps = 0

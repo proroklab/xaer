@@ -31,6 +31,7 @@ class GridDrive(gym.Env):
 
 	def get_state(self):
 		fc_dict = {
+			# "grid": self.grid_view,
 			"neighbours": self.grid.neighbour_features(), 
 		}
 		if self.obs_car_features > 0:
@@ -76,6 +77,7 @@ class GridDrive(gym.Env):
 		# self.action_space	   = gym.spaces.MultiDiscrete([self.DIRECTIONS, self.MAX_GAPPED_SPEED])
 		self.action_space	   = gym.spaces.Discrete(self.DIRECTIONS*self.MAX_GAPPED_SPEED)
 		fc_dict = {
+			# "grid": gym.spaces.MultiBinary([self.GRID_DIMENSION, self.GRID_DIMENSION, self.obs_road_features+2]), # Features representing the grid + visited cells + current position
 			"neighbours": gym.spaces.MultiBinary(self.obs_road_features * self.DIRECTIONS), # Neighbourhood view
 		}
 		if self.obs_car_features > 0:

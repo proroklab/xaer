@@ -123,19 +123,19 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 					continue
 				stats_dict = y[key]
 				if buckets_average == 'median':
-					stats_dict["quantiles"].append([
-						np.quantile(value_list,0.25) if show_deviation else 0, # lower quartile
-						np.quantile(value_list,0.5), # median
-						np.quantile(value_list,0.75) if show_deviation else 0, # upper quartile
-					])
+					stats_dict["quantiles"].append({
+						'lower_quartile': np.quantile(value_list,0.25), # lower quartile
+						'median': np.quantile(value_list,0.5), # median
+						'upper_quartile': np.quantile(value_list,0.75), # upper quartile
+					})
 				else:
 					v_mean = np.mean(value_list)
 					v_std = np.std(value_list)
-					stats_dict["quantiles"].append([
-						v_mean-v_std if show_deviation else 0,
-						v_mean,
-						v_mean+v_std if show_deviation else 0,
-					])
+					stats_dict["quantiles"].append({
+						'mean-std': v_mean-v_std,
+						'mean': v_mean,
+						'mean+std': v_mean+v_std,
+					})
 				stats_dict["min"] = min(stats_dict["min"], min(value_list))
 				stats_dict["max"] = max(stats_dict["max"], max(value_list))
 				x[key].append(last_step)
@@ -144,6 +144,10 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 			'y': y,
 			'log_id': log_id
 		}
+		print('#'*10)
+		# print(name)
+		print('episode_reward_mean:', json.dumps(y["episode_reward_mean"], indent=4))
+		print('#'*10)
 	plotted_baseline = False
 	plot_dict = {}
 	for name, line in lines_dict.items():
@@ -153,8 +157,6 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 		if is_baseline:
 			name = base_shared_name
 		# Populate axes
-		print('#'*20)
-		print(name)
 		x = line['x']
 		y = line['y']
 		log_id = line['log_id']
@@ -168,17 +170,21 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 				key = stat[idx]
 				y_key = y[key]
 				x_key = x[key]
-				y_key_lower_quartile, y_key_median, y_key_upper_quartile = map(np.array, zip(*y_key["quantiles"]))
+				unpack_quantiles = lambda a: map(lambda b: b.values(), a)
+				y_key_lower_quartile, y_key_median, y_key_upper_quartile = map(np.array, zip(*unpack_quantiles(y_key["quantiles"])))
 				if base_list:
 					base_line = base_list[log_id]
 					base_y_key = lines_dict[base_line]['y'][key]
-					base_y_key_lower_quartile, base_y_key_median, base_y_key_upper_quartile = map(np.array, zip(*base_y_key["quantiles"]))
+					base_y_key_lower_quartile, base_y_key_median, base_y_key_upper_quartile = map(np.array, zip(*unpack_quantiles(base_y_key["quantiles"])))
 					normalise = lambda x,y: 100*(x-y)/(y-base_y_key['min']+1)
 					y_key_median = normalise(y_key_median, base_y_key_median)
 					y_key_lower_quartile = normalise(y_key_lower_quartile, base_y_key_lower_quartile)
 					y_key_upper_quartile = normalise(y_key_upper_quartile, base_y_key_upper_quartile)
 				# print stats
-				print(f"    {key} is in [{y_key['min']},{y_key['max']}] with medians: {y_key_median}")				
+				# print(f"    {key} is in [{y_key['min']},{y_key['max']}]")
+				# print(f"    {key} has medians: {y_key_median}")
+				# print(f"    {key} has lower quartiles: {y_key_lower_quartile}")
+				# print(f"    {key} has upper quartiles: {y_key_upper_quartile}")
 				if is_baseline:
 					plotted_baseline = True
 				plot_list.append({
@@ -264,7 +270,7 @@ def line_plot(logs, figure_file, max_plot_size=20, show_deviation=False, base_li
 	print("Plot figure saved in ", figure_file)
 	figure = None
 
-def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=None, statistics_list=None, buckets_average='median'):
+def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_size=20, show_deviation=False, base_list=None, base_shared_name='baseline', average_non_baselines=None, statistics_list=None, buckets_average='median', step_type='num_steps_sampled'):
 	assert len(url_list)==len(name_list), f"url_list (len {len(url_list)}) and name_list (len {len(name_list)}) must have same lenght"
 	logs = []
 	for url,name in zip(url_list,name_list):
@@ -274,9 +280,9 @@ def line_plot_files(url_list, name_list, figure_file, max_length=None, max_plot_
 		print(f"{name} has length {length}")
 		logs.append({
 			'name': name, 
-			'data_iter': parse(url, max_i=length, statistics_list=statistics_list), 
+			'data_iter': parse(url, max_i=length, statistics_list=statistics_list, step_type=step_type), 
 			'length':length, 
-			'line_example': parse_line(line_example, statistics_list=statistics_list)
+			'line_example': parse_line(line_example, statistics_list=statistics_list, step_type=step_type)
 		})
 	line_plot(logs, figure_file, max_plot_size, show_deviation, base_list, base_shared_name, average_non_baselines, buckets_average)
 		
@@ -293,9 +299,9 @@ def get_length_and_line_example(file):
 	except:
 		return 0, None
 
-def parse_line(line, i=0, statistics_list=None):
+def parse_line(line, i=0, statistics_list=None, step_type='num_steps_sampled'):
 	val_dict = json.loads(line)
-	step = val_dict["info"]["num_steps_sampled"] # "num_steps_sampled", "num_steps_trained"
+	step = val_dict["info"][step_type] # "num_steps_sampled", "num_steps_trained"
 	# obj = {
 	# 	"median cum. reward": np.median(val_dict["hist_stats"]["episode_reward"]),
 	# 	"mean visited roads": val_dict['custom_metrics'].get('visited_junctions_mean',val_dict['custom_metrics'].get('visited_cells_mean',0))
@@ -336,13 +342,13 @@ def parse_line(line, i=0, statistics_list=None):
 		obj = dict(filter(lambda x: x[0] in statistics_list, obj.items()))
 	return (step, obj)
 	
-def parse(log_fname, max_i=None, statistics_list=None):
+def parse(log_fname, max_i=None, statistics_list=None, step_type='num_steps_sampled'):
 	with open(log_fname, 'r') as logfile:
 		for i, line in enumerate(logfile):
 			if max_i and i > max_i:
 				return
 			try:
-				yield parse_line(line, i=i, statistics_list=statistics_list)
+				yield parse_line(line, i=i, statistics_list=statistics_list, step_type=step_type)
 			except Exception as e:
 				print("exc %s on line %s" % (repr(e), i+1))
 				print("skipping line")

@@ -32,21 +32,35 @@ def get_clustered_replay_buffer(config):
 	return local_replay_buffer, clustering_scheme
 
 def assign_types(batch, clustering_scheme, batch_fragment_length, with_episode_type=True):
-	if with_episode_type:
-		batch_list = []
-		for episode in batch.split_by_episode():
-			sub_batch_list = episode.timeslices(batch_fragment_length) if episode.count > batch_fragment_length else [episode]
-			episode_type = clustering_scheme.get_episode_type(sub_batch_list)
+	if isinstance(batch, SampleBatch):
+		multi_batch = MultiAgentBatch({DEFAULT_POLICY_ID: batch}, batch.count)
+	else:
+		multi_batch = batch
+	batch_dict = {}
+	
+	for pid,batch in multi_batch.policy_batches.items():
+		batch_dict[pid] = []
+		# print(pid, batch['infos'], batch['rewards'])
+		if with_episode_type:
+			for episode in batch.split_by_episode():
+				sub_batch_list = episode.timeslices(batch_fragment_length) if episode.count > batch_fragment_length else [episode]
+				episode_type = clustering_scheme.get_episode_type(sub_batch_list)
+				for sub_batch in sub_batch_list:
+					get_batch_infos(sub_batch)['batch_type'] = clustering_scheme.get_batch_type(sub_batch, episode_type)
+				batch_dict[pid] += sub_batch_list
+		else:
+			sub_batch_list = batch.timeslices(batch_fragment_length) if batch.count > batch_fragment_length else [batch]
 			for sub_batch in sub_batch_list:
-				sub_batch_type = clustering_scheme.get_batch_type(sub_batch, episode_type)
-				get_batch_infos(sub_batch)['batch_type'] = sub_batch_type
-			batch_list += sub_batch_list
-		return batch_list
-	sub_batch_list = batch.timeslices(batch_fragment_length) if batch.count > batch_fragment_length else [batch]
-	for sub_batch in sub_batch_list:
-		sub_batch_type = clustering_scheme.get_batch_type(sub_batch)
-		get_batch_infos(sub_batch)['batch_type'] = sub_batch_type
-	return sub_batch_list
+				get_batch_infos(sub_batch)['batch_type'] = clustering_scheme.get_batch_type(sub_batch)
+			batch_dict[pid] += sub_batch_list
+	batch_list = [
+		MultiAgentBatch({
+			pid: b
+			for pid,b in zip(batch_dict.keys(),b_list)
+		},b_list[0].count)
+		for b_list in zip(*batch_dict.values())
+	]
+	return batch_list
 
 def get_update_replayed_batch_fn(local_replay_buffer, local_worker, postprocess_trajectory_fn):
 	def update_replayed_fn(samples):
