@@ -1,4 +1,4 @@
-# XARL in Rule-Dense Environments
+# Explanation-Aware Experience Replay in Rule-Dense Environments
 
 Code accompanying the paper
 > ["Explanation-Aware Experience Replay in Rule-Dense Environments"](https://arxiv.org/abs/2109.14711)
