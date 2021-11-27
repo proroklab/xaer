@@ -12,8 +12,8 @@ This implementation of XARL supports:
 - PPO
 
 XARL comes also with 2 new environments:
-- GridDrive: A 15×15 grid of cells, where every cell represents a different type of road (see Figure 2, left), with base types (e.g. motorway, school road, city) combined with other modifiers (roadworks, accidents, weather). Each vehicle will have a set of properties that define which type of vehicle they are (emergency, civilian, worker, etc). Complex combinations of these properties will define a strict speed limit for each cell, according to the culture. 
-- GraphDrive: An Euclidean representation of a planar graph with n vertices and m edges. The agent starts at the coordinates of one of those vertices and has to drive be- tween vertices (called ‘junctions’) in continuous space with Ackermann-based non-holonomic motion. Edges represent roads and are subjected to the same rules with properties to those seen in GridDrive plus a few extra rules to encourage the agent to stay close to the edges. The incentive is to drive as long as possible without committing speed infractions. In this setting, the agent not only has to master the rules of the roads, but also the control dynamics to steer and accelerate correctly. We test two variations of this environment: one with dense and another with sparse rewards. 
+- **GridDrive**: A 15×15 grid of cells, where every cell represents a different type of road (see Figure 2, left), with base types (e.g. motorway, school road, city) combined with other modifiers (roadworks, accidents, weather). Each vehicle will have a set of properties that define which type of vehicle they are (emergency, civilian, worker, etc). Complex combinations of these properties will define a strict speed limit for each cell, according to the culture. 
+- **GraphDrive**: An Euclidean representation of a planar graph with n vertices and m edges. The agent starts at the coordinates of one of those vertices and has to drive be- tween vertices (called ‘junctions’) in continuous space with Ackermann-based non-holonomic motion. Edges represent roads and are subjected to the same rules with properties to those seen in GridDrive plus a few extra rules to encourage the agent to stay close to the edges. The incentive is to drive as long as possible without committing speed infractions. In this setting, the agent not only has to master the rules of the roads, but also the control dynamics to steer and accelerate correctly. We test two variations of this environment: one with dense and another with sparse rewards. 
 
 *Environments*
 ![Environments](images/environments.png)
@@ -84,7 +84,7 @@ For example, as shown in the following image we have:
 - HW xi: HW with `"clustering_xi": 1` for SAC or `"clustering_xi": 3` for DQN/TD3
 - HW sans simplicity: HW with `'cluster_prioritisation_strategy': None`
 
-*DQN - GraphDrive Medium*
+*DQN - GridDrive Medium*
 ![DQN - GridDrive Medium](images/experiments/DQN/DQN-GridDrive-Medium.png)
 
 ## RLlib Patches
