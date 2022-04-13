@@ -23,3 +23,7 @@ pip install -r environments/requirements.txt
 echo 'Installing XARL..'
 pip install -e ./package # cmake is needed
 # pip install ray[rllib]==1.2.0 aioredis==1.3.1
+
+# echo 'Fixing environments rendering'
+pip install pyglet==1.5.11 # fix for rendering environments
+pip install opencv-python-headless==4.1.2.30

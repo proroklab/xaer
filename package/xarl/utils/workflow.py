@@ -124,15 +124,58 @@ def test(tester_class, config, environment_class, checkpoint, save_gif=True, del
 def train(trainer_class, config, environment_class, test_every_n_step=None, stop_training_after_n_step=None, log=True):
 	# Configure RLlib to train a policy using the given environment and trainer
 	agent = trainer_class(config, env=environment_class)
-	# # Inspect the trained policy and model, to see the results of training in detail
-	# policy = agent.get_policy()
-	# model = policy.model
-	# if hasattr(model, 'base_model'):
-	# 	print(model.base_model.summary())
-	# if hasattr(model, 'q_value_head'):
-	# 	print(model.q_value_head.summary())
-	# if hasattr(model, 'heads_model'):
-	# 	print(model.heads_model.summary())
+	# Inspect the trained policy and model, to see the results of training in detail
+	policy = agent.get_policy()
+	if not policy:
+		policy_list = [
+			agent.get_policy(policy_id)
+			for policy_id in config["multiagent"]["policies"].keys()
+		]
+	else:
+		policy_list = [policy]
+	for i,policy in enumerate(policy_list):
+		model = policy.model
+		print(f'Members of model of agent with ID {i}:', dir(model))
+		if hasattr(model, 'action_space'):
+			print('#'*10)
+			print(f'action_space of agent with ID {i}:')
+			print(model.action_space)
+			print('#'*10)
+		if hasattr(model, 'obs_space'):
+			print('#'*10)
+			print(f'obs_space of agent with ID {i}:')
+			print(model.obs_space)
+			print('#'*10)
+		if hasattr(model, 'base_model'):
+			print('#'*10)
+			print(f'base_model of agent with ID {i}:')
+			print(model.base_model.summary())
+			print('#'*10)
+		if hasattr(model, 'q_value_head'):
+			print('#'*10)
+			print(f'q_value_head of agent with ID {i}:')
+			print(model.q_value_head.summary())
+			print('#'*10)
+		if hasattr(model, 'heads_model'):
+			print('#'*10)
+			print(f'heads_model of agent with ID {i}:')
+			print(model.heads_model.summary())
+			print('#'*10)
+		if hasattr(model, 'action_model'):
+			print('#'*10)
+			print(f'action_model of agent with ID {i}:')
+			print(model.action_model.summary())
+			print('#'*10)
+		if hasattr(model, 'q_net'):
+			print('#'*10)
+			print(f'q_net of agent with ID {i}:')
+			print(model.q_net.summary())
+			print('#'*10)
+		if hasattr(model, 'twin_q_net'):
+			print('#'*10)
+			print(f'twin_q_net of agent with ID {i}:')
+			print(model.twin_q_net.summary())
+			print('#'*10)
 	# Start training
 	n = 0
 	sample_steps = 0
