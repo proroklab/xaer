@@ -99,7 +99,7 @@ For running any experiment on PPO with PyTorch, to avoid raising a NaN error dur
 ```
 
 ## Citations
-This code is free. So, if you use this code anywhere, please cite us:
+This code is free. So, if you use this code anywhere, please cite our journal paper:
 ```
 @article{sovrano2021explanation,
   title={Explanation-Aware Experience Replay in Rule-Dense Environments},
