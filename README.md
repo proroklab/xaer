@@ -101,12 +101,15 @@ For running any experiment on PPO with PyTorch, to avoid raising a NaN error dur
 ## Citations
 This code is free. So, if you use this code anywhere, please cite us:
 ```
-@article{sovranoraymond2021xarl,
+@article{sovrano2021explanation,
   title={Explanation-Aware Experience Replay in Rule-Dense Environments},
-  author={Sovrano, Francesco and Raymond, Alex and Prorok Amanda},
-  journal={arXiv preprint arXiv:2109.14711},
-  url={https://arxiv.org/abs/2109.14711},
-  year={2021}
+  author={Sovrano, Francesco and Raymond, Alex and Prorok, Amanda},
+  journal={IEEE Robotics and Automation Letters},
+  volume={7},
+  number={2},
+  pages={898--905},
+  year={2021},
+  publisher={IEEE}
 }
 ```
 
